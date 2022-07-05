@@ -6,8 +6,8 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 ### List of features
 1. Vertical scailing using `worker_threads`
 2. Support of HTTP and WebSockets protocols
-3. Built-in scheduler
-4. Built-in delayed task executor
+3. Scheduler
+4. I/O intensive delayed task execution on separate threads
 5. Hot reloading
 
 ### Core dependencies

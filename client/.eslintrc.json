@@ -1,0 +1,12 @@
+{
+  "extends": "../../.eslintrc.json",
+  "env": {
+    "browser": true,
+    "node": false,
+    "commonjs": false,
+    "es2021": true
+  },
+  "parserOptions": {
+    "sourceType": "module"
+  }
+}

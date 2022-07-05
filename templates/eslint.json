@@ -1,0 +1,20 @@
+{
+  "env": {
+    "browser": false,
+    "node": true,
+    "commonjs": true
+  },
+  "globals": {
+    "db": "readonly",
+    "services": "readonly",
+    "lib": "readonly",
+    "config": "readonly",
+    "application": "readonly",
+    "ErrorCode": "readonly",
+    "ApiException": "readonly",
+    "defineApiModule": "readonly",
+    "defineGuardModule": "readonly",
+    "defineAuthModule": "readonly",
+    "defineDbModule": "readonly"
+  }
+}

@@ -30,6 +30,9 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [ ] Documentation
 
 ### Examples
+
+More examples [in starter repo](https://github.com/denis-ilchishin/neemata-starter) 
+
 ```JS
 module.exports = async ({ data, auth }) => {
    if(auth) {

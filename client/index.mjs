@@ -1,2 +1,2 @@
-export * from './lib/enums'
-export { createNeemata } from './neemata'
+export * from './lib/enums.mjs'
+export { createNeemata } from './neemata.mjs'

@@ -1,6 +1,5 @@
-import { MessageType, Protocol } from './lib/enums'
-import { ErrorCode } from './lib/enums.mjs'
-import { EventEmitter } from './lib/event-emitter'
+import { ErrorCode, MessageType, Protocol } from './lib/enums.mjs'
+import { EventEmitter } from './lib/event-emitter.mjs'
 
 // const rooms = new Map()
 

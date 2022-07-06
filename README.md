@@ -24,7 +24,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [ ] File upload
 - [ ] Logging
 - [ ] Utils for automation testing
-- [ ] Extenred configuration
+- [ ] Extended configuration
 - [ ] Extended typing support
 - [ ] Get rid of all non-core dependecies
 - [ ] Documentation

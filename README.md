@@ -5,7 +5,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 
 ### List of features
 1. Vertical scailing using `worker_threads`
-2. Support of HTTP and WebSockets protocols
+2. Support of HTTP and WebSockets protocols. With protocol-agnostic design, on client side just use `await neemata.api.findUser(id)` no matter of http or ws.
 3. Scheduler
 4. I/O intensive delayed task execution on separate threads
 5. Hot reloading
@@ -17,11 +17,16 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [Joi](https://github.com/sideway/joi) - data schema validation
 
 ### Roadmap
+- [ ] Web socket rooms
+- [ ] *Safe* `require` for better security
 - [ ] Static serving
 - [ ] File upload
 - [ ] Logging
 - [ ] Utils for automation testing
+- [ ] Extenred configuration
 - [ ] Extended typing support
+- [ ] Get rid of all non-core dependecies
+- [ ] Documentation
 
 ### Examples
 ```JS
@@ -37,12 +42,13 @@ const Joi = require('joi')
 
 module.exports = defineApiModule({
   auth: true,
-  guards: [lib.dashboard.guard, async ({auth}) => auth.group === 'ADMIN'],
+  protocol: 'http',
+  guards: [lib.dashboard.guard, async ({ auth }) => auth.group === 'ADMIN'],
   schema: Joi.object({ 
       name: Joi.string().required()
   }).required(),
   handler: async ({ auth, data }) => {
-      data.name //  validated against schema specified above
+      return data.name //  validated against schema specified above
   }
 })
 ```

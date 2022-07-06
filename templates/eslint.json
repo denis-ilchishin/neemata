@@ -15,6 +15,7 @@
     "defineApiModule": "readonly",
     "defineGuardModule": "readonly",
     "defineAuthModule": "readonly",
-    "defineDbModule": "readonly"
+    "defineDbModule": "readonly",
+    "defineConnectionHook": "readonly"
   }
 }

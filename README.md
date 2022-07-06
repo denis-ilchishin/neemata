@@ -6,9 +6,9 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 ### List of features
 1. Vertical scailing using `worker_threads`
 2. Support of HTTP and WebSockets protocols. With protocol-agnostic design, on client side just use `await neemata.api.findUser(id)` no matter of http or ws.
-3. Scheduler
+3. Task scheduler
 4. I/O intensive delayed task execution on separate threads
-5. Hot reloading
+5. On-fly instant hot reloading, without process/worker restart
 
 ### Core dependencies
 - [Fastify](https://github.com/fastify/fastify) - server
@@ -17,7 +17,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [Joi](https://github.com/sideway/joi) - data schema validation
 
 ### Roadmap
-- [ ] Starter project
+- [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
 - [ ] Web socket rooms
 - [ ] *Safe* `require` for better security
 - [ ] Static serving
@@ -30,6 +30,9 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [ ] Documentation
 
 ### Examples
+
+More examples [in starter repo](https://github.com/denis-ilchishin/neemata-starter) 
+
 ```JS
 module.exports = async ({ data, auth }) => {
    if(auth) {

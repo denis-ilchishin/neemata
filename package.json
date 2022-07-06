@@ -7,11 +7,8 @@
     "client/*",
     "index.js"
   ],
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
   "dependencies": {
     "@fastify/cors": "^7.0.0",
     "@fastify/websocket": "^5.0.0",

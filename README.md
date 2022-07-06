@@ -6,7 +6,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 ### List of features
 1. Vertical scailing using `worker_threads`
 2. Support of HTTP and WebSockets protocols. With protocol-agnostic design, on client side just use `await neemata.api.findUser(id)` no matter of http or ws.
-3. Scheduler
+3. Task scheduler
 4. I/O intensive delayed task execution on separate threads
 5. On-fly instant hot reloading, without process/worker restart
 

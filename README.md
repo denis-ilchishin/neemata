@@ -17,7 +17,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [Joi](https://github.com/sideway/joi) - data schema validation
 
 ### Roadmap
-- [ ] Starter project
+- [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
 - [ ] Web socket rooms
 - [ ] *Safe* `require` for better security
 - [ ] Static serving

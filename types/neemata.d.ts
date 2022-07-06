@@ -54,7 +54,7 @@ declare global {
       readonly auth: Neemata['auth']
       readonly client: WebSocket
       readonly req: FastifyRequest
-    }) => unknown
+    }) => Promise<unknown>
   ) => unknown
 
   const defineDbModule: <T>(options: {

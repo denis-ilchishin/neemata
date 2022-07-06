@@ -5,6 +5,8 @@
   "main": "index.js",
   "files": [
     "client/*",
+    "lib/*",
+    "templates/*",
     "index.js"
   ],
   "author": "ilchishin.denis@gmail.com",

@@ -3,12 +3,6 @@
   "version": "0.0.1",
   "description": "Nodejs application server",
   "main": "index.js",
-  "files": [
-    "client/*",
-    "lib/*",
-    "templates/*",
-    "index.js"
-  ],
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "dependencies": {

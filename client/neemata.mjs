@@ -230,7 +230,7 @@ export function createNeemata(options) {
     ws.addEventListener('open', () => {
       console.log('Connection opened')
       clearTimeout(reconnectTimeout)
-      neemata.rooms = createRooms(ws)
+      // neemata.rooms = createRooms(ws)
       connecting = false
     })
 

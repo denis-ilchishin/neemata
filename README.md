@@ -8,7 +8,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 2. Support of HTTP and WebSockets protocols. With protocol-agnostic design, on client side just use `await neemata.api.findUser(id)` no matter of http or ws.
 3. Scheduler
 4. I/O intensive delayed task execution on separate threads
-5. Hot reloading
+5. On-fly instant hot reloading, without process/worker restart
 
 ### Core dependencies
 - [Fastify](https://github.com/fastify/fastify) - server

@@ -19,10 +19,10 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 ### Roadmap
 - [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
 - [ ] Publish to npm
-- [ ] Web socket rooms
-- [ ] *Safe* `require` for better security
+- [ ] ~~Web socket rooms~~
+- [ ] *Safe and configurable* `require` 
+- [ ] Binary data handling
 - [ ] Static serving
-- [ ] File upload
 - [ ] Logging
 - [ ] Utils for automation testing
 - [ ] Extended configuration

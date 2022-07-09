@@ -5,7 +5,6 @@ export enum Protocol {
 
 export enum MessageType {
   Api = 'api',
-  Room = 'room',
   Server = 'server',
 }
 

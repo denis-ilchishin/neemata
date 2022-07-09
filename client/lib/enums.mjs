@@ -5,7 +5,6 @@ export const Protocol = Object.freeze({
 
 export const MessageType = Object.freeze({
   Api: 'api',
-  Room: 'room',
   Server: 'server',
 })
 

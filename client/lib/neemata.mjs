@@ -8,7 +8,12 @@ export class Neemata extends EventEmitter {
   auth = null
   api = {}
 
-  constructor({ host, preferHttp = false, baseUrl = '/api' }) {
+  constructor({
+    host,
+    preferHttp = false,
+    baseUrl = '/api',
+    autoreconnect = 1500,
+  }) {
     super()
 
     this.httpUrl = new URL(baseUrl, host)
@@ -19,8 +24,9 @@ export class Neemata extends EventEmitter {
       }`
     )
     this.preferHttp = preferHttp
+    this.autoreconnect = autoreconnect
 
-    this.on('reload', () => {
+    this.on('neemata:reload', () => {
       this._introspect()
     })
   }
@@ -164,7 +170,7 @@ export class Neemata extends EventEmitter {
         console.error(err)
         this.emit('neemata:error', err)
         // TODO: add server ping?
-        setTimeout(() => this.connect(), 1000)
+        ws.close()
       })
 
       ws.addEventListener('message', (message) => {
@@ -178,7 +184,8 @@ export class Neemata extends EventEmitter {
 
       ws.addEventListener('close', () => {
         this.emit('neemata:disconnect')
-        setTimeout(() => this.connect(), 1000)
+        if (this.autoreconnect)
+          setTimeout(() => this.connect(), this.autoreconnect)
       })
 
       this.ws = ws
@@ -187,5 +194,6 @@ export class Neemata extends EventEmitter {
 
   reconnect() {
     this.ws?.close()
+    if (!this.autoreconnect) this.connect()
   }
 }

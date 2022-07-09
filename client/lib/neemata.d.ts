@@ -2,7 +2,7 @@ import { EventEmitter } from './event-emitter'
 
 export class Neemata<Api = any> extends EventEmitter {
   constructor(options: {
-    url: string
+    host: string
     preferHttp?: boolean
     baseUrl?: string
   }) {}

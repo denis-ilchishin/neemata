@@ -11,24 +11,22 @@ export class Neemata extends EventEmitter {
   constructor({
     host,
     preferHttp = false,
-    baseUrl = '/api',
+    basePath = '/api',
     autoreconnect = 1500,
   }) {
     super()
 
-    this.httpUrl = new URL(baseUrl, host)
+    this.httpUrl = new URL(basePath, host)
     this.wsUrl = new URL(
-      baseUrl,
+      basePath,
       `${this.httpUrl.protocol === 'https' ? 'wss' : 'ws'}://${
         this.httpUrl.host
       }`
     )
-    this.preferHttp = preferHttp
+    this.prefer = preferHttp ? Protocol.Http : Protocol.Ws
     this.autoreconnect = autoreconnect
 
-    this.on('neemata:reload', () => {
-      this._introspect()
-    })
+    this.on('neemata:reload', this._introspect.bind(this))
   }
 
   setAuth(token) {
@@ -57,9 +55,9 @@ export class Neemata extends EventEmitter {
             enumerable: true,
             value: Object.assign(
               (data, { version = '*', protocol: _protocol } = {}) =>
-                request({
+                this._request({
                   module: name,
-                  protocol: protocol ?? _protocol ?? prefer,
+                  protocol: protocol ?? _protocol ?? this.prefer,
                   url,
                   data,
                   version,
@@ -131,12 +129,12 @@ export class Neemata extends EventEmitter {
               },
             })
           } finally {
-            ws.removeEventListener('message', handler)
+            this.ws.removeEventListener('message', handler)
           }
         }
 
-        ws.addEventListener('message', handler)
-        ws.send(
+        this.ws.addEventListener('message', handler)
+        this.ws.send(
           JSON.stringify({
             type: MessageType.Api,
             payload: { messageId, module, data, version },

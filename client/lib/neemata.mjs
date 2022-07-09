@@ -34,9 +34,11 @@ export class Neemata extends EventEmitter {
       res.json()
     )
 
+    this.api = {}
+
     for (const [name, { url, protocol }] of Object.entries(modules)) {
       const parts = name.split('.')
-      let last = api
+      let last = this.api
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i]
@@ -145,39 +147,42 @@ export class Neemata extends EventEmitter {
   }
 
   async connect() {
-    this.connecting = true
+    return new Promise((resolve) => {
+      this.connecting = true
 
-    this.wsUrl.searchParams.set('authorization', this.auth)
+      this.wsUrl.searchParams.set('authorization', this.auth)
 
-    const ws = new window.WebSocket(this.wsUrl)
+      const ws = new window.WebSocket(this.wsUrl)
 
-    ws.addEventListener('open', () => {
-      this.connecting = false
-      this.emit('neemata:connect')
-    })
+      ws.addEventListener('open', () => {
+        this.connecting = false
+        this.emit('neemata:connect')
+        this._introspect().then(resolve)
+      })
 
-    ws.addEventListener('error', (err) => {
-      console.error(err)
-      this.emit('neemata:error', err)
-      // TODO: add ping/pong
-      setTimeout(() => this.connect(), 1000)
-    })
-
-    ws.addEventListener('message', (message) => {
-      try {
-        const { type, event, payload } = JSON.parse(message.data)
-        if (type === MessageType.Server && event) emitter.emit(event, payload)
-      } catch (err) {
+      ws.addEventListener('error', (err) => {
         console.error(err)
-      }
-    })
+        this.emit('neemata:error', err)
+        // TODO: add server ping?
+        setTimeout(() => this.connect(), 1000)
+      })
 
-    ws.addEventListener('close', () => {
-      this.emit('neemata:disconnect')
-      setTimeout(() => this.connect(), 1000)
-    })
+      ws.addEventListener('message', (message) => {
+        try {
+          const { type, event, payload } = JSON.parse(message.data)
+          if (type === MessageType.Server && event) emitter.emit(event, payload)
+        } catch (err) {
+          console.error(err)
+        }
+      })
 
-    this.ws = ws
+      ws.addEventListener('close', () => {
+        this.emit('neemata:disconnect')
+        setTimeout(() => this.connect(), 1000)
+      })
+
+      this.ws = ws
+    })
   }
 
   reconnect() {

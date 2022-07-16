@@ -11,17 +11,17 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 5. On-fly instant hot reloading, without process/worker restart
 
 ### Core dependencies
-- [Fastify](https://github.com/fastify/fastify) - server
-- [WS](https://github.com/websockets/ws) - websocket protocol realization 
-- [Redis](https://github.com/redis/node-redis) - cache and ws event propagation 
+- [Fastify](https://github.com/fastify/fastify) - web server
+- [WS](https://github.com/websockets/ws) - websocket protocol 
+- [Redis](https://github.com/redis/node-redis) - cache and ws events propagation 
 - [Joi](https://github.com/sideway/joi) - data schema validation
 
 ### Roadmap
 - [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
-- [ ] Publish to npm
 - [ ] ~~Web socket rooms~~
 - [ ] *Safe and configurable* `require` 
 - [ ] Binary data handling
+- [ ] Request queues and *maybe?* throttling 
 - [ ] Static serving
 - [ ] Logging
 - [ ] Utils for automation testing
@@ -29,6 +29,7 @@ Lightweight application server for nodejs, that uses threads under the hood for 
 - [ ] Extended typing support
 - [ ] Get rid of all non-core dependecies
 - [ ] Documentation
+- [ ] Publish to npm
 
 ### Examples
 

@@ -21,33 +21,19 @@ export class EventEmitter {
   }
 
   once(name, cb) {
-    let events = this.#once.get(name)
-
-    if (!events) {
-      events = new Set()
-      this.#once.set(name, events)
+    const handler = () => {
+      this.off(name, handler)
+      cb()
     }
 
-    events.add(cb)
+    this.on(name, handler)
   }
 
   emit(name, ...args) {
-    {
-      const events = this.#once.get(name)
-      if (events) {
-        for (const cb of events.values()) {
-          cb(...args)
-          events.delete(cb)
-        }
-      }
-    }
-
-    {
-      const events = this.#on.get(name)
-      if (events) {
-        for (const cb of events.values()) {
-          cb(...args)
-        }
+    const events = this.#on.get(name)
+    if (events) {
+      for (const cb of events.values()) {
+        cb(...args)
       }
     }
   }

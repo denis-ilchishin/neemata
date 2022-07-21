@@ -1,12 +1,23 @@
 import { ErrorCode, MessageType, Protocol } from './enums.mjs'
 import { EventEmitter } from './event-emitter.mjs'
 
+const randomUUID = () =>
+  typeof crypto.randomUUID !== 'undefined'
+    ? crypto.randomUUID()
+    : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+        (
+          c ^
+          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+        ).toString(16)
+      )
+
 // TODO: ssr friendly (without fetch? polyfil? ws?)
 export class Neemata extends EventEmitter {
   ws = null
   connecting = false
   auth = null
   api = {}
+  settings = {}
 
   constructor({
     host,
@@ -34,13 +45,14 @@ export class Neemata extends EventEmitter {
   }
 
   async _introspect() {
-    const modules = await fetch(`${this.httpUrl}/introspect`).then((res) =>
-      res.json()
+    const { settings, api } = await fetch(`${this.httpUrl}/introspect`).then(
+      (res) => res.json()
     )
+    this.settings = settings
 
     this.api = {}
 
-    for (const [name, { url, protocol }] of Object.entries(modules)) {
+    for (const [name, { url, protocol }] of Object.entries(api)) {
       const parts = name.split('.')
       let last = this.api
 
@@ -74,14 +86,23 @@ export class Neemata extends EventEmitter {
 
   async _request({ module, protocol, url, data, version = '*' }) {
     if (protocol === Protocol.Http) {
-      return fetch(`${this.httpUrl}/${url}`, {
-        body: data,
+      const options = {
         method: 'POST',
         headers: {
-          Authorization: this.auth,
-          'Accept-Version': version,
+          'accept-version': version,
         },
-      })
+      }
+
+      if (data) {
+        options.headers['content-type'] = 'application/json'
+        options.body = JSON.stringify(data)
+      }
+
+      if (this.auth) {
+        options.headers.authorization = this.auth
+      }
+
+      return fetch(`${this.httpUrl}/${url}`, options)
         .catch((err) => {
           console.error(err)
           return {
@@ -102,25 +123,26 @@ export class Neemata extends EventEmitter {
           }
         })
         .then(({ error, data }) => {
-          return Promise[error ? 'reject' : 'resolve']({ error, data })
+          return Promise.resolve(error ? { error, data } : data)
         })
     } else {
       const req = new Promise((resolve, reject) => {
-        const messageId = crypto.randomUUID()
+        const messageId = randomUUID()
         const handler = ({ data: rawMessage }) => {
           try {
             const { type, payload } = JSON.parse(rawMessage)
-
             if (
               type === MessageType.Api &&
               payload.messageId === messageId &&
               payload.module === module
             ) {
+              this.ws.removeEventListener('message', handler)
               if (payload.error)
                 reject({ error: payload.error, data: payload.data })
               else resolve(payload.data)
             }
           } catch (error) {
+            this.ws.removeEventListener('message', handler)
             console.error(error)
             reject({
               error: {
@@ -128,8 +150,6 @@ export class Neemata extends EventEmitter {
                 message: 'CLIENT_WS_CHANNEL_MESSAGE_PARSE_ERROR',
               },
             })
-          } finally {
-            this.ws.removeEventListener('message', handler)
           }
         }
 
@@ -150,18 +170,19 @@ export class Neemata extends EventEmitter {
     this.ws.readyState
   }
 
-  async connect() {
+  connect() {
     return new Promise((resolve) => {
       this.connecting = true
-
       this.wsUrl.searchParams.set('authorization', this.auth)
-
       const ws = new window.WebSocket(this.wsUrl)
-
       ws.addEventListener('open', () => {
         this.connecting = false
-        this.emit('neemata:connect')
-        this._introspect().then(resolve)
+        this._introspect().then(() =>
+          setTimeout(() => {
+            this.emit('neemata:connect')
+            resolve()
+          }, 100)
+        )
       })
 
       ws.addEventListener('error', (err) => {
@@ -173,8 +194,9 @@ export class Neemata extends EventEmitter {
 
       ws.addEventListener('message', (message) => {
         try {
-          const { type, event, payload } = JSON.parse(message.data)
-          if (type === MessageType.Server && event) emitter.emit(event, payload)
+          const { type, payload } = JSON.parse(message.data)
+          if (type === MessageType.Server && payload.event)
+            this.emit(payload.event, payload.data)
         } catch (err) {
           console.error(err)
         }
@@ -190,8 +212,12 @@ export class Neemata extends EventEmitter {
     })
   }
 
-  reconnect() {
-    this.ws?.close()
-    if (!this.autoreconnect) this.connect()
+  async reconnect() {
+    await this.ws?.close()
+    if (!this.autoreconnect) return this.connect()
+    else
+      return new Promise((resolve) => {
+        this.once('neemata:connect', resolve)
+      })
   }
 }

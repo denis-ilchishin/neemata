@@ -5,6 +5,7 @@
     "commonjs": true
   },
   "globals": {
+    "Joi": "readonly",
     "db": "readonly",
     "services": "readonly",
     "lib": "readonly",

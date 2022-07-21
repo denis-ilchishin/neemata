@@ -1,5 +1,5 @@
 import { FastifyRequest } from 'fastify'
-import * as Joi from 'joi'
+import JoyType, * as Joi from 'joi'
 import { WebSocket } from 'ws'
 import { Cache } from '../lib/core/cache'
 
@@ -44,6 +44,7 @@ declare global {
   const services: Services
   const guards: Guards
   const db: Db
+  const Joi: typeof JoyType
 
   const defineConnectionHook: (
     module: (options: {

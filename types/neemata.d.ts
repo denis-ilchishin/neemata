@@ -1,6 +1,7 @@
 import { FastifyRequest } from 'fastify'
 import * as Joi from 'joi'
 import { WebSocket } from 'ws'
+import { Cache } from '../lib/core/cache'
 
 export { Joi }
 
@@ -29,16 +30,11 @@ declare global {
   interface Guards {}
   interface Db {}
   interface Application {
+    cache: Cache
     task: (task: string, ...args: any[]) => Promise<any>
     wss: {
-      message: (event: string, data: any) => void
-      // rooms: {
-      //   get: (roomId: string) => void
-      //   join: (roomId: string, client: WebSocket) => void
-      //   leave: (roomId: string, client: WebSocket) => void
-      //   remove: (roomId: string) => void
-      //   message: (roomId: string, options: { event: string; data: any }) => void
-      // }
+      client: (client: WebSocket, event: string, data: any) => void
+      server: (event: string, data: any) => void
     }
   }
 

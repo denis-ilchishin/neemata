@@ -6,7 +6,7 @@ import { Cache } from '../lib/core/cache'
 export { Joi }
 
 type ApiModuleHandler = (options: {
-  readonly auth: Neemata['auth'] | null
+  readonly auth: Auth | null
   readonly data: any
   readonly req: FastifyRequest
   readonly client?: WebSocket
@@ -20,10 +20,10 @@ interface ApiModule {
 }
 
 declare global {
-  interface Neemata {
-    // auth: any
-  }
-
+  
+  
+  interface Auth {}
+  
   interface Lib {}
   interface Config {}
   interface Services {}
@@ -31,7 +31,7 @@ declare global {
   interface Db {}
   interface Application {
     cache: Cache
-    task: (task: string, ...args: any[]) => Promise<any>
+    invokeTask: (task: string, ...args: any[]) => Promise<any>
     wss: {
       client: (client: WebSocket, event: string, data: any) => void
       server: (event: string, data: any) => void
@@ -48,7 +48,7 @@ declare global {
 
   const defineConnectionHook: (
     module: (options: {
-      readonly auth: Neemata['auth']
+      readonly auth: Auth
       readonly client: WebSocket
       readonly req: FastifyRequest
     }) => Promise<unknown>
@@ -63,12 +63,12 @@ declare global {
     module: (options: {
       readonly req: FastifyRequest
       readonly client?: WebSocket
-    }) => Promise<Neemata['auth'] | null>
+    }) => Promise<Auth | null>
   ) => unknown
   const defineGuardModule: (
     module: (options: {
       readonly req: FastifyRequest
-      readonly auth: Neemata['auth']
+      readonly auth: Auth
     }) => boolean
   ) => unknown
 

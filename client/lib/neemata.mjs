@@ -30,7 +30,7 @@ export class Neemata extends EventEmitter {
     this.httpUrl = new URL(basePath, host)
     this.wsUrl = new URL(
       basePath,
-      `${this.httpUrl.protocol === 'https' ? 'wss' : 'ws'}://${
+      `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
         this.httpUrl.host
       }`
     )

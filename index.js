@@ -3,14 +3,14 @@ const { timeout } = require('./lib/utils/helpers')
 
 let neemata
 
-const exit = async () => {
+const exit = async (code = 0) => {
   if (neemata) await timeout(neemata.shutdown(), 10000, null)
-  process.exit(1)
+  process.exit(code)
 }
 
 const logErr = (err) => {
   console.error(err)
-  exit()
+  exit(1)
 }
 
 async function run() {
@@ -23,5 +23,6 @@ async function run() {
 }
 
 process.on('SIGTERM', exit)
+process.on('SIGINT', exit)
 
 module.exports = { run }

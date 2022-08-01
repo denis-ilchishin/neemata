@@ -2,6 +2,7 @@ import { FastifyRequest } from 'fastify'
 import JoyType, * as Joi from 'joi'
 import { WebSocket } from 'ws'
 import { Cache } from '../lib/core/cache'
+import { Redis } from '../lib/core/redis'
 
 export { Joi }
 
@@ -20,10 +21,8 @@ interface ApiModule {
 }
 
 declare global {
-  
-  
   interface Auth {}
-  
+
   interface Lib {}
   interface Config {}
   interface Services {}
@@ -31,10 +30,11 @@ declare global {
   interface Db {}
   interface Application {
     cache: Cache
+    redis: Redis
     invokeTask: (task: string, ...args: any[]) => Promise<any>
     wss: {
-      client: (client: WebSocket, event: string, data: any) => void
-      server: (event: string, data: any) => void
+      clients: Set<WebSocket>
+      emit: (event: string, data: any, client?: WebSocket) => void
     }
   }
 

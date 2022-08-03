@@ -30,6 +30,7 @@ declare global {
   interface Guards {}
   interface Db {}
   interface Application {
+    workerId: number
     cache: Cache
     redis: Redis
     invokeTask: (task: string, ...args: any[]) => Promise<any>

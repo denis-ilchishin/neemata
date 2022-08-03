@@ -1,10 +1,10 @@
 import { FastifyRequest } from 'fastify'
 import JoyType, * as Joi from 'joi'
-import { WebSocket } from 'ws'
+import { WebSocket as _WebSocket } from 'ws'
 import { Cache } from '../lib/core/cache'
 import { Redis } from '../lib/core/redis'
 
-export { Joi }
+type WebSocket = _WebSocket & { auth: Auth | null }
 
 type ApiModuleHandler = (options: {
   readonly auth: Auth | null
@@ -15,9 +15,10 @@ type ApiModuleHandler = (options: {
 
 interface ApiModule {
   schema?: Joi.Schema
-  auth?: Function
+  auth?: boolean
   guards?: Function[]
   handler: ApiModuleHandler
+  protocol?: 'http' | 'ws'
 }
 
 declare global {
@@ -89,3 +90,6 @@ declare global {
     Timeout = 'TIMEOUT',
   }
 }
+
+export { Joi }
+export { WebSocket }

@@ -2,9 +2,17 @@ const { Neemata } = require('./lib/neemata')
 const { timeout } = require('./lib/utils/helpers')
 
 let neemata
+let exiting
 
 const exit = async (code = 0) => {
-  if (neemata) await timeout(neemata.shutdown(), 10000, null)
+  if (exiting) return
+  exiting = true
+  if (neemata)
+    await timeout(
+      neemata.shutdown(),
+      neemata.appConfig.timeouts.app.shutdown + 1000,
+      null
+    )
   process.exit(code)
 }
 

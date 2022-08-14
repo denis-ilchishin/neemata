@@ -1,4 +1,4 @@
-import { FastifyRequest } from 'fastify'
+import { FastifyReply, FastifyRequest } from 'fastify'
 import JoyType, * as Joi from 'joi'
 import { WebSocket as _WebSocket } from 'ws'
 import { Cache } from '../lib/core/cache'
@@ -10,6 +10,7 @@ type ApiModuleHandler = (options: {
   readonly auth: Auth | null
   readonly data: any
   readonly req: FastifyRequest
+  readonly res: FastifyReply
   readonly client?: WebSocket
 }) => any
 
@@ -94,3 +95,4 @@ declare global {
 
 export { Joi }
 export { WebSocket }
+

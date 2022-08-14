@@ -2,6 +2,7 @@
   "compilerOptions": {
     "module": "commonjs",
     "moduleResolution": "node",
+    "target": "ESNext",
     "alwaysStrict": true,
     "strict": true,
     "baseUrl": ".",

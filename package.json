@@ -8,13 +8,13 @@
   "dependencies": {
     "@fastify/cors": "^7.0.0",
     "@fastify/websocket": "^5.0.0",
+    "@types/ws": "^8.5.3",
     "cron-parser": "^4.5.0",
     "fastify": "^3.29.0",
     "joi": "^17.6.0",
     "lodash": "^4.17.21",
-    "redis": "^4.1.0",
-    "tsc-watch": "^5.0.3",
-    "@types/ws": "^8.5.3"
+    "redis": "^4.2.0",
+    "tsc-watch": "^5.0.3"
   },
   "devDependencies": {
     "@types/node": "^17.0.40",

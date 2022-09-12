@@ -66,13 +66,14 @@ export class Neemata extends EventEmitter {
             configurable: false,
             enumerable: true,
             value: Object.assign(
-              (data, { version = '*', protocol: _protocol } = {}) =>
+              (data, { version = '*', protocol: _protocol, formData } = {}) =>
                 this._request({
                   module: name,
                   protocol: protocol ?? _protocol ?? this.prefer,
                   url,
                   data,
                   version,
+                  formData,
                 }),
               _prev
             ),
@@ -84,7 +85,7 @@ export class Neemata extends EventEmitter {
     }
   }
 
-  async _request({ module, protocol, url, data, version = '*' }) {
+  async _request({ module, protocol, url, data, formData, version = '*' }) {
     if (protocol === Protocol.Http) {
       const options = {
         method: 'POST',
@@ -94,8 +95,10 @@ export class Neemata extends EventEmitter {
       }
 
       if (data) {
-        options.headers['content-type'] = 'application/json'
-        options.body = JSON.stringify(data)
+        options.headers['content-type'] = formData
+          ? 'multipart/form-data'
+          : 'application/json'
+        options.body = formData ? data : JSON.stringify(data)
       }
 
       if (this.auth) {
@@ -105,7 +108,7 @@ export class Neemata extends EventEmitter {
       return fetch(`${this.httpUrl}/${url}`, options)
         .catch((err) => {
           console.error(err)
-          return {
+          throw {
             error: {
               code: ErrorCode.RequestError,
               message: 'CLIENT_HTTP_CHANNEL_REQUEST_ERROR',
@@ -115,7 +118,7 @@ export class Neemata extends EventEmitter {
         .then((res) => res.json())
         .catch((err) => {
           console.error(err)
-          return {
+          throw {
             error: {
               code: ErrorCode.RequestError,
               message: 'CLIENT_HTTP_CHANNEL_PARSE_ERROR',
@@ -123,7 +126,7 @@ export class Neemata extends EventEmitter {
           }
         })
         .then(({ error, data }) => {
-          return Promise.resolve(error ? { error, data } : data)
+          return error ? Promise.reject({ error, data }) : Promise.resolve(data)
         })
     } else {
       const req = new Promise((resolve, reject) => {
@@ -171,6 +174,10 @@ export class Neemata extends EventEmitter {
   }
 
   connect() {
+    if (this.prefer === Protocol.Http) {
+      return this._introspect()
+    }
+
     return new Promise((resolve) => {
       this.connecting = true
       this.wsUrl.searchParams.set('authorization', this.auth)

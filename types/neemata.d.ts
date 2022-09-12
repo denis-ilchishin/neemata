@@ -6,21 +6,23 @@ import { Redis } from '../lib/core/redis'
 
 type WebSocket = _WebSocket & { auth: Auth | null }
 
-type ApiModuleHandler = (options: {
+export type ApiModuleHandler<T> = (options: {
   readonly auth: Auth | null
   readonly data: any
   readonly req: FastifyRequest
   readonly res: FastifyReply
   readonly client?: WebSocket
-}) => any
+}) => T
 
-interface ApiModule {
+export interface ApiModule<T> {
   schema?: Joi.Schema
   auth?: boolean
   guards?: Function[]
-  handler: ApiModuleHandler
+  handler: ApiModuleHandler<T>
   protocol?: 'http' | 'ws'
 }
+
+export type ApiModuleType<T> = ApiModuleHandler<T> | ApiModule<T>
 
 declare global {
   interface Auth {}
@@ -61,7 +63,7 @@ declare global {
     readonly startup: () => Promise<T> | T
     readonly shutdown: (db: T) => Promise<unknown> | unknown
   }) => unknown
-  const defineApiModule: (module: ApiModuleHandler | ApiModule) => unknown
+  const defineApiModule: <Res, T extends ApiModuleType<Res>>(module: T) => T
   const defineAuthModule: (
     module: (options: {
       readonly req: FastifyRequest
@@ -84,15 +86,15 @@ declare global {
   }
 
   enum ErrorCode {
-    BodyValidation = 'BODY_VALIDATION',
+    ValidationError = 'VALIDATION_ERROR',
+    BadRequest = 'BAD_REQUEST',
     NotFound = 'NOT_FOUND',
     Forbidden = 'FORBIDDEN',
     Unauthorized = 'UNAUTHORIZED',
-    InternalError = 'INTERNAL_SERVER_ERROR',
-    Timeout = 'TIMEOUT',
+    InternalServerError = 'INTERNAL_SERVER_ERROR',
+    GatewayTimeout = 'GATEWAY_TIMEOUT',
   }
 }
 
 export { Joi }
 export { WebSocket }
-

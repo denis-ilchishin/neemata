@@ -9,10 +9,12 @@ export enum MessageType {
 }
 
 export enum ErrorCode {
-  BodyValidation = 'BODY_VALIDATION',
+  ValidationError = 'VALIDATION_ERROR',
+  BadRequest = 'BAD_REQUEST',
   NotFound = 'NOT_FOUND',
   Forbidden = 'FORBIDDEN',
-  InternalError = 'INTERNAL_SERVER_ERROR',
-  Timeout = 'TIMEOUT',
+  Unauthorized = 'UNAUTHORIZED',
+  InternalServerError = 'INTERNAL_SERVER_ERROR',
+  GatewayTimeout = 'GATEWAY_TIMEOUT',
   Unauthorized = 'UNAUTHORIZED',
 }

@@ -9,11 +9,12 @@ export const MessageType = Object.freeze({
 })
 
 export const ErrorCode = Object.freeze({
-  BodyValidation: 'BODY_VALIDATION',
+  ValidationError: 'VALIDATION_ERROR',
+  BadRequest: 'BAD_REQUEST',
   NotFound: 'NOT_FOUND',
   Forbidden: 'FORBIDDEN',
-  InternalError: 'INTERNAL_SERVER_ERROR',
-  Timeout: 'TIMEOUT',
-  RequestError: 'REQUEST_ERROR',
   Unauthorized: 'UNAUTHORIZED',
+  InternalServerError: 'INTERNAL_SERVER_ERROR',
+  GatewayTimeout: 'GATEWAY_TIMEOUT',
+  RequestError: 'REQUEST_ERROR',
 })

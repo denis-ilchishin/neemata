@@ -30,7 +30,17 @@ async function run() {
   }
 }
 
+async function exec(task, args) {
+  try {
+    neemata = new Neemata()
+    await neemata.exec(task, args)
+    exit()
+  } catch (err) {
+    logErr(err)
+  }
+}
+
 process.on('SIGTERM', exit)
 process.on('SIGINT', exit)
 
-module.exports = { run }
+module.exports = { run, exec }

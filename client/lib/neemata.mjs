@@ -14,7 +14,7 @@ const randomUUID = () =>
 // TODO: ssr friendly (without fetch? polyfil? ws?)
 export class Neemata extends EventEmitter {
   ws = null
-  connecting = false
+  connecting = null
   auth = null
   api = {}
   settings = {}
@@ -86,6 +86,8 @@ export class Neemata extends EventEmitter {
   }
 
   async _request({ module, protocol, url, data, formData, version = '*' }) {
+    await this.connecting
+
     if (protocol === Protocol.Http) {
       const options = {
         method: 'POST',
@@ -173,50 +175,58 @@ export class Neemata extends EventEmitter {
     this.ws.readyState
   }
 
-  connect() {
+  async connect() {
     if (this.prefer === Protocol.Http) {
-      return this._introspect()
+      this.connecting = this._introspect()
+      return this.connecting
     }
 
-    return new Promise((resolve) => {
-      this.connecting = true
-      this.wsUrl.searchParams.set('authorization', this.auth)
-      const ws = new window.WebSocket(this.wsUrl)
-      ws.addEventListener('open', () => {
-        this.connecting = false
-        this._introspect().then(() =>
-          setTimeout(() => {
-            this.emit('neemata:connect')
-            resolve()
-          }, 100)
-        )
-      })
+    this.connecting = new Promise((resolve) => {
+      this.checkHealth().then(() => {
+        this.wsUrl.searchParams.set('authorization', this.auth)
+        const ws = (this.ws = new window.WebSocket(this.wsUrl))
 
-      ws.addEventListener('error', (err) => {
-        console.error(err)
-        this.emit('neemata:error', err)
-        // TODO: add server ping?
-        ws.close()
-      })
-
-      ws.addEventListener('message', (message) => {
-        try {
-          const { type, payload } = JSON.parse(message.data)
-          if (type === MessageType.Server && payload.event)
-            this.emit(payload.event, payload.data)
-        } catch (err) {
+        ws.addEventListener('error', (err) => {
           console.error(err)
-        }
-      })
+          this.emit('neemata:error', err)
+          ws.close()
+        })
 
-      ws.addEventListener('close', () => {
-        this.emit('neemata:disconnect')
-        if (this.autoreconnect)
-          setTimeout(() => this.connect(), this.autoreconnect)
-      })
+        ws.addEventListener('message', (message) => {
+          try {
+            const { type, payload } = JSON.parse(message.data)
+            if (type === MessageType.Server && payload.event)
+              this.emit(payload.event, payload.data)
+          } catch (err) {
+            console.error(err)
+          }
+        })
 
-      this.ws = ws
+        ws.addEventListener('close', () => {
+          this.emit('neemata:disconnect')
+          if (this.autoreconnect) this.connect()
+        })
+
+        ws.addEventListener('open', async () => {
+          await this._introspect()
+          this.emit('neemata:connect')
+          setTimeout(resolve, 0)
+        })
+      })
     })
+
+    return this.connecting
+  }
+
+  async checkHealth() {
+    let healhy = false
+
+    while (!healhy) {
+      healhy = await fetch(`${this.httpUrl}/health`, { method: 'GET' })
+        .then((r) => r.ok)
+        .catch((err) => false)
+      if (!healhy) await new Promise((r) => setTimeout(r, 1000))
+    }
   }
 
   async reconnect() {

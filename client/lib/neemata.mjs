@@ -23,7 +23,7 @@ export class Neemata extends EventEmitter {
     host,
     preferHttp = false,
     basePath = '/api',
-    autoreconnect = 1500,
+    autoreconnect = true,
   }) {
     super()
 
@@ -38,6 +38,16 @@ export class Neemata extends EventEmitter {
     this.autoreconnect = autoreconnect
 
     this.on('neemata:reload', this._introspect.bind(this))
+
+    if (!preferHttp && typeof window !== 'undefined') {
+      const onForeground = () => {
+        if (!document.hidden && !this.connected) {
+          this.connect()
+        }
+      }
+      window.addEventListener('focus', onForeground)
+      window.document.addEventListener('visibilitychange', onForeground)
+    }
   }
 
   setAuth(token) {
@@ -172,7 +182,13 @@ export class Neemata extends EventEmitter {
   }
 
   get state() {
-    this.ws.readyState
+    return this.ws.readyState
+  }
+
+  get connected() {
+    return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
+      this.state
+    )
   }
 
   async connect() {

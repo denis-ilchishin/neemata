@@ -11,42 +11,44 @@ const randomUUID = () =>
         ).toString(16)
       )
 
-// TODO: ssr friendly (without fetch? polyfil? ws?)
+export class NeemataError extends Error {
+  constructor(code, message, data) {
+    super(message)
+    this.name = code
+    this.data = data
+  }
+}
+
 export class Neemata extends EventEmitter {
   ws = null
   connecting = null
   auth = null
-  api = {}
-  settings = {}
 
   constructor({
     host,
     preferHttp = false,
     basePath = '/api',
     autoreconnect = true,
+    ping = 30 * 1000,
   }) {
     super()
 
     this.httpUrl = new URL(basePath, host)
-    this.wsUrl = new URL(
-      basePath,
-      `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
-        this.httpUrl.host
-      }`
-    )
     this.prefer = preferHttp ? Protocol.Http : Protocol.Ws
     this.autoreconnect = autoreconnect
+    this.ping = ping ? parseInt(ping) : false
 
-    this.on('neemata:reload', this._introspect.bind(this))
-
+    // Check ws connection after reopening browser/tab,
+    // specifically for mobile devices when switching between apps
     if (!preferHttp && typeof window !== 'undefined') {
       const onForeground = () => {
-        if (!document.hidden && !this.connected) {
-          this.connect()
-        }
+        if (!window.document.hidden && !this.active) this.connect()
       }
-      window.addEventListener('focus', onForeground)
-      window.document.addEventListener('visibilitychange', onForeground)
+
+      window.addEventListener('focus', onForeground, { passive: true })
+      window.document.addEventListener('visibilitychange', onForeground, {
+        passive: true,
+      })
     }
   }
 
@@ -54,51 +56,12 @@ export class Neemata extends EventEmitter {
     this.auth = token ? `Token ${token}` : null
   }
 
-  async _introspect() {
-    const { settings, api } = await fetch(`${this.httpUrl}/introspect`).then(
-      (res) => res.json()
-    )
-    this.settings = settings
-
-    this.api = {}
-
-    for (const [name, { url, protocol }] of Object.entries(api)) {
-      const parts = name.split('.')
-      let last = this.api
-
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i]
-        last[part] = last[part] ?? {}
-
-        if (i === parts.length - 1) {
-          const _prev = last[part]
-          Object.defineProperty(last, part, {
-            configurable: false,
-            enumerable: true,
-            value: Object.assign(
-              (data, { version = '*', protocol: _protocol, formData } = {}) =>
-                this._request({
-                  module: name,
-                  protocol: protocol ?? _protocol ?? this.prefer,
-                  url,
-                  data,
-                  version,
-                  formData,
-                }),
-              _prev
-            ),
-          })
-        } else {
-          last = last[part]
-        }
-      }
-    }
-  }
-
-  async _request({ module, protocol, url, data, formData, version = '*' }) {
-    await this.connecting
-
-    if (protocol === Protocol.Http) {
+  async api(module, data, { protocol, formData, version = '1' } = {}) {
+    if (
+      this.prefer === Protocol.Http ||
+      protocol === Protocol.Http ||
+      formData
+    ) {
       const options = {
         method: 'POST',
         headers: {
@@ -106,7 +69,7 @@ export class Neemata extends EventEmitter {
         },
       }
 
-      if (data) {
+      if (typeof data !== 'undefined') {
         options.headers['content-type'] = formData
           ? 'multipart/form-data'
           : 'application/json'
@@ -117,30 +80,29 @@ export class Neemata extends EventEmitter {
         options.headers.authorization = this.auth
       }
 
-      return fetch(`${this.httpUrl}/${url}`, options)
+      return fetch(`${this.httpUrl}/${module.split('.').join('/')}`, options)
         .catch((err) => {
           console.error(err)
-          throw {
-            error: {
-              code: ErrorCode.RequestError,
-              message: 'CLIENT_HTTP_CHANNEL_REQUEST_ERROR',
-            },
-          }
+          throw new NeemataError(
+            ErrorCode.RequestError,
+            'HTTP channel request error'
+          )
         })
         .then((res) => res.json())
         .catch((err) => {
           console.error(err)
-          throw {
-            error: {
-              code: ErrorCode.RequestError,
-              message: 'CLIENT_HTTP_CHANNEL_PARSE_ERROR',
-            },
-          }
+          throw new NeemataError(
+            ErrorCode.RequestError,
+            'HTTP channel parse error'
+          )
         })
         .then(({ error, data }) => {
-          return error ? Promise.reject({ error, data }) : Promise.resolve(data)
+          return error
+            ? Promise.reject(new NeemataError(error.code, error.message, data))
+            : Promise.resolve(data)
         })
     } else {
+      await this.connecting
       const req = new Promise((resolve, reject) => {
         const messageId = randomUUID()
         const handler = ({ data: rawMessage }) => {
@@ -153,18 +115,24 @@ export class Neemata extends EventEmitter {
             ) {
               this.ws.removeEventListener('message', handler)
               if (payload.error)
-                reject({ error: payload.error, data: payload.data })
+                reject(
+                  new NeemataError(
+                    payload.error.code,
+                    payload.error.message,
+                    payload.data
+                  )
+                )
               else resolve(payload.data)
             }
           } catch (error) {
             this.ws.removeEventListener('message', handler)
             console.error(error)
-            reject({
-              error: {
-                code: ErrorCode.RequestError,
-                message: 'CLIENT_WS_CHANNEL_MESSAGE_PARSE_ERROR',
-              },
-            })
+            reject(
+              new NeemataError(
+                ErrorCode.RequestError,
+                'WS channel message parse error'
+              )
+            )
           }
         }
 
@@ -181,60 +149,79 @@ export class Neemata extends EventEmitter {
     }
   }
 
-  get state() {
-    return this.ws.readyState
-  }
-
-  get connected() {
-    return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
-      this.state
-    )
-  }
-
   async connect() {
-    if (this.prefer === Protocol.Http) {
-      this.connecting = this._introspect()
-      return this.connecting
-    }
+    if (this.prefer === Protocol.Ws) {
+      this.connecting = new Promise((resolve) => {
+        this.waitHealthy().then(() => {
+          const wsSchema = this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'
+          const wsUrl = new URL(
+            this.httpUrl.pathname,
+            `${wsSchema}://${this.httpUrl.host}`
+          )
+          if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
+          const ws = (this.ws = new window.WebSocket(wsUrl))
 
-    this.connecting = new Promise((resolve) => {
-      this.checkHealth().then(() => {
-        this.wsUrl.searchParams.set('authorization', this.auth)
-        const ws = (this.ws = new window.WebSocket(this.wsUrl))
+          let pingInterval
 
-        ws.addEventListener('error', (err) => {
-          console.error(err)
-          this.emit('neemata:error', err)
-          ws.close()
-        })
+          ws.addEventListener(
+            'error',
+            (err) => {
+              console.error(err)
+              this.emit('neemata:error', err)
+              ws.close()
+            },
+            { once: true }
+          )
 
-        ws.addEventListener('message', (message) => {
-          try {
-            const { type, payload } = JSON.parse(message.data)
-            if (type === MessageType.Server && payload.event)
-              this.emit(payload.event, payload.data)
-          } catch (err) {
-            console.error(err)
-          }
-        })
+          ws.addEventListener('message', (message) => {
+            try {
+              const { type, payload } = JSON.parse(message.data)
+              if (type === MessageType.Server && payload.event)
+                this.emit(payload.event, payload.data)
+            } catch (err) {
+              console.error(err)
+            }
+          })
 
-        ws.addEventListener('close', () => {
-          this.emit('neemata:disconnect')
-          if (this.autoreconnect) this.connect()
-        })
+          ws.addEventListener(
+            'close',
+            () => {
+              this.emit('neemata:disconnect')
+              if (pingInterval) clearInterval(pingInterval)
+              if (this.autoreconnect) this.connect()
+            },
+            { once: true }
+          )
 
-        ws.addEventListener('open', async () => {
-          await this._introspect()
-          this.emit('neemata:connect')
-          setTimeout(resolve, 0)
+          ws.addEventListener(
+            'open',
+            () => {
+              this.emit('neemata:connect')
+              setTimeout(resolve, 0)
+
+              if (this.ping) {
+                pingInterval = setInterval(() => {
+                  ws.send(
+                    JSON.stringify({
+                      type: MessageType.Server,
+                      payload: {
+                        event: 'neemata:ping',
+                      },
+                    })
+                  )
+                }, this.ping)
+              }
+            },
+            { once: true }
+          )
         })
       })
-    })
 
-    return this.connecting
+      return this.connecting
+    }
   }
 
-  async checkHealth() {
+  async waitHealthy() {
     let healhy = false
 
     while (!healhy) {
@@ -248,9 +235,16 @@ export class Neemata extends EventEmitter {
   async reconnect() {
     await this.ws?.close()
     if (!this.autoreconnect) return this.connect()
-    else
-      return new Promise((resolve) => {
-        this.once('neemata:connect', resolve)
-      })
+    else return new Promise(this.once.bind(this, 'neemata:connect'))
+  }
+
+  get wsState() {
+    return this.ws?.readyState
+  }
+
+  get wsActive() {
+    return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
+      this.wsState
+    )
   }
 }

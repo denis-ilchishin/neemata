@@ -42,7 +42,8 @@ export class Neemata extends EventEmitter {
     // specifically for mobile devices when switching between apps
     if (!preferHttp && typeof window !== 'undefined') {
       const onForeground = () => {
-        if (!window.document.hidden && !this.active) this.connect()
+        if (!window.document.hidden && !this.wsActive && !this.connecting)
+          this.connect()
       }
 
       window.addEventListener('focus', onForeground, { passive: true })

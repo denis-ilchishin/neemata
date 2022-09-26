@@ -36,4 +36,6 @@ export class Neemata extends EventEmitter {
   connect: () => Promise<void>
   reconnect: () => Promise<void>
   setAuth: (val: any) => void
+  wsState?: WebSocket['readyState']
+  wsActive: boolean
 }

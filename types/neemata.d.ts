@@ -1,8 +1,8 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
-import JoyType, * as Joi from 'joi'
+import * as Joi from 'joi'
 import { WebSocket as _WebSocket } from 'ws'
 import { Cache } from '../lib/core/cache'
-import { Redis } from '../lib/core/redis'
+import { Subscriber } from '../lib/core/subscriber'
 
 type WebSocket = _WebSocket & { auth: Auth | null }
 
@@ -34,8 +34,8 @@ declare global {
   interface Db {}
   interface Application {
     workerId: number
-    cache: Cache
-    redis: Redis
+    cache?: Cache
+    subscriber?: Subscriber
     invokeTask: (task: string, ...args: any[]) => Promise<any>
     wss: {
       clients: Set<WebSocket>
@@ -49,7 +49,12 @@ declare global {
   const services: Services
   const guards: Guards
   const db: Db
-  const Joi: typeof JoyType
+
+  const defineApiModule: <Res, T extends ApiModuleType<Res>>(module: T) => T
+
+  const defineAuthModule: (
+    module: (auth: string) => Promise<Auth | null>
+  ) => unknown
 
   const defineConnectionHook: (
     module: (options: {
@@ -59,19 +64,8 @@ declare global {
     }) => Promise<unknown>
   ) => unknown
 
-  const defineDbModule: <T>(options: {
-    readonly startup: () => Promise<T> | T
-    readonly shutdown: (db: T) => Promise<unknown> | unknown
-  }) => unknown
-  const defineApiModule: <Res, T extends ApiModuleType<Res>>(module: T) => T
-  const defineAuthModule: (
-    module: (options: {
-      readonly req: FastifyRequest
-      readonly client?: WebSocket
-    }) => Promise<Auth | null>
-  ) => unknown
-  const defineGuardModule: (
-    module: (options: {
+  const defineGuard: (
+    guard: (options: {
       readonly req: FastifyRequest
       readonly auth: Auth
     }) => boolean
@@ -96,5 +90,4 @@ declare global {
   }
 }
 
-export { Joi }
 export { WebSocket }

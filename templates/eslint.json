@@ -5,7 +5,6 @@
     "commonjs": true
   },
   "globals": {
-    "Joi": "readonly",
     "db": "readonly",
     "services": "readonly",
     "lib": "readonly",
@@ -14,9 +13,8 @@
     "ErrorCode": "readonly",
     "ApiException": "readonly",
     "defineApiModule": "readonly",
-    "defineGuardModule": "readonly",
+    "defineGuard": "readonly",
     "defineAuthModule": "readonly",
-    "defineDbModule": "readonly",
     "defineConnectionHook": "readonly"
   }
 }

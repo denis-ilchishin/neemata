@@ -3,13 +3,15 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "target": "ESNext",
-    "alwaysStrict": true,
-    "strict": true,
-    "baseUrl": ".",
-    "allowSyntheticDefaultImports": true,
     "allowJs": true,
-    "noEmit": true,
-    "skipLibCheck": false,
-    "lib": ["ESNext"]
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "alwaysStrict": true,
+    "baseUrl": ".",
+    "outDir": "./types",
+    "rootDir": "../application",
+    "esModuleInterop": true
   }
 }

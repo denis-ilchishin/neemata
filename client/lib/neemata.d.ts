@@ -1,4 +1,3 @@
-import { Protocol } from './enums'
 import { EventEmitter } from './event-emitter'
 
 export class Neemata extends EventEmitter {
@@ -28,11 +27,7 @@ export class Neemata extends EventEmitter {
 
   ws?: WebSocket
   connecting?: Promise<void>
-  api: <T = any>(
-    module: string,
-    data?: any,
-    options?: { version?: string; protocol?: Protocol; formData?: true }
-  ) => Promise<T>
+  api: any
   connect: () => Promise<void>
   reconnect: () => Promise<void>
   setAuth: (val: any) => void

@@ -1,48 +1,104 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
-import * as Joi from 'joi'
 import { WebSocket as _WebSocket } from 'ws'
+import { TypeOf, ZodType } from 'zod'
 import { Cache } from '../lib/core/cache'
 import { Subscriber } from '../lib/core/subscriber'
 
-type WebSocket = _WebSocket & { auth: Auth | null }
+type WebSocket = _WebSocket & {
+  /**
+   * Socket unique id
+   */
+  id: string
 
-export type ApiModuleHandler<T> = (options: {
-  readonly auth: Auth | null
-  readonly data: any
-  readonly req: FastifyRequest
-  readonly res: FastifyReply
-  readonly client?: WebSocket
-}) => T
-
-export interface ApiModule<T> {
-  schema?: Joi.Schema
-  auth?: boolean
-  guards?: Function[]
-  handler: ApiModuleHandler<T>
-  protocol?: 'http' | 'ws'
+  /**
+   * Socket auth entity
+   */
+  auth: Auth | null
 }
 
-export type ApiModuleType<T> = ApiModuleHandler<T> | ApiModule<T>
+export type ApiModuleHandler<T extends ZodType | any> = (
+  this: undefined,
+  options: {
+    readonly auth: Auth | null
+    readonly data: T extends ZodType ? TypeOf<T> : any
+    readonly req: FastifyRequest
+    readonly res: FastifyReply
+    /**
+     * Only available if request is made via ws protocol
+     */
+    readonly client?: WebSocket
+  }
+) => any
+
+export interface ApiModule<T extends ZodType> {
+  /**
+   * Endpoint's handler
+   */
+  handler: ApiModuleHandler<T>
+  /**
+   * Yup schema to validate endpoint's body against
+   */
+  schema?: T
+  /**
+   * Whether current endpoint is available only for authenticated users or not
+   * @default true
+   */
+  auth?: boolean
+  /**
+   * Collection of endpoint guards. Evaluated after authentication
+   */
+  guards?: Guard[]
+  /**
+   * Restrict endpoint to be accessible via only one protocol. When
+   */
+  protocol?: 'http' | 'ws'
+  /**
+   * Execution timeout for current endpoint
+   */
+  timeout?: number
+  /**
+   * Whether current endpoint is introspectable from client application or not
+   * @default true
+   */
+  introspectable?: boolean | Guard
+}
+
+export type AuthModule = (auth: string) => Promise<Auth | null>
+
+export type Guard = (options: {
+  readonly req: FastifyRequest
+  readonly auth: Auth | null
+}) => boolean | Promise<boolean>
+
+export type ConnectionHook = (options: {
+  readonly auth: Auth
+  readonly client: WebSocket
+  readonly req: FastifyRequest
+}) => Promise<any>
+
+export interface Auth {}
+
+export interface Application {
+  workerId: number
+  cache?: Cache
+  subscriber?: Subscriber
+  invokeTask: (
+    task: string | { task: string; timeout: number },
+    ...args: any[]
+  ) => Promise<any>
+  wss: {
+    clients: Set<WebSocket>
+    emit: (event: string, data: any, client?: WebSocket) => void
+  }
+}
+
+export interface Lib {}
+export interface Config {}
+export interface Services {}
+export interface Guards {}
+export interface Db {}
 
 declare global {
-  interface Auth {}
-
-  interface Lib {}
-  interface Config {}
-  interface Services {}
-  interface Guards {}
-  interface Db {}
-  interface Application {
-    workerId: number
-    cache?: Cache
-    subscriber?: Subscriber
-    invokeTask: (task: string, ...args: any[]) => Promise<any>
-    wss: {
-      clients: Set<WebSocket>
-      emit: (event: string, data: any, client?: WebSocket) => void
-    }
-  }
-
   const application: Application
   const lib: Lib
   const config: Config
@@ -50,26 +106,18 @@ declare global {
   const guards: Guards
   const db: Db
 
-  const defineApiModule: <Res, T extends ApiModuleType<Res>>(module: T) => T
+  const defineApiModule: <
+    T extends ZodType,
+    Api = ApiModule<T> | ApiModuleHandler<any>
+  >(
+    module: Api
+  ) => Api
 
-  const defineAuthModule: (
-    module: (auth: string) => Promise<Auth | null>
-  ) => unknown
+  const defineAuthModule: (module: AuthModule) => AuthModule
 
-  const defineConnectionHook: (
-    module: (options: {
-      readonly auth: Auth
-      readonly client: WebSocket
-      readonly req: FastifyRequest
-    }) => Promise<unknown>
-  ) => unknown
+  const defineConnectionHook: <T extends ConnectionHook>(module: T) => T
 
-  const defineGuard: (
-    guard: (options: {
-      readonly req: FastifyRequest
-      readonly auth: Auth
-    }) => boolean
-  ) => unknown
+  const defineGuard: (guard: Guard) => Guard
 
   class ApiException {
     constructor(options: {

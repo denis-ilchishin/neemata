@@ -9,9 +9,7 @@
     "declarationMap": true,
     "noEmit": false,
     "alwaysStrict": true,
-    "baseUrl": ".",
-    "outDir": "./types",
-    "rootDir": "../application",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["neemata"]
   }
 }

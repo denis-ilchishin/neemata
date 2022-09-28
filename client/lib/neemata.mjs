@@ -23,6 +23,7 @@ export class Neemata extends EventEmitter {
   ws = null
   connecting = null
   auth = null
+  api = {}
 
   constructor({
     host,
@@ -51,13 +52,81 @@ export class Neemata extends EventEmitter {
         passive: true,
       })
     }
+
+    // Reintrospect API on reload
+    this.on('neemata:reload', async () => {
+      await this.connecting
+      this.connecting = this.introspect()
+    })
   }
 
   setAuth(token) {
     this.auth = token ? `Token ${token}` : null
   }
 
-  async api(module, data, { protocol, formData, version = '1' } = {}) {
+  async introspect() {
+    const api = await fetch(`${this.httpUrl}/neemata/introspect`, {
+      headers: this.auth ? { authorization: this.auth } : {},
+    }).then((res) => res.json())
+
+    const modules = new Set(api.map(({ name }) => name))
+
+    for (const moduleName of modules) {
+      const versions = api.filter(({ name }) => name === moduleName)
+
+      const parts = moduleName.split('.')
+      let last = this.api
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        last[part] = last[part] ?? {}
+
+        if (i === parts.length - 1) {
+          const _prev = last[part]
+
+          for (const module of versions) {
+            if (module.version === '1') {
+              Object.defineProperty(last, part, {
+                configurable: false,
+                enumerable: true,
+                value: Object.assign(
+                  (data, { protocol: _protocol, ...options } = {}) =>
+                    this._api(moduleName, data, {
+                      ...options,
+                      protocol: module.protocol ?? _protocol ?? this.prefer,
+                      version: module.version,
+                    }),
+                  _prev
+                ),
+              })
+            } else {
+              Object.defineProperty(
+                last[part],
+                `v${module.version.replace('.', '_')}`,
+                {
+                  configurable: false,
+                  enumerable: true,
+                  value: (data, { protocol: _protocol, ...options } = {}) =>
+                    this._api(moduleName, data, {
+                      ...options,
+                      protocol: module.protocol ?? _protocol ?? this.prefer,
+                      version: module.version,
+                    }),
+                }
+              )
+            }
+          }
+        } else {
+          last = last[part]
+        }
+      }
+      moduleName
+    }
+  }
+
+  async _api(module, data, { protocol, formData, version = '1' } = {}) {
+    await this.connecting
+
     if (
       this.prefer === Protocol.Http ||
       protocol === Protocol.Http ||
@@ -103,7 +172,6 @@ export class Neemata extends EventEmitter {
             : Promise.resolve(data)
         })
     } else {
-      await this.connecting
       const req = new Promise((resolve, reject) => {
         const messageId = randomUUID()
         const handler = ({ data: rawMessage }) => {
@@ -150,10 +218,11 @@ export class Neemata extends EventEmitter {
     }
   }
 
-  async connect() {
+  connect() {
     if (this.prefer === Protocol.Ws) {
       this.connecting = new Promise((resolve) => {
-        this.waitHealthy().then(() => {
+        this.waitHealthy().then(async () => {
+          await this.introspect()
           const wsSchema = this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'
           const wsUrl = new URL(
             this.httpUrl.pathname,
@@ -217,16 +286,18 @@ export class Neemata extends EventEmitter {
           )
         })
       })
-
-      return this.connecting
+    } else {
+      this.connecting = this.waitHealthy().then(() => this.introspect())
     }
+
+    return this.connecting
   }
 
   async waitHealthy() {
     let healhy = false
 
     while (!healhy) {
-      healhy = await fetch(`${this.httpUrl}/health`, { method: 'GET' })
+      healhy = await fetch(`${this.httpUrl}/neemata/health`, { method: 'GET' })
         .then((r) => r.ok)
         .catch((err) => false)
       if (!healhy) await new Promise((r) => setTimeout(r, 1000))
@@ -236,7 +307,7 @@ export class Neemata extends EventEmitter {
   async reconnect() {
     await this.ws?.close()
     if (!this.autoreconnect) return this.connect()
-    else return new Promise(this.once.bind(this, 'neemata:connect'))
+    else return new Promise((resolve) => this.once('neemata:connect', resolve))
   }
 
   get wsState() {

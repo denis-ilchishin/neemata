@@ -16,29 +16,26 @@ type WebSocket = _WebSocket & {
   auth: Auth | null
 }
 
-export type ApiModuleHandler<T extends ZodType | any> = (
-  this: undefined,
-  options: {
-    readonly auth: Auth | null
-    readonly data: T extends ZodType ? TypeOf<T> : any
-    readonly req: FastifyRequest
-    readonly res: FastifyReply
-    /**
-     * Only available if request is made via ws protocol
-     */
-    readonly client?: WebSocket
-  }
-) => any
+export type ApiModuleHandler<Schema extends ZodType | unknown> = (params: {
+  auth: Auth | null
+  data: Schema extends ZodType ? TypeOf<Schema> : unknown
+  req: FastifyRequest
+  res: FastifyReply
+  /**
+   * Only available if request is made via ws protocol
+   */
+  client?: WebSocket
+}) => any
 
-export interface ApiModule<T extends ZodType> {
+export interface ApiModule<Schema extends ZodType> {
   /**
    * Endpoint's handler
    */
-  handler: ApiModuleHandler<T>
+  handler: ApiModuleHandler<Schema>
   /**
    * Yup schema to validate endpoint's body against
    */
-  schema?: T
+  schema?: Schema
   /**
    * Whether current endpoint is available only for authenticated users or not
    * @default true
@@ -106,12 +103,9 @@ declare global {
   const guards: Guards
   const db: Db
 
-  const defineApiModule: <
-    T extends ZodType,
-    Api = ApiModule<T> | ApiModuleHandler<any>
-  >(
-    module: Api
-  ) => Api
+  const defineApiModule: <Schema extends ZodType>(
+    module: ApiModule<Schema> | ApiModuleHandler<unknown>
+  ) => any
 
   const defineAuthModule: (module: AuthModule) => AuthModule
 

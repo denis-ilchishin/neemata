@@ -1,5 +1,9 @@
 import { EventEmitter } from './event-emitter'
 
+export class NeemataError extends Error {
+  data: any
+}
+
 export class Neemata extends EventEmitter {
   constructor(options: {
     host: string

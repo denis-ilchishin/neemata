@@ -13,30 +13,35 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 ### Core dependencies
 - [Fastify](https://github.com/fastify/fastify) - web server
 - [WS](https://github.com/websockets/ws) - websocket protocol 
-- [Redis](https://github.com/redis/node-redis) - cache and ws events propagation 
-- [Joi](https://github.com/sideway/joi) - data schema validation
+- [Redis](https://github.com/redis/node-redis) - (optional) cache and events propagation between processes and threads
+- ~~[Joi](https://github.com/sideway/joi) - data schema validation~~
+- [Zod](https://github.com/colinhacks/zod) - data schema validation
 
 ### Roadmap
 - [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
-- [ ] ~~Web socket rooms~~
-- [ ] *Safe and configurable* `require` 
-- [ ] Binary data handling
-- [ ] Request queues and *maybe?* throttling 
-- [ ] Static serving
+- [ ] ~~Web socket rooms~~ 
+- [X] Binary data handling (over http only for now)
 - [ ] Logging
-- [ ] Optimize client API, to support SSR
-- [ ] Utils for automation testing
+- [ ] CLI support
+- [X] Optimize client API
 - [ ] Extended configuration
-- [ ] Extended typing support
 - [ ] Get rid of all non-core dependecies
+- [ ] Utils for automation testing
 - [ ] Documentation
 - [ ] Publish to npm
+
+Additional:
+- [ ] *Safe and configurable* `require` 
+- [ ] Request queues and *maybe?* throttling 
+- [ ] Static serving
+- [ ] Extended typing support
 
 ### Examples
 
 More examples [in starter repo](https://github.com/denis-ilchishin/neemata-starter) 
 
 ```JS
+// application/api/someEndpoint.js --> (POST) /api/someEndpoint
 module.exports = async ({ data, auth }) => {
    if(auth) {
        await services.createPost({ name: data.name, description: data.text })
@@ -45,15 +50,16 @@ module.exports = async ({ data, auth }) => {
 ```
 Or for more extended usage
 ```JS
-const Joi = require('joi')
+// application/api/someEndpoint.2.js --> (POST) [v2] /api/someEndpoint
+const Zod = require('zod')
 
 module.exports = defineApiModule({
-  auth: true,
-  protocol: 'http',
-  guards: [lib.dashboard.guard, async ({ auth }) => auth.group === 'ADMIN'],
-  schema: Joi.object({ 
-      name: Joi.string().required()
-  }).required(),
+  auth: false, // allow not authenticated requests
+  protocol: 'http', // allow only http transport
+  guards: [lib.dashboard.guard, ({ auth }) => auth.group === 'ADMIN'], // guards before access endpoint 
+  schema: Zod.object({ 
+      name: Zod.string()
+  }),
   handler: async ({ auth, data }) => {
       return data.name //  validated against schema specified above
   }

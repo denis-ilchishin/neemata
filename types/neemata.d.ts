@@ -1,19 +1,17 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
-import { WebSocket as _WebSocket } from 'ws'
+import { WebSocket } from 'ws'
 import { TypeOf, ZodType } from 'zod'
 import { Cache } from '../lib/core/cache'
 import { Subscriber } from '../lib/core/subscriber'
 
-type WebSocket = _WebSocket & {
-  /**
-   * Socket unique id
-   */
-  id: string
+export type LogLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
-  /**
-   * Socket auth entity
-   */
-  auth: Auth | null
+export interface Logger {
+  log(content: string, group?: string): void
+  warn(content: string, group?: string): void
+  error(err: Error | string, group?: string): void
+  info(content: string, group?: string): void
+  debug(content: string, group?: string): void
 }
 
 export type ApiModuleHandler<Schema extends ZodType | unknown> = (params: {
@@ -76,6 +74,10 @@ export type ConnectionHook = (options: {
 export interface Auth {}
 
 export interface Application {
+  logging: {
+    console: Logger
+    createFileLogger: (name: string, level?: LogLevel | LogLevel[]) => Logger
+  }
   workerId: number
   cache?: Cache
   subscriber?: Subscriber
@@ -132,4 +134,16 @@ declare global {
   }
 }
 
-export { WebSocket }
+declare module 'ws' {
+  interface WebSocket {
+    /**
+     * Socket unique id
+     */
+    id: string
+
+    /**
+     * Socket auth entity
+     */
+    auth: Auth | null
+  }
+}

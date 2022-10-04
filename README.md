@@ -21,7 +21,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 - [X] [Starter project](https://github.com/denis-ilchishin/neemata-starter) 
 - [ ] ~~Web socket rooms~~ 
 - [X] Binary data handling (over http only for now)
-- [ ] Logging
+- [X] Logging
 - [ ] CLI support
 - [X] Optimize client API
 - [ ] Extended configuration

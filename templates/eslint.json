@@ -10,6 +10,7 @@
     "lib": "readonly",
     "config": "readonly",
     "application": "readonly",
+    "WorkerType": "readonly",
     "ErrorCode": "readonly",
     "ApiException": "readonly",
     "defineApiModule": "readonly",

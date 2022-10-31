@@ -1,46 +1,72 @@
-const { Neemata } = require('./lib/neemata')
-const { timeout } = require('./lib/utils/helpers')
+async function start({
+  command,
+  args,
+  configPath,
+  rootPath,
+  scheduler,
+  timeout,
+}) {
+  const { Neemata } = require('./lib/neemata')
 
-let neemata
-let exiting
+  const commands = ['dev', 'prod', 'task']
+  if (!commands.includes(command)) throw new Error('Invalid command')
 
-const exit = async (code = 0) => {
-  if (exiting) return
-  exiting = true
-  if (neemata)
-    await timeout(
+  const isProd = command === 'prod'
+  const isDev = command === 'dev'
+  const isOneOff = command === 'task'
+
+  const neemata = new Neemata({
+    configPath,
+    isDev,
+    isProd,
+    rootPath,
+    scheduler,
+  })
+
+  const logErr = (err) => {
+    console.error(err)
+    exit(1)
+  }
+
+  let exiting = 0
+
+  const exit = async (code = 0) => {
+    if (exiting) {
+      // force exit
+      // timeout is needeed to skip npm firing sigint twice
+      if (exiting <= Date.now() - 100) process.exit(1)
+      else return
+    }
+
+    // start gracefull shutdown
+    exiting = Date.now()
+
+    const timeout = neemata.config?.resolved?.timeouts.shutdown
+    await Promise.race([
       neemata.shutdown(),
-      neemata.appConfig.timeouts.app.shutdown + 1000,
-      null
-    )
-  process.exit(code)
-}
+      new Promise((r) => setTimeout(r, timeout ? timeout + 1000 : 5000)),
+    ])
 
-const logErr = (err) => {
-  console.error(err)
-  exit(1)
-}
-
-async function run() {
-  try {
-    neemata = new Neemata()
-    await neemata.startup()
-  } catch (err) {
-    logErr(err)
+    process.exit(code)
   }
-}
 
-async function exec(task, args) {
   try {
-    neemata = new Neemata()
-    await neemata.exec(task, args)
-    exit()
-  } catch (err) {
-    logErr(err)
+    if (isOneOff) {
+      const [task, ...taskArgs] = args
+      await neemata.run(
+        task,
+        timeout,
+        ...taskArgs.map((v) => JSON.parse(v)) // TODO: json probably not really good format to pass args via command-line?
+      )
+    } else {
+      await neemata.startup()
+    }
+  } catch (error) {
+    logErr(error)
   }
+
+  process.on('SIGTERM', exit)
+  process.on('SIGINT', exit)
 }
 
-process.on('SIGTERM', exit)
-process.on('SIGINT', exit)
-
-module.exports = { run, exec }
+module.exports = { start }

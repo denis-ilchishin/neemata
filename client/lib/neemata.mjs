@@ -1,4 +1,4 @@
-import { ErrorCode, MessageType, Protocol } from './enums.mjs'
+import { ErrorCode, MessageType, Transport } from './enums.mjs'
 import { EventEmitter } from './event-emitter.mjs'
 
 const randomUUID = () =>
@@ -30,14 +30,12 @@ export class Neemata extends EventEmitter {
     preferHttp = false,
     basePath = '/api',
     autoreconnect = true,
-    ping = 30 * 1000,
   }) {
     super()
 
     this.httpUrl = new URL(basePath, host)
-    this.prefer = preferHttp ? Protocol.Http : Protocol.Ws
+    this.prefer = preferHttp ? Transport.Http : Transport.Ws
     this.autoreconnect = autoreconnect
-    this.ping = ping ? parseInt(ping) : false
 
     // Check ws connection after reopening browser/tab,
     // specifically for mobile devices when switching between apps
@@ -53,11 +51,16 @@ export class Neemata extends EventEmitter {
       })
     }
 
-    // Reintrospect API on reload
-    this.on('neemata:reload', async () => {
-      await this.connecting
-      this.connecting = this.introspect()
-    })
+    // Neemata internal events
+    this.on('neemata:reload', () => this.introspect())
+    this.on('neemata:ping', () =>
+      this.ws.send(
+        JSON.stringify({
+          type: MessageType.Message,
+          payload: { event: 'neemata:pong' },
+        })
+      )
+    )
   }
 
   setAuth(token) {
@@ -70,6 +73,7 @@ export class Neemata extends EventEmitter {
     }).then((res) => res.json())
 
     const modules = new Set(api.map(({ name }) => name))
+    this.api = {}
 
     for (const moduleName of modules) {
       const versions = api.filter(({ name }) => name === moduleName)
@@ -90,30 +94,26 @@ export class Neemata extends EventEmitter {
                 configurable: false,
                 enumerable: true,
                 value: Object.assign(
-                  (data, { protocol: _protocol, ...options } = {}) =>
+                  (data, { transport: _transport, ...options } = {}) =>
                     this._api(moduleName, data, {
                       ...options,
-                      protocol: module.protocol ?? _protocol ?? this.prefer,
+                      transport: module.transport ?? _transport ?? this.prefer,
                       version: module.version,
                     }),
                   _prev
                 ),
               })
             } else {
-              Object.defineProperty(
-                last[part],
-                `v${module.version.replace('.', '_')}`,
-                {
-                  configurable: false,
-                  enumerable: true,
-                  value: (data, { protocol: _protocol, ...options } = {}) =>
-                    this._api(moduleName, data, {
-                      ...options,
-                      protocol: module.protocol ?? _protocol ?? this.prefer,
-                      version: module.version,
-                    }),
-                }
-              )
+              Object.defineProperty(last[part], `v${module.version}`, {
+                configurable: false,
+                enumerable: true,
+                value: (data, { transport: _transport, ...options } = {}) =>
+                  this._api(moduleName, data, {
+                    ...options,
+                    transport: module.transport ?? _transport ?? this.prefer,
+                    version: module.version,
+                  }),
+              })
             }
           }
         } else {
@@ -124,12 +124,12 @@ export class Neemata extends EventEmitter {
     }
   }
 
-  async _api(module, data, { protocol, formData, version = '1' } = {}) {
+  async _api(module, data, { transport, formData, version = '1' } = {}) {
     await this.connecting
 
     if (
-      this.prefer === Protocol.Http ||
-      protocol === Protocol.Http ||
+      this.prefer === Transport.Http ||
+      transport === Transport.Http ||
       formData
     ) {
       const options = {
@@ -173,13 +173,13 @@ export class Neemata extends EventEmitter {
         })
     } else {
       const req = new Promise((resolve, reject) => {
-        const messageId = randomUUID()
+        const correlationId = randomUUID()
         const handler = ({ data: rawMessage }) => {
           try {
             const { type, payload } = JSON.parse(rawMessage)
             if (
               type === MessageType.Api &&
-              payload.messageId === messageId &&
+              payload.correlationId === correlationId &&
               payload.module === module
             ) {
               this.ws.removeEventListener('message', handler)
@@ -209,7 +209,7 @@ export class Neemata extends EventEmitter {
         this.ws.send(
           JSON.stringify({
             type: MessageType.Api,
-            payload: { messageId, module, data, version },
+            payload: { correlationId, module, data, version },
           })
         )
       })
@@ -219,19 +219,18 @@ export class Neemata extends EventEmitter {
   }
 
   connect() {
-    if (this.prefer === Protocol.Ws) {
+    if (this.prefer === Transport.Ws) {
       this.connecting = new Promise((resolve) => {
         this.waitHealthy().then(async () => {
           await this.introspect()
-          const wsSchema = this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'
           const wsUrl = new URL(
             this.httpUrl.pathname,
-            `${wsSchema}://${this.httpUrl.host}`
+            `${this.httpUrl.transport === 'https:' ? 'wss' : 'ws'}://${
+              this.httpUrl.host
+            }`
           )
           if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
           const ws = (this.ws = new window.WebSocket(wsUrl))
-
-          let pingInterval
 
           ws.addEventListener(
             'error',
@@ -246,7 +245,7 @@ export class Neemata extends EventEmitter {
           ws.addEventListener('message', (message) => {
             try {
               const { type, payload } = JSON.parse(message.data)
-              if (type === MessageType.Server && payload.event)
+              if (type === MessageType.Message && payload.event)
                 this.emit(payload.event, payload.data)
             } catch (err) {
               console.error(err)
@@ -257,8 +256,7 @@ export class Neemata extends EventEmitter {
             'close',
             () => {
               this.emit('neemata:disconnect')
-              if (pingInterval) clearInterval(pingInterval)
-              if (this.autoreconnect) this.connect()
+              this.connect()
             },
             { once: true }
           )
@@ -268,19 +266,6 @@ export class Neemata extends EventEmitter {
             () => {
               this.emit('neemata:connect')
               setTimeout(resolve, 0)
-
-              if (this.ping) {
-                pingInterval = setInterval(() => {
-                  ws.send(
-                    JSON.stringify({
-                      type: MessageType.Server,
-                      payload: {
-                        event: 'neemata:ping',
-                      },
-                    })
-                  )
-                }, this.ping)
-              }
             },
             { once: true }
           )
@@ -297,7 +282,7 @@ export class Neemata extends EventEmitter {
     let healhy = false
 
     while (!healhy) {
-      healhy = await fetch(`${this.httpUrl}/neemata/health`, { method: 'GET' })
+      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
         .then((r) => r.ok)
         .catch((err) => false)
       if (!healhy) await new Promise((r) => setTimeout(r, 1000))
@@ -306,17 +291,12 @@ export class Neemata extends EventEmitter {
 
   async reconnect() {
     await this.ws?.close()
-    if (!this.autoreconnect) return this.connect()
-    else return new Promise((resolve) => this.once('neemata:connect', resolve))
+    return new Promise((resolve) => this.once('neemata:connect', resolve))
   }
 
-  get wsState() {
-    return this.ws?.readyState
-  }
-
-  get wsActive() {
+  get isActive() {
     return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
-      this.wsState
+      this.ws?.readyState
     )
   }
 }

@@ -1,52 +1,68 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
-import { WebSocket } from 'ws'
 import { TypeOf, ZodType } from 'zod'
-import { Cache } from '../lib/core/cache'
-import { Subscriber } from '../lib/core/subscriber'
+import { Client } from '../lib/client'
 
 export type LogLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
 
 export interface Logger {
-  log(content: string, group?: string): void
   warn(content: string, group?: string): void
   error(err: Error | string, group?: string): void
   info(content: string, group?: string): void
   debug(content: string, group?: string): void
 }
 
-export type ApiModuleHandler<Schema extends ZodType | unknown> = (params: {
-  auth: Auth | null
-  data: Schema extends ZodType ? TypeOf<Schema> : unknown
+export type ApiModuleHandler<
+  S extends ZodType | unknown,
+  T extends 'http' | 'ws' | unknown,
+  A extends boolean | unknown
+> = (params: {
+  auth: A extends false ? null : Auth
+  data: S extends ZodType ? TypeOf<S> : unknown
   req: FastifyRequest
-  res: FastifyReply
   /**
-   * Only available if request is made via ws protocol
+   * Only available if request is made via http transport
    */
-  client?: WebSocket
+  res: T extends 'ws'
+    ? undefined
+    : T extends 'http'
+    ? FastifyReply
+    : FastifyReply | undefined
+  /**
+   * Only available if request is made via ws transport
+   */
+  client: T extends 'http'
+    ? undefined
+    : T extends 'ws'
+    ? Client
+    : Client | undefined
 }) => any
 
-export interface ApiModule<Schema extends ZodType> {
+export interface ApiModule<
+  S extends ZodType,
+  T extends 'http' | 'ws',
+  A extends boolean
+> {
   /**
    * Endpoint's handler
    */
-  handler: ApiModuleHandler<Schema>
+  handler: ApiModuleHandler<S, T, A>
   /**
    * Yup schema to validate endpoint's body against
    */
-  schema?: Schema
+  schema?: S
   /**
    * Whether current endpoint is available only for authenticated users or not
    * @default true
    */
-  auth?: boolean
+  auth?: A
   /**
    * Collection of endpoint guards. Evaluated after authentication
    */
   guards?: Guard[]
   /**
-   * Restrict endpoint to be accessible via only one protocol. When
+   * Restrict endpoint to be accessible via only one transport
    */
-  protocol?: 'http' | 'ws'
+  transport?: T
   /**
    * Execution timeout for current endpoint
    */
@@ -67,35 +83,98 @@ export type Guard = (options: {
 
 export type ConnectionHook = (options: {
   readonly auth: Auth
-  readonly client: WebSocket
+  readonly client: Client
   readonly req: FastifyRequest
 }) => Promise<any>
 
 export interface Auth {}
 
 export interface Application {
-  logging: {
-    console: Logger
-    createFileLogger: (name: string, level?: LogLevel | LogLevel[]) => Logger
-  }
+  clients: Set<Client>
+  type: keyof typeof WorkerType
+  createFileLogger: (
+    name: string,
+    level?: LogLevel | LogLevel[]
+  ) => import('pino').BaseLogger
   workerId: number
-  cache?: Cache
-  subscriber?: Subscriber
-  invokeTask: (
+  invoke: (
     task: string | { task: string; timeout: number },
     ...args: any[]
   ) => Promise<any>
-  wss: {
-    clients: Set<WebSocket>
-    emit: (event: string, data: any, client?: WebSocket) => void
-  }
 }
 
 export interface Lib {}
 export interface Config {}
 export interface Services {}
-export interface Guards {}
 export interface Db {}
+
+export interface NeemataConfig {
+  workers: number
+  ports: number[]
+  api: {
+    /**
+     * @default "0.0.0.0"
+     */
+    hostname: string
+    /**
+     * Must start with slash
+     * @default "/api"
+     */
+    baseUrl: string
+    cors: import('@fastify/cors').FastifyCorsOptions
+    multipart: import('@fastify/multipart').FastifyMultipartOptions
+  }
+  log: {
+    basePath: string
+    level: 'debug' | 'info' | 'warn' | 'error'
+  }
+  auth: {
+    service: string
+  }
+  timeouts: {
+    /**
+     * @default 10000
+     */
+    startup: number
+    /**
+     * @default 10000
+     */
+    shutdown: Number
+    /**
+     * @default 250
+     */
+    hrm: number
+    /**
+     * @default 5000
+     */
+    request: number
+    task: {
+      /**
+       * @default 15000
+       */
+      execution: number
+      /**
+       * @default 30000
+       */
+      allocation: number
+    }
+  }
+  intervals: {
+    /**
+     * @default 30000
+     */
+    ping: number
+  }
+  scheduler: {
+    tasks: Array<{
+      name: string
+      task: string
+      cron: string
+      timeout: string
+      args?: any[]
+    }>
+  }
+}
 
 declare global {
   const application: Application
@@ -105,8 +184,12 @@ declare global {
   const guards: Guards
   const db: Db
 
-  const defineApiModule: <Schema extends ZodType>(
-    module: ApiModule<Schema> | ApiModuleHandler<unknown>
+  const defineApiModule: <
+    S extends ZodType,
+    T extends 'http' | 'ws',
+    A extends boolean
+  >(
+    module: ApiModule<S, T, A> | ApiModuleHandler<unknown, unknown, unknown>
   ) => any
 
   const defineAuthModule: (module: AuthModule) => AuthModule
@@ -123,7 +206,13 @@ declare global {
     })
   }
 
-  enum ErrorCode {
+  export const WorkerType = {
+    Api: 'Api',
+    Task: 'Task',
+    OneOff: 'OneOff',
+  } as const
+
+  export const ErrorCode = {
     ValidationError = 'VALIDATION_ERROR',
     BadRequest = 'BAD_REQUEST',
     NotFound = 'NOT_FOUND',
@@ -131,19 +220,5 @@ declare global {
     Unauthorized = 'UNAUTHORIZED',
     InternalServerError = 'INTERNAL_SERVER_ERROR',
     GatewayTimeout = 'GATEWAY_TIMEOUT',
-  }
-}
-
-declare module 'ws' {
-  interface WebSocket {
-    /**
-     * Socket unique id
-     */
-    id: string
-
-    /**
-     * Socket auth entity
-     */
-    auth: Auth | null
-  }
+  } as const
 }

@@ -1,11 +1,11 @@
-export const Protocol = Object.freeze({
-  Http: 'http',
-  Ws: 'ws',
+export const Transport = Object.freeze({
+  Http: 'Http',
+  Ws: 'Ws',
 })
 
 export const MessageType = Object.freeze({
   Api: 'api',
-  Server: 'server',
+  Message: 'message',
 })
 
 export const ErrorCode = Object.freeze({

@@ -2,22 +2,13 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 import { TypeOf, ZodType } from 'zod'
 import { Client } from '../lib/client'
 
-export type LogLevel = 'log' | 'warn' | 'error' | 'info' | 'debug'
-
-export interface Logger {
-  warn(content: string, group?: string): void
-  error(err: Error | string, group?: string): void
-  info(content: string, group?: string): void
-  debug(content: string, group?: string): void
-}
-
 export type ApiModuleHandler<
   S extends ZodType | unknown,
   T extends 'http' | 'ws' | unknown,
   A extends boolean | unknown
 > = (params: {
-  auth: A extends false ? null : Auth
-  data: S extends ZodType ? TypeOf<S> : unknown
+  auth: A extends false ? unknown : Auth
+  data: S extends ZodType ? TypeOf<S> : undefined
   req: FastifyRequest
   /**
    * Only available if request is made via http transport
@@ -94,7 +85,7 @@ export interface Application {
   type: keyof typeof WorkerType
   createFileLogger: (
     name: string,
-    level?: LogLevel | LogLevel[]
+    level?: import('pino').Level
   ) => import('pino').BaseLogger
   workerId: number
   invoke: (
@@ -117,7 +108,6 @@ export interface NeemataConfig {
      */
     hostname: string
     /**
-     * Must start with slash
      * @default "/api"
      */
     baseUrl: string
@@ -181,7 +171,6 @@ declare global {
   const lib: Lib
   const config: Config
   const services: Services
-  const guards: Guards
   const db: Db
 
   const defineApiModule: <
@@ -206,19 +195,19 @@ declare global {
     })
   }
 
-  export const WorkerType = {
-    Api: 'Api',
-    Task: 'Task',
-    OneOff: 'OneOff',
-  } as const
+  export const WorkerType: {
+    Api: 'Api'
+    Task: 'Task'
+    OneOff: 'OneOff'
+  }
 
-  export const ErrorCode = {
-    ValidationError = 'VALIDATION_ERROR',
-    BadRequest = 'BAD_REQUEST',
-    NotFound = 'NOT_FOUND',
-    Forbidden = 'FORBIDDEN',
-    Unauthorized = 'UNAUTHORIZED',
-    InternalServerError = 'INTERNAL_SERVER_ERROR',
-    GatewayTimeout = 'GATEWAY_TIMEOUT',
-  } as const
+  export const ErrorCode: {
+    ValidationError: 'VALIDATION_ERROR'
+    BadRequest: 'BAD_REQUEST'
+    NotFound: 'NOT_FOUND'
+    Forbidden: 'FORBIDDEN'
+    Unauthorized: 'UNAUTHORIZED'
+    InternalServerError: 'INTERNAL_SERVER_ERROR'
+    GatewayTimeout: 'GATEWAY_TIMEOUT'
+  }
 }

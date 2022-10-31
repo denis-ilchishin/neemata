@@ -9,7 +9,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 1. Vertical scailing using `worker_threads`
 2. Protocol-agnostic design. On client side just use `await neemata.api.findUser(id)`.
 3. Task scheduler
-4. I/O intensive delayed task execution on separate threads
+4. Delayed task execution on separate threads
 5. On-fly instant hot reloading, without process/worker restart
 
 ### Core dependencies

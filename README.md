@@ -9,15 +9,13 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 1. Vertical scailing using `worker_threads`
 2. Protocol-agnostic design. On client side just use `await neemata.api.findUser(id)`.
 3. Task scheduler
-4. I/O intensive delayed task execution on separate threads
+4. Delayed task execution on separate threads
 5. On-fly instant hot reloading, without process/worker restart
 
 ### Core dependencies
 
 - [Fastify](https://github.com/fastify/fastify) - web server
 - [WS](https://github.com/websockets/ws) - websocket protocol
-- [Redis](https://github.com/redis/node-redis) - (optional) cache and events propagation between processes and threads
-- ~~[Joi](https://github.com/sideway/joi) - data schema validation~~
 - [Zod](https://github.com/colinhacks/zod) - data schema validation
 
 ### Roadmap
@@ -26,7 +24,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 - [ ] ~~Web socket rooms~~
 - [x] Binary data handling (over http only for now)
 - [x] Logging
-- [ ] CLI support
+- [x] CLI support
 - [x] Optimize client API
 - [ ] Extended configuration
 - [ ] Get rid of all non-core dependecies
@@ -35,7 +33,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 - [ ] Publish to npm
 
 Additional:
-
+- [ ] Common libs, like message brocker and ws rooms 
 - [ ] _Safe and configurable_ `require`
 - [ ] Request queues and _maybe?_ throttling
 - [ ] Static serving

@@ -72,12 +72,6 @@ export type Guard = (options: {
   readonly auth: Auth | null
 }) => boolean | Promise<boolean>
 
-export type ConnectionHook = (options: {
-  readonly auth: Auth
-  readonly client: Client
-  readonly req: FastifyRequest
-}) => Promise<any>
-
 export interface Auth {}
 
 export interface Application {
@@ -173,6 +167,28 @@ declare global {
   const services: Services
   const db: Db
 
+  const hooks: {
+    startup?: () => Promise<void>
+    shutdown?: () => Promise<void>
+    request?: (options: {
+      auth: Auth
+      req: FastifyRequest
+      module: { name: string; version: string }
+      client?: Client
+      data?: any
+    }) => Promise<void>
+    connect?: (options: {
+      readonly auth: Auth
+      readonly client: Client
+      readonly req: FastifyRequest
+    }) => Promise<any>
+    disconnect?: (options: {
+      readonly auth: Auth
+      readonly client: Client
+      readonly req: FastifyRequest
+    }) => Promise<any>
+  }
+
   const defineApiModule: <
     S extends ZodType,
     T extends 'http' | 'ws',
@@ -182,8 +198,6 @@ declare global {
   ) => any
 
   const defineAuthModule: (module: AuthModule) => AuthModule
-
-  const defineConnectionHook: <T extends ConnectionHook>(module: T) => T
 
   const defineGuard: (guard: Guard) => Guard
 

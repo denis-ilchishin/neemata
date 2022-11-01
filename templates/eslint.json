@@ -10,12 +10,12 @@
     "lib": "readonly",
     "config": "readonly",
     "application": "readonly",
+    "hooks": "readonly",
     "WorkerType": "readonly",
     "ErrorCode": "readonly",
     "ApiException": "readonly",
     "defineApiModule": "readonly",
     "defineGuard": "readonly",
-    "defineAuthModule": "readonly",
-    "defineConnectionHook": "readonly"
+    "defineAuthModule": "readonly"
   }
 }

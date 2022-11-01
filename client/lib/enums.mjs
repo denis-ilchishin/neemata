@@ -1,6 +1,6 @@
 export const Transport = Object.freeze({
-  Http: 'Http',
-  Ws: 'Ws',
+  Http: 'http',
+  Ws: 'ws',
 })
 
 export const MessageType = Object.freeze({

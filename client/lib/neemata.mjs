@@ -127,11 +127,7 @@ export class Neemata extends EventEmitter {
   async _api(module, data, { transport, formData, version = '1' } = {}) {
     await this.connecting
 
-    if (
-      this.prefer === Transport.Http ||
-      transport === Transport.Http ||
-      formData
-    ) {
+    if (transport === Transport.Http || formData) {
       const options = {
         method: 'POST',
         headers: {

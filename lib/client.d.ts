@@ -9,7 +9,7 @@ export interface Client extends EventEmitter {
   /**
    * Client auth
    */
-  auth: Auth | null
+  auth: any | null
   // socket: import('ws').WebSocket
   send: (event: string, data: any) => void
   opened: boolean

@@ -221,8 +221,8 @@ export class Neemata extends EventEmitter {
           await this.introspect()
           const wsUrl = new URL(
             this.httpUrl.pathname,
-            `${this.httpUrl.transport === 'https:' ? 'wss' : 'ws'}://${
-              this.httpUrl.host
+            `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
+              this.httpUrl.protocol
             }`
           )
           if (this.auth) wsUrl.searchParams.set('authorization', this.auth)

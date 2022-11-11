@@ -39,7 +39,7 @@ export class Neemata extends EventEmitter {
 
     // Check ws connection after reopening browser/tab,
     // specifically for mobile devices when switching between apps
-    if (!preferHttp && typeof window !== 'undefined') {
+    if (!this.ws && typeof window !== 'undefined') {
       const onForeground = () => {
         if (!window.document.hidden && !this.wsActive && !this.connecting)
           this.connect()
@@ -265,6 +265,10 @@ export class Neemata extends EventEmitter {
             },
             { once: true }
           )
+
+          if (window) {
+            window.addEventListener('offline', () => ws.close())
+          }
         })
       })
     } else {

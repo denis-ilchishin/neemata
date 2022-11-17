@@ -217,59 +217,66 @@ export class Neemata extends EventEmitter {
   connect() {
     if (this.prefer === Transport.Ws) {
       this.connecting = new Promise((resolve) => {
-        this.waitHealthy().then(async () => {
-          await this.introspect()
-          const wsUrl = new URL(
-            this.httpUrl.pathname,
-            `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
-              this.httpUrl.host
-            }`
-          )
-          if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
-          const ws = (this.ws = new window.WebSocket(wsUrl))
+        this.waitHealthy()
+          .then(() => this.introspect())
+          .catch((err) => {
+            this.connect()
+            throw err
+          })
+          .then(() => {
+            const wsUrl = new URL(
+              this.httpUrl.pathname,
+              `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
+                this.httpUrl.host
+              }`
+            )
+            if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
+            const ws = (this.ws = new window.WebSocket(wsUrl))
 
-          ws.addEventListener(
-            'error',
-            (err) => {
-              console.error(err)
-              this.emit('neemata:error', err)
-              ws.close()
-            },
-            { once: true }
-          )
+            ws.addEventListener(
+              'error',
+              (err) => {
+                console.error(err)
+                this.emit('neemata:error', err)
+                ws.close()
+              },
+              { once: true }
+            )
 
-          ws.addEventListener('message', (message) => {
-            try {
-              const { type, payload } = JSON.parse(message.data)
-              if (type === MessageType.Message && payload.event)
-                this.emit(payload.event, payload.data)
-            } catch (err) {
-              console.error(err)
+            ws.addEventListener('message', (message) => {
+              try {
+                const { type, payload } = JSON.parse(message.data)
+                if (type === MessageType.Message && payload.event)
+                  this.emit(payload.event, payload.data)
+              } catch (err) {
+                console.error(err)
+              }
+            })
+
+            ws.addEventListener(
+              'close',
+              () => {
+                this.emit('neemata:disconnect')
+                this.connect()
+              },
+              { once: true }
+            )
+
+            ws.addEventListener(
+              'open',
+              () => {
+                this.emit('neemata:connect')
+                setTimeout(resolve, 0)
+              },
+              { once: true }
+            )
+
+            if (window) {
+              window.addEventListener('offline', () => ws.close(), {
+                once: true,
+              })
             }
           })
-
-          ws.addEventListener(
-            'close',
-            () => {
-              this.emit('neemata:disconnect')
-              this.connect()
-            },
-            { once: true }
-          )
-
-          ws.addEventListener(
-            'open',
-            () => {
-              this.emit('neemata:connect')
-              setTimeout(resolve, 0)
-            },
-            { once: true }
-          )
-
-          if (window) {
-            window.addEventListener('offline', () => ws.close())
-          }
-        })
       })
     } else {
       this.connecting = this.waitHealthy().then(() => this.introspect())

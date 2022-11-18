@@ -6,11 +6,12 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 
 ### List of features
 
-1. Vertical scailing using `worker_threads`
-2. Protocol-agnostic design. On client side just use `await neemata.api.findUser(id)`.
+1. Vertical scaling using `worker_threads`
+2. Protocol-agnostic design: http and/or ws
 3. Task scheduler
 4. Delayed task execution on separate threads
 5. On-fly instant hot reloading, without process/worker restart
+6. File system routing, with versioning support
 
 ### Core dependencies
 
@@ -21,11 +22,10 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 ### Roadmap
 
 - [x] [Starter project](https://github.com/denis-ilchishin/neemata-starter)
-- [ ] ~~Web socket rooms~~
 - [x] Binary data handling (over http only for now)
 - [x] Logging
 - [x] CLI support
-- [x] Optimize client API
+- [x] Client API
 - [ ] Extended configuration
 - [ ] Get rid of all non-core dependecies
 - [ ] Utils for automation testing
@@ -33,8 +33,8 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 - [ ] Publish to npm
 
 Additional:
-- [ ] Common libs, like message brocker and ws rooms 
-- [ ] _Safe and configurable_ `require`
+- [ ] Common libs like message broker and ws rooms 
+- [ ] Configurable `require`, `import` and `sandbox` for more secure context isolation
 - [ ] Request queues and _maybe?_ throttling
 - [ ] Static serving
 - [ ] Extended typing support

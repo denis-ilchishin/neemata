@@ -37,20 +37,6 @@ export class Neemata extends EventEmitter {
     this.prefer = preferHttp ? Transport.Http : Transport.Ws
     this.autoreconnect = autoreconnect
 
-    // Check ws connection after reopening browser/tab,
-    // specifically for mobile devices when switching between apps
-    if (!this.ws && typeof window !== 'undefined') {
-      const onForeground = () => {
-        if (!window.document.hidden && !this.wsActive && !this.connecting)
-          this.connect()
-      }
-
-      window.addEventListener('focus', onForeground, { passive: true })
-      window.document.addEventListener('visibilitychange', onForeground, {
-        passive: true,
-      })
-    }
-
     // Neemata internal events
     this.on('neemata:reload', () => this.introspect())
     this.on('neemata:ping', () =>
@@ -256,6 +242,7 @@ export class Neemata extends EventEmitter {
             ws.addEventListener(
               'close',
               () => {
+                console.log('closed')
                 this.emit('neemata:disconnect')
                 this.connect()
               },
@@ -265,17 +252,12 @@ export class Neemata extends EventEmitter {
             ws.addEventListener(
               'open',
               () => {
+                console.log('opened')
                 this.emit('neemata:connect')
                 setTimeout(resolve, 0)
               },
               { once: true }
             )
-
-            if (window) {
-              window.addEventListener('offline', () => ws.close(), {
-                once: true,
-              })
-            }
           })
       })
     } else {

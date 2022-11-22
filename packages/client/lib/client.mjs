@@ -1,5 +1,5 @@
-import { ErrorCode, MessageType, Transport } from './enums.mjs'
-import { EventEmitter } from './event-emitter.mjs'
+import { ErrorCode, MessageType, Transport } from '@neemata/common'
+import events from 'events'
 
 const randomUUID = () =>
   typeof crypto.randomUUID !== 'undefined'
@@ -19,23 +19,17 @@ export class NeemataError extends Error {
   }
 }
 
-export class Neemata extends EventEmitter {
+export class Neemata extends events.EventEmitter {
   ws = null
   connecting = null
   auth = null
   api = {}
 
-  constructor({
-    host,
-    preferHttp = false,
-    basePath = '/api',
-    autoreconnect = true,
-  }) {
+  constructor({ host, preferHttp = false, basePath = '/api' }) {
     super()
 
     this.httpUrl = new URL(basePath, host)
     this.prefer = preferHttp ? Transport.Http : Transport.Ws
-    this.autoreconnect = autoreconnect
 
     // Neemata internal events
     this.on('neemata:reload', () => this.introspect())
@@ -200,10 +194,21 @@ export class Neemata extends EventEmitter {
     }
   }
 
+  async _waitHealthy() {
+    let healhy = false
+
+    while (!healhy) {
+      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
+        .then((r) => r.ok)
+        .catch((err) => false)
+      if (!healhy) await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+
   connect() {
     if (this.prefer === Transport.Ws) {
       this.connecting = new Promise((resolve) => {
-        this.waitHealthy()
+        this._waitHealthy()
           .then(() => this.introspect())
           .catch((err) => {
             this.connect()
@@ -219,63 +224,40 @@ export class Neemata extends EventEmitter {
             if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
             const ws = (this.ws = new window.WebSocket(wsUrl))
 
-            ws.addEventListener(
-              'error',
-              (err) => {
-                console.error(err)
-                this.emit('neemata:error', err)
-                ws.close()
-              },
-              { once: true }
-            )
+            events.once(ws, 'error', () => {
+              console.error(err)
+              this.dispatchEvent(new Event('neemata:error', err))
+              ws.close()
+            })
 
-            ws.addEventListener('message', (message) => {
+            events.on(ws, 'message', (message) => {
               try {
                 const { type, payload } = JSON.parse(message.data)
                 if (type === MessageType.Message && payload.event)
-                  this.emit(payload.event, payload.data)
+                  this.dispatchEvent(new Event(payload.event, payload.data))
               } catch (err) {
                 console.error(err)
               }
             })
 
-            ws.addEventListener(
-              'close',
-              () => {
-                console.log('closed')
-                this.emit('neemata:disconnect')
-                this.connect()
-              },
-              { once: true }
-            )
+            events.once(ws, 'close', () => {
+              console.log('closed')
+              this.dispatchEvent(new Event('neemata:disconnect'))
+              this.connect()
+            })
 
-            ws.addEventListener(
-              'open',
-              () => {
-                console.log('opened')
-                this.emit('neemata:connect')
-                setTimeout(resolve, 0)
-              },
-              { once: true }
-            )
+            events.once(ws, 'open', () => {
+              console.log('opened')
+              this.dispatchEvent(new Event('neemata:connect'))
+              setTimeout(resolve, 0)
+            })
           })
       })
     } else {
-      this.connecting = this.waitHealthy().then(() => this.introspect())
+      this.connecting = this._waitHealthy().then(() => this.introspect())
     }
 
     return this.connecting
-  }
-
-  async waitHealthy() {
-    let healhy = false
-
-    while (!healhy) {
-      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
-        .then((r) => r.ok)
-        .catch((err) => false)
-      if (!healhy) await new Promise((r) => setTimeout(r, 1000))
-    }
   }
 
   async reconnect() {

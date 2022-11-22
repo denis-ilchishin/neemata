@@ -3,7 +3,7 @@
 const { parseArgs } = require('node:util')
 const { resolve } = require('node:path')
 
-const { start } = require('../index')
+const { start } = require('@neemata/core')
 
 const { positionals, values } = parseArgs({
   options: {

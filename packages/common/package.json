@@ -1,0 +1,9 @@
+{
+  "name": "@neemata/common",
+  "version": "0.0.1",
+  "description": "Neemata common package",
+  "author": "Denis Ilchyshyn",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts"
+}

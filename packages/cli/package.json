@@ -1,0 +1,13 @@
+{
+  "name": "@neemata/cli",
+  "version": "0.0.1",
+  "description": "Neemata CLI package",
+  "bin": {
+    "neemata": "./index.js"
+  },
+  "author": "Denis Ilchyshyn",
+  "license": "MIT",
+  "dependencies": {
+    "@neemata/core": "workspace:*"
+  }
+}

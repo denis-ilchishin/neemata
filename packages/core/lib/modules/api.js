@@ -3,7 +3,7 @@
 const Zod = require('zod')
 const { parse, sep } = require('node:path')
 const { Loader } = require('../loader')
-const { Transport } = require('../enums')
+const { Transport } = require('.@neemata/common')
 const { versioning } = require('../utils')
 
 class ApiModule {

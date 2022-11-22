@@ -138,6 +138,7 @@ class Script {
   }
 
   makeContext(extra = {}) {
+    console.log(this.options.context)
     const context = { ...COMMON_CONTEXT, ...this.options.context, ...extra }
     return createContext(context)
   }

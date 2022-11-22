@@ -1,4 +1,4 @@
-const { Transport, ErrorCode } = require('.@neemata/common')
+const { Transport, ErrorCode } = require('@neemata/common')
 const { ApiException } = require('../exceptions')
 
 /**

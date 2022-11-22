@@ -7,11 +7,12 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 ### List of features
 
 1. Vertical scaling using `worker_threads`
-2. Protocol-agnostic design: http and/or ws
+2. Protocol-agnostic design: support for `http` and `ws` protocols
 3. Task scheduler
-4. Delayed task execution on separate threads
+4. Delayed task execution using thread pool
 5. On-fly instant hot reloading, without process/worker restart
-6. File system routing, with versioning support
+6. File system routing (with optional versioning)
+7. Support for CommonJS and EcmaScript
 
 ### Core dependencies
 
@@ -19,54 +20,6 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 - [WS](https://github.com/websockets/ws) - websocket protocol
 - [Zod](https://github.com/colinhacks/zod) - data schema validation
 
-### Roadmap
+### [Roadmap](https://github.com/denis-ilchishin/neemata/issues?q=label%3Aroadmap)
 
-- [x] [Starter project](https://github.com/denis-ilchishin/neemata-starter)
-- [x] Binary data handling (over http only for now)
-- [x] Logging
-- [x] CLI support
-- [x] Client API
-- [ ] Extended configuration
-- [ ] Get rid of all non-core dependecies
-- [ ] Utils for automation testing
-- [ ] Documentation
-- [ ] Publish to npm
-
-Additional:
-- [ ] Common libs like message broker and ws rooms 
-- [ ] Configurable `require`, `import` and `sandbox` for more secure context isolation
-- [ ] Request queues and _maybe?_ throttling
-- [ ] Static serving
-- [ ] Extended typing support
-
-### Examples
-
-More examples [in starter repo](https://github.com/denis-ilchishin/neemata-starter)
-
-```JS
-// application/api/someEndpoint.js --> (POST) /api/someEndpoint
-module.exports = async ({ data, auth }) => {
-   if(auth) {
-       await services.createPost({ name: data.name, description: data.text })
-   }
-}
-```
-
-Or for more extended usage
-
-```JS
-// application/api/someEndpoint.2.js --> (POST) [v2] /api/someEndpoint
-const Zod = require('zod')
-
-module.exports = defineApiModule({
-  auth: false, // allow not authenticated requests
-  protocol: 'http', // allow only http transport
-  guards: [lib.dashboard.guard, ({ auth }) => auth.group === 'ADMIN'], // guards before access endpoint
-  schema: Zod.object({
-      name: Zod.string()
-  }),
-  handler: async ({ auth, data }) => {
-      return data.name //  validated against schema specified above
-  }
-})
-```
+### [Examples](https://github.com/denis-ilchishin/neemata-starter)

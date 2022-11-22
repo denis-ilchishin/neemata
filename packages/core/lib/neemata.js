@@ -3,7 +3,7 @@
 const { Worker } = require('node:worker_threads')
 
 const { Config } = require('./config')
-const { WorkerMessage, WorkerType } = require('./enums')
+const { WorkerMessage, WorkerType } = require('@neemata/common')
 const { Pool } = require('./pool')
 const { Watcher } = require('./watcher')
 const { LoggingBuffer } = require('./logging')
@@ -213,7 +213,7 @@ class Neemata {
   }
 
   /**
-   * @param {import('./enums').WorkerType} type
+   * @param {import('@neemata/common').WorkerType} type
    * @param [any] workerData
    */
   createWorker(type, workerData = {}) {

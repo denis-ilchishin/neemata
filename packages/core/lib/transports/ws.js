@@ -1,4 +1,4 @@
-const { Transport, ErrorCode } = require('../enums')
+const { Transport, ErrorCode } = require('.@neemata/common')
 const { createClient } = require('../client')
 const { ApiException } = require('../exceptions')
 const Zod = require('zod')

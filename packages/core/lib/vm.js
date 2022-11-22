@@ -10,7 +10,7 @@ const { dirname, parse, extname } = require('node:path')
 const { readFile } = require('node:fs/promises')
 const { createRequire } = require('node:module')
 const { pathToFileURL } = require('node:url')
-const { ErrorCode, WorkerType } = require('./enums')
+const { ErrorCode, WorkerType } = require('@neemata/common')
 const { ApiException } = require('./exceptions')
 
 const typingHelpers = ['defineAuthModule', 'defineApiModule', 'defineGuard']

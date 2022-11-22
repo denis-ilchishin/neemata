@@ -1,4 +1,4 @@
-const { Transport, ErrorCode } = require('../enums')
+const { Transport, ErrorCode } = require('.@neemata/common')
 const { ApiException } = require('../exceptions')
 
 /**

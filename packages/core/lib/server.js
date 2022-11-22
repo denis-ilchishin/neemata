@@ -6,7 +6,7 @@ const { parse: querystringParser } = require('qs')
 const createHttpTransport = require('./transports/http')
 const createWsTranport = require('./transports/ws')
 const { ApiException } = require('./exceptions')
-const { ErrorCode } = require('./enums')
+const { ErrorCode } = require('@neemata/common')
 
 const transports = [createHttpTransport, createWsTranport]
 

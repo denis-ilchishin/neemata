@@ -5,7 +5,7 @@ const { workerData, parentPort, threadId } = require('node:worker_threads')
 const { randomUUID } = require('node:crypto')
 
 const { Config } = require('./modules/config')
-const { WorkerMessage, WorkerType } = require('./enums')
+const { WorkerMessage, WorkerType } = require('@neemata/common')
 const { Logging } = require('./logging')
 const { Db } = require('./modules/db')
 const { Lib } = require('./modules/lib')
@@ -16,7 +16,7 @@ const { Server } = require('./server')
 const { ConsoleLogger } = require('./console')
 
 /**
- * @type {{type: keyof typeof import('./enums').WorkerType, port?: number, isDev: boolean, isDev: boolean, isProd: boolean, config: import('../types/neemata').NeemataConfig, rootPath: string}}
+ * @type {{type: keyof typeof import('@neemata/common').WorkerType, port?: number, isDev: boolean, isDev: boolean, isProd: boolean, config: import('../types/neemata').NeemataConfig, rootPath: string}}
  */
 const { type, port, isDev, isProd, config, rootPath } = workerData
 

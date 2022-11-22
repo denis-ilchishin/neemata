@@ -1,7 +1,7 @@
 'use strict'
 
 const { parentPort, threadId, workerData } = require('node:worker_threads')
-const { WorkerMessage } = require('./enums')
+const { WorkerMessage } = require('@neemata/common')
 const { pino, stdTimeFunctions } = require('pino')
 const { createWriteStream, mkdirSync } = require('node:fs')
 const { dirname, join } = require('node:path')

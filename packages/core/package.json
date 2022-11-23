@@ -8,12 +8,12 @@
   "main": "index.js",
   "types": "types/neemata.d.ts",
   "dependencies": {
-    "@neemata/common": "workspace:*",
     "@fastify/cors": "8.1.0",
     "@fastify/multipart": "7.2.0",
     "@fastify/websocket": "7.1.1",
+    "@neemata/common": "workspace:*",
     "cron-parser": "4.5.0",
-    "fastify": "4.9.2",
+    "fastify": "4.10.2",
     "pino": "8.7.0",
     "qs": "6.11.0",
     "tsc-watch": "5.0.3",
@@ -22,7 +22,7 @@
   "peerDependencies": {
     "@types/node": "^18.0.0",
     "@types/ws": "8.5.0",
-    "zod": "3.19.1",
-    "typescript": "^4.7.0"
+    "typescript": "^4.7.0",
+    "zod": "3.19.1"
   }
 }

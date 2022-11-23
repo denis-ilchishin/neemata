@@ -241,13 +241,11 @@ export class Neemata extends events.EventEmitter {
             })
 
             events.once(ws, 'close', () => {
-              console.log('closed')
               this.dispatchEvent(new Event('neemata:disconnect'))
               this.connect()
             })
 
             events.once(ws, 'open', () => {
-              console.log('opened')
               this.dispatchEvent(new Event('neemata:connect'))
               setTimeout(resolve, 0)
             })

@@ -1,0 +1,5 @@
+export { ErrorCode } from './lib/error-code'
+export { MessageType } from './lib/message-type'
+export { Transport } from './lib/transport'
+export { WorkerMessage } from './lib/worker-message'
+export { WorkerType } from './lib/worker-type'

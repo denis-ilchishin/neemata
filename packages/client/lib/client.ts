@@ -1,10 +1,18 @@
 import { ErrorCode, MessageType, Transport } from '@neemata/common'
-import events from 'events'
+import { EventEmitter } from 'events'
+
+type TransportType = typeof Transport[keyof typeof Transport]
+type ApiConstructOptions = {
+  transport?: TransportType
+  formData?: FormData
+  version?: string
+}
 
 const randomUUID = () =>
   typeof crypto.randomUUID !== 'undefined'
     ? crypto.randomUUID()
-    : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+    : // @ts-expect-error
+      ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
         (
           c ^
           (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
@@ -12,20 +20,31 @@ const randomUUID = () =>
       )
 
 export class NeemataError extends Error {
-  constructor(code, message, data) {
+  constructor(
+    public readonly code: string,
+    public readonly message: string,
+    public readonly data?: any
+  ) {
     super(message)
-    this.name = code
-    this.data = data
   }
 }
 
-export class Neemata extends events.EventEmitter {
-  ws = null
-  connecting = null
-  auth = null
-  api = {}
+export type NeemataOptions = {
+  host: string
+  preferHttp?: boolean
+  basePath?: string
+}
 
-  constructor({ host, preferHttp = false, basePath = '/api' }) {
+export class Neemata<T = any> extends EventEmitter {
+  private connecting: Promise<void> | null = null
+  private auth: string | null = null
+  private httpUrl: URL
+  private prefer: TransportType
+
+  api: T = {} as T
+  ws: WebSocket | null = null
+
+  constructor({ host, preferHttp = false, basePath = '/api' }: NeemataOptions) {
     super()
 
     this.httpUrl = new URL(basePath, host)
@@ -34,7 +53,7 @@ export class Neemata extends events.EventEmitter {
     // Neemata internal events
     this.on('neemata:reload', () => this.introspect())
     this.on('neemata:ping', () =>
-      this.ws.send(
+      this.ws?.send(
         JSON.stringify({
           type: MessageType.Message,
           payload: { event: 'neemata:pong' },
@@ -43,7 +62,7 @@ export class Neemata extends events.EventEmitter {
     )
   }
 
-  setAuth(token) {
+  setAuth(token: string) {
     this.auth = token ? `Token ${token}` : null
   }
 
@@ -52,8 +71,8 @@ export class Neemata extends events.EventEmitter {
       headers: this.auth ? { authorization: this.auth } : {},
     }).then((res) => res.json())
 
-    const modules = new Set(api.map(({ name }) => name))
-    this.api = {}
+    const modules = new Set<string>(api.map(({ name }) => name))
+    this.api = {} as T
 
     for (const moduleName of modules) {
       const versions = api.filter(({ name }) => name === moduleName)
@@ -74,7 +93,13 @@ export class Neemata extends events.EventEmitter {
                 configurable: false,
                 enumerable: true,
                 value: Object.assign(
-                  (data, { transport: _transport, ...options } = {}) =>
+                  (
+                    data,
+                    {
+                      transport: _transport,
+                      ...options
+                    }: ApiConstructOptions = {}
+                  ) =>
                     this._api(moduleName, data, {
                       ...options,
                       transport: module.transport ?? _transport ?? this.prefer,
@@ -87,7 +112,13 @@ export class Neemata extends events.EventEmitter {
               Object.defineProperty(last[part], `v${module.version}`, {
                 configurable: false,
                 enumerable: true,
-                value: (data, { transport: _transport, ...options } = {}) =>
+                value: (
+                  data,
+                  {
+                    transport: _transport,
+                    ...options
+                  }: ApiConstructOptions = {}
+                ) =>
                   this._api(moduleName, data, {
                     ...options,
                     transport: module.transport ?? _transport ?? this.prefer,
@@ -104,33 +135,40 @@ export class Neemata extends events.EventEmitter {
     }
   }
 
-  async _api(module, data, { transport, formData, version = '1' } = {}) {
+  async _api(
+    module: string,
+    data: any,
+    { transport, formData, version = '1' }: ApiConstructOptions = {}
+  ) {
     await this.connecting
 
     if (transport === Transport.Http || formData) {
-      const options = {
+      const headers: HeadersInit = {
+        'accept-version': version,
+      }
+
+      const options: RequestInit = {
         method: 'POST',
-        headers: {
-          'accept-version': version,
-        },
       }
 
       if (typeof data !== 'undefined') {
-        options.headers['content-type'] = formData
+        headers['content-type'] = formData
           ? 'multipart/form-data'
           : 'application/json'
         options.body = formData ? data : JSON.stringify(data)
       }
 
       if (this.auth) {
-        options.headers.authorization = this.auth
+        headers['authorization'] = this.auth
       }
+
+      options.headers = headers
 
       return fetch(`${this.httpUrl}/${module.split('.').join('/')}`, options)
         .catch((err) => {
           console.error(err)
           throw new NeemataError(
-            ErrorCode.RequestError,
+            ErrorCode.ClientRequestError,
             'HTTP channel request error'
           )
         })
@@ -138,7 +176,7 @@ export class Neemata extends events.EventEmitter {
         .catch((err) => {
           console.error(err)
           throw new NeemataError(
-            ErrorCode.RequestError,
+            ErrorCode.ClientRequestError,
             'HTTP channel parse error'
           )
         })
@@ -158,7 +196,7 @@ export class Neemata extends events.EventEmitter {
               payload.correlationId === correlationId &&
               payload.module === module
             ) {
-              this.ws.removeEventListener('message', handler)
+              this.ws?.removeEventListener('message', handler)
               if (payload.error)
                 reject(
                   new NeemataError(
@@ -170,19 +208,19 @@ export class Neemata extends events.EventEmitter {
               else resolve(payload.data)
             }
           } catch (error) {
-            this.ws.removeEventListener('message', handler)
+            this.ws?.removeEventListener('message', handler)
             console.error(error)
             reject(
               new NeemataError(
-                ErrorCode.RequestError,
+                ErrorCode.ClientRequestError,
                 'WS channel message parse error'
               )
             )
           }
         }
 
-        this.ws.addEventListener('message', handler)
-        this.ws.send(
+        this.ws?.addEventListener('message', handler)
+        this.ws?.send(
           JSON.stringify({
             type: MessageType.Api,
             payload: { correlationId, module, data, version },
@@ -224,31 +262,43 @@ export class Neemata extends events.EventEmitter {
             if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
             const ws = (this.ws = new window.WebSocket(wsUrl))
 
-            events.once(ws, 'error', () => {
-              console.error(err)
-              this.dispatchEvent(new Event('neemata:error', err))
-              ws.close()
-            })
+            ws.addEventListener(
+              'error',
+              (err) => {
+                console.error(err)
+                this.emit('neemata:error', err)
+                ws.close()
+              },
+              { once: true }
+            )
 
-            events.on(ws, 'message', (message) => {
+            ws.addEventListener('message', (message) => {
               try {
                 const { type, payload } = JSON.parse(message.data)
                 if (type === MessageType.Message && payload.event)
-                  this.dispatchEvent(new Event(payload.event, payload.data))
+                  this.emit(payload.event, payload.data)
               } catch (err) {
                 console.error(err)
               }
             })
 
-            events.once(ws, 'close', () => {
-              this.dispatchEvent(new Event('neemata:disconnect'))
-              this.connect()
-            })
+            ws.addEventListener(
+              'close',
+              () => {
+                this.emit('neemata:disconnect')
+                this.connect()
+              },
+              { once: true }
+            )
 
-            events.once(ws, 'open', () => {
-              this.dispatchEvent(new Event('neemata:connect'))
-              setTimeout(resolve, 0)
-            })
+            ws.addEventListener(
+              'open',
+              () => {
+                this.emit('neemata:connect')
+                setTimeout(resolve, 0)
+              },
+              { once: true }
+            )
           })
       })
     } else {
@@ -259,7 +309,7 @@ export class Neemata extends events.EventEmitter {
   }
 
   async reconnect() {
-    await this.ws?.close()
+    this.ws?.close()
     return new Promise((resolve) => this.once('neemata:connect', resolve))
   }
 

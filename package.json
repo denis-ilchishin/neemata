@@ -13,9 +13,12 @@
   "devDependencies": {
     "eslint": "^8.17.0",
     "semver": "^7.3.8",
+    "tsup": "^6.5.0",
     "typescript": "^4.7.4"
   },
   "scripts": {
-    "version": "node scripts/version.js"
+    "version": "node scripts/version.js",
+    "build": "pnpm -r run build",
+    "watch": "pnpm -r --parallel run watch"
   }
 }

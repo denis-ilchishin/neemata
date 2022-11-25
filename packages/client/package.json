@@ -4,12 +4,38 @@
   "description": "Neemata client package",
   "author": "Denis Ilchyshyn",
   "license": "MIT",
-  "main": "index.mjs",
-  "types": "index.d.ts",
+  "scripts": {
+    "build": "tsup index.ts",
+    "watch": "tsup index.ts --watch"
+  },
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./index.mjs"
+    ".": {
+      "import": "./dist/index.mjs"
+    }
   },
   "dependencies": {
-    "@neemata/common": "workspace:*"
+    "@neemata/common": "workspace:*",
+    "events": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/events": "^3.0.0"
+  },
+  "tsup": {
+    "format": [
+      "esm"
+    ],
+    "dts": {
+      "resolve": true,
+      "entry": [
+        "./index.ts"
+      ],
+      "compilerOptions": {
+        "moduleResolution": "node"
+      }
+    },
+    "sourcemap": true,
+    "clean": true,
+    "target": "es6"
   }
 }

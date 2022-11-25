@@ -4,6 +4,25 @@
   "description": "Neemata common package",
   "author": "Denis Ilchyshyn",
   "license": "MIT",
-  "main": "index.js",
-  "types": "index.d.ts"
+  "scripts": {
+    "build": "tsup index.ts",
+    "watch": "tsup index.ts --watch"
+  },
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "tsup": {
+    "format": [
+      "esm",
+      "cjs"
+    ],
+    "dts": true,
+    "sourcemap": true,
+    "clean": true,
+    "platform": "neutral"
+  }
 }

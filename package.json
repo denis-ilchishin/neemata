@@ -20,5 +20,6 @@
     "version": "node scripts/version.js",
     "build": "pnpm -r run build",
     "watch": "pnpm -r --parallel run watch"
-  }
+  },
+  "version": "0.0.2"
 }

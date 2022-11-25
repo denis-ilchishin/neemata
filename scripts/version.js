@@ -4,12 +4,9 @@ const { parseArgs } = require('node:util')
 const { valid } = require('semver')
 
 const {
-  values: { version },
+  positionals: [version],
 } = parseArgs({
-  options: {
-    version: { type: 'string', short: 'v' },
-  },
-  allowPositionals: false,
+  allowPositionals: true,
   strict: true,
 })
 

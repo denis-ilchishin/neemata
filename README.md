@@ -12,7 +12,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 4. Delayed task execution using thread pool
 5. On-fly instant hot reloading, without process/worker restart
 6. File system routing (with optional versioning)
-7. Support for CommonJS and EcmaScript
+7. Support for CommonJS and EcmaScript and Typescript modules
 
 ### Core dependencies
 

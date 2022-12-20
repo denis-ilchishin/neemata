@@ -12,6 +12,7 @@ const { createRequire } = require('node:module')
 const { pathToFileURL } = require('node:url')
 const { ErrorCode, WorkerType } = require('@neemata/common')
 const { ApiException } = require('./exceptions')
+const esbuld = require('esbuild')
 
 const typingHelpers = ['defineAuthModule', 'defineApiModule', 'defineGuard']
 
@@ -43,10 +44,16 @@ const RUNNING_OPTIONS = {
   displayErrors: true,
 }
 
+const types = {
+  '.mjs': 'es',
+  '.js': 'cjs',
+  '.ts': 'ts',
+}
+
 class Script {
   constructor(filepath, options) {
     this.filepath = filepath
-    this.type = extname(this.filepath) === '.mjs' ? 'es' : 'cjs'
+    this.type = types[extname(this.filepath)]
     this.options = options
     this.content = readFile(this.filepath).then((buff) =>
       buff.toString('utf-8')
@@ -78,19 +85,35 @@ class Script {
     }
   }
 
+  async ts() {
+    this.content = esbuld
+      .transform(await this.content, {
+        target: 'es2022',
+        ignoreAnnotations: true,
+        loader: 'ts',
+      })
+      .then((result) => result.code)
+
+    return this.es()
+  }
+
   async cjs() {
     const source = [
       "'use strict';",
       '(async ({module, require, exports, hooks, __filename, __dirname}) => {',
       await this.content,
       '});',
-    ].join('')
+    ].join('\n')
     const context = this.makeContext()
 
+    /**
+     * @type {import('node:vm').ScriptOptions}
+     */
     const options = {
       ...RUNNING_OPTIONS,
       filename: this.filepath,
-      lineOffset: 0,
+      lineOffset: -2,
+      displayErrors: true,
     }
 
     const closure = new CJSScript(source, options).runInContext(

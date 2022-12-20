@@ -70,7 +70,10 @@ class Loader {
         for (const name of await fsp.readdir(_path)) {
           await traverse(_path, name)
         }
-      } else if (/\.(mjs|js)/.test(extname(_path)) && !_path.startsWith('.')) {
+      } else if (
+        /\.(mjs|js|ts)/.test(extname(_path)) &&
+        !_path.startsWith('.')
+      ) {
         files.push(_path.replace(this.path + sep, ''))
       }
     }

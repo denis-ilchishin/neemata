@@ -1,6 +1,6 @@
 const fs = require('node:fs')
 const { resolve, join, sep, parse, relative, dirname } = require('node:path')
-const TscWatch = require('tsc-watch/client')
+const { TscWatchClient } = require('tsc-watch')
 
 function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1)
@@ -18,7 +18,7 @@ function dirTree(applicationPath, module) {
         traverse(_path, name)
       }
     } else if (
-      /\.(mjs|js)/.test(ext) &&
+      /\.(mjs|js|ts)/.test(ext) &&
       !base.startsWith('.') &&
       !base.startsWith('_')
     ) {
@@ -126,20 +126,20 @@ function getIndex(applicationPath) {
   }
 
   const importsContent = Object.entries(imports)
-    .map(
-      ([alias, path]) =>
-        `import ${
-          path.endsWith('mjs') ? `* as ${alias}` : alias
-        } from '${path}'`
-    )
+    .map(([alias, path]) => {
+      const isMjs = path.endsWith('.mjs')
+      path = path.replace(/\.ts$/, '')
+      return `import ${isMjs ? `* as ${alias}` : alias} from '${path}'`
+    })
     .join('\n')
 
-  const fileContent = `
-    ${importsContent}
-
-    declare module 'neemata' {
+  const fileContent = [
+    '/// <reference types="@neemata/core/types" />',
+    importsContent,
+    `declare module '@neemata/core/types' {
     ${interfaces.join('')}
-    }`
+    }`,
+  ].join('\n')
 
   return fileContent
 }
@@ -155,7 +155,7 @@ class Typings {
   watch() {
     if (this.watcher) return
 
-    this.watcher = new TscWatch()
+    this.watcher = new TscWatchClient()
 
     try {
       if (!fs.statSync(this.outputDir).isDirectory()) {
@@ -187,18 +187,20 @@ class Typings {
             alwaysStrict: true,
             baseUrl: '.',
             esModuleInterop: true,
-            types: ['neemata'],
             strict: true,
+            types: ['@neemata/core/types'],
             outDir: './types',
             rootDir: relativeApplicationPath,
+            isolatedModules: true,
           },
           include: [
-            join(relativeApplicationPath, '/**/*.js'),
-            join(relativeApplicationPath, '/**/*.mjs'),
+            join(relativeApplicationPath, '**/*.js'),
+            join(relativeApplicationPath, '**/*.mjs'),
+            join(relativeApplicationPath, '**/*.ts'),
           ],
           exclude: [
-            join(relativeApplicationPath, '/api'),
-            join(relativeApplicationPath, '/tasks'),
+            join(relativeApplicationPath, 'api'),
+            join(relativeApplicationPath, 'tasks'),
             join(relativeCwdPath, 'types'),
             join(relativeCwdPath, 'tsconfig.json'),
           ],

@@ -6,7 +6,17 @@
   "repository": "github:denis-ilchishin/neemata",
   "license": "MIT",
   "main": "index.js",
-  "types": "types/neemata.d.ts",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "types": "./index.d.ts"
+    },
+    "./types": {
+      "types": "./types.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "dependencies": {
     "@fastify/cors": "8.1.0",
     "@fastify/multipart": "7.2.0",
@@ -16,7 +26,7 @@
     "fastify": "4.10.2",
     "pino": "8.7.0",
     "qs": "6.11.0",
-    "tsc-watch": "5.0.3",
+    "tsc-watch": "6.0.0",
     "ws": "8.10.0"
   },
   "peerDependencies": {

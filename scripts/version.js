@@ -17,9 +17,7 @@ if (!valid(version)) {
 
 const dirs = [
   resolve('.'),
-  ...readdirSync(resolve('packages')).map((package) =>
-    resolve('packages', package)
-  ),
+  ...readdirSync(resolve('packages')).map((pkg) => resolve('packages', pkg)),
 ]
 
 for (const dir of dirs) {

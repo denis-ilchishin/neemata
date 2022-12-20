@@ -5,8 +5,8 @@
   "author": "Denis Ilchyshyn",
   "license": "MIT",
   "scripts": {
-    "build": "tsup index.ts",
-    "watch": "tsup index.ts --watch"
+    "build": "tsup",
+    "watch": "tsup --watch"
   },
   "types": "./dist/index.d.ts",
   "exports": {
@@ -20,22 +20,5 @@
   },
   "devDependencies": {
     "@types/events": "^3.0.0"
-  },
-  "tsup": {
-    "format": [
-      "esm"
-    ],
-    "dts": {
-      "resolve": true,
-      "entry": [
-        "./index.ts"
-      ],
-      "compilerOptions": {
-        "moduleResolution": "node"
-      }
-    },
-    "sourcemap": true,
-    "clean": true,
-    "target": "es6"
   }
 }

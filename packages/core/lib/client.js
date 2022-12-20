@@ -1,9 +1,11 @@
+'use strict'
+
 const { randomUUID } = require('node:crypto')
 const EventEmitter = require('node:events')
 
 module.exports = {
   /**
-   * @returns {import('./client').Client}
+   * @returns {import('../types/internal').Client}
    */
   createClient(socket, sendToSocket) {
     const client = Object.assign(new EventEmitter(), {

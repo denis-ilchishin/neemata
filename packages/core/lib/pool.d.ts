@@ -2,7 +2,7 @@ export class Pool<T = any> {
   constructor(options?: { timeout?: number })
 
   size: number
-  available: numebr
+  available: number
   items: Set<T>
 
   next(timeout?: number): Promise<T>

@@ -78,7 +78,7 @@ const defaultConfig = {
 
 class Config extends Watcher {
   /**
-   * @type {import('../types/neemata').NeemataConfig}
+   * @type {import('../types/internal').NeemataConfig}
    */
   resolved
 

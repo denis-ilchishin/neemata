@@ -19,8 +19,8 @@ const { positionals, values } = parseArgs({
 const { config, root, timeout, scheduler: startScheduler } = values
 const [command, ...args] = positionals
 
-const rootPath = root ? resolve(root) : resolve('application')
-const configPath = config ? resolve(config) : resolve('neemata.config.js')
+const rootPath = resolve(root || 'application')
+const configPath = resolve(config || 'neemata.config.js')
 
 start({
   rootPath,

@@ -1,9 +1,9 @@
+import type { ApiRetrospectRespose, ValueOf } from '@neemata/common'
 import { ErrorCode, MessageType, Transport } from '@neemata/common'
 import { EventEmitter } from 'events'
 
-type TransportType = typeof Transport[keyof typeof Transport]
 type ApiConstructOptions = {
-  transport?: TransportType
+  transport?: ValueOf<typeof Transport>
   formData?: FormData
   version?: string
 }
@@ -36,13 +36,13 @@ export type NeemataOptions = {
 }
 
 export class Neemata<T = any> extends EventEmitter {
+  api: T = {} as T
+  ws: WebSocket | null = null
+
   private connecting: Promise<void> | null = null
   private auth: string | null = null
   private httpUrl: URL
-  private prefer: TransportType
-
-  api: T = {} as T
-  ws: WebSocket | null = null
+  private prefer: ValueOf<typeof Transport>
 
   constructor({ host, preferHttp = false, basePath = '/api' }: NeemataOptions) {
     super()
@@ -62,14 +62,17 @@ export class Neemata<T = any> extends EventEmitter {
     )
   }
 
-  setAuth(token: string) {
+  setAuth(token: string | null) {
     this.auth = token ? `Token ${token}` : null
   }
 
   async introspect() {
-    const api = await fetch(`${this.httpUrl}/neemata/introspect`, {
-      headers: this.auth ? { authorization: this.auth } : {},
-    }).then((res) => res.json())
+    const api: ApiRetrospectRespose = await fetch(
+      `${this.httpUrl}/neemata/introspect`,
+      {
+        headers: this.auth ? { authorization: this.auth } : {},
+      }
+    ).then((res) => res.json())
 
     const modules = new Set<string>(api.map(({ name }) => name))
     this.api = {} as T
@@ -78,7 +81,7 @@ export class Neemata<T = any> extends EventEmitter {
       const versions = api.filter(({ name }) => name === moduleName)
 
       const parts = moduleName.split('.')
-      let last = this.api
+      let last: any = this.api
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i]
@@ -94,13 +97,13 @@ export class Neemata<T = any> extends EventEmitter {
                 enumerable: true,
                 value: Object.assign(
                   (
-                    data,
+                    data: any,
                     {
                       transport: _transport,
                       ...options
                     }: ApiConstructOptions = {}
                   ) =>
-                    this._api(moduleName, data, {
+                    this.request(moduleName, data, {
                       ...options,
                       transport: module.transport ?? _transport ?? this.prefer,
                       version: module.version,
@@ -113,13 +116,13 @@ export class Neemata<T = any> extends EventEmitter {
                 configurable: false,
                 enumerable: true,
                 value: (
-                  data,
+                  data: any,
                   {
                     transport: _transport,
                     ...options
                   }: ApiConstructOptions = {}
                 ) =>
-                  this._api(moduleName, data, {
+                  this.request(moduleName, data, {
                     ...options,
                     transport: module.transport ?? _transport ?? this.prefer,
                     version: module.version,
@@ -134,119 +137,10 @@ export class Neemata<T = any> extends EventEmitter {
       moduleName
     }
   }
-
-  async _api(
-    module: string,
-    data: any,
-    { transport, formData, version = '1' }: ApiConstructOptions = {}
-  ) {
-    await this.connecting
-
-    if (transport === Transport.Http || formData) {
-      const headers: HeadersInit = {
-        'accept-version': version,
-      }
-
-      const options: RequestInit = {
-        method: 'POST',
-      }
-
-      if (typeof data !== 'undefined') {
-        headers['content-type'] = formData
-          ? 'multipart/form-data'
-          : 'application/json'
-        options.body = formData ? data : JSON.stringify(data)
-      }
-
-      if (this.auth) {
-        headers['authorization'] = this.auth
-      }
-
-      options.headers = headers
-
-      return fetch(`${this.httpUrl}/${module.split('.').join('/')}`, options)
-        .catch((err) => {
-          console.error(err)
-          throw new NeemataError(
-            ErrorCode.ClientRequestError,
-            'HTTP channel request error'
-          )
-        })
-        .then((res) => res.json())
-        .catch((err) => {
-          console.error(err)
-          throw new NeemataError(
-            ErrorCode.ClientRequestError,
-            'HTTP channel parse error'
-          )
-        })
-        .then(({ error, data }) => {
-          return error
-            ? Promise.reject(new NeemataError(error.code, error.message, data))
-            : Promise.resolve(data)
-        })
-    } else {
-      const req = new Promise((resolve, reject) => {
-        const correlationId = randomUUID()
-        const handler = ({ data: rawMessage }) => {
-          try {
-            const { type, payload } = JSON.parse(rawMessage)
-            if (
-              type === MessageType.Api &&
-              payload.correlationId === correlationId &&
-              payload.module === module
-            ) {
-              this.ws?.removeEventListener('message', handler)
-              if (payload.error)
-                reject(
-                  new NeemataError(
-                    payload.error.code,
-                    payload.error.message,
-                    payload.data
-                  )
-                )
-              else resolve(payload.data)
-            }
-          } catch (error) {
-            this.ws?.removeEventListener('message', handler)
-            console.error(error)
-            reject(
-              new NeemataError(
-                ErrorCode.ClientRequestError,
-                'WS channel message parse error'
-              )
-            )
-          }
-        }
-
-        this.ws?.addEventListener('message', handler)
-        this.ws?.send(
-          JSON.stringify({
-            type: MessageType.Api,
-            payload: { correlationId, module, data, version },
-          })
-        )
-      })
-
-      return req
-    }
-  }
-
-  async _waitHealthy() {
-    let healhy = false
-
-    while (!healhy) {
-      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
-        .then((r) => r.ok)
-        .catch((err) => false)
-      if (!healhy) await new Promise((r) => setTimeout(r, 1000))
-    }
-  }
-
   connect() {
     if (this.prefer === Transport.Ws) {
       this.connecting = new Promise((resolve) => {
-        this._waitHealthy()
+        this.waitHealthy()
           .then(() => this.introspect())
           .catch((err) => {
             this.connect()
@@ -302,7 +196,7 @@ export class Neemata<T = any> extends EventEmitter {
           })
       })
     } else {
-      this.connecting = this._waitHealthy().then(() => this.introspect())
+      this.connecting = this.waitHealthy().then(() => this.introspect())
     }
 
     return this.connecting
@@ -315,7 +209,117 @@ export class Neemata<T = any> extends EventEmitter {
 
   get isActive() {
     return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
-      this.ws?.readyState
+      this.ws?.readyState!
     )
   }
+
+  private async request(
+    module: string,
+    data: any,
+    { transport, formData, version = '1' }: ApiConstructOptions = {}
+  ) {
+    await this.connecting
+
+    if (transport === Transport.Http || formData) {
+      const headers: HeadersInit = {
+        'accept-version': version,
+      }
+
+      const options: RequestInit = {
+        method: 'POST',
+      }
+
+      if (typeof data !== 'undefined') {
+        headers['content-type'] = formData
+          ? 'multipart/form-data'
+          : 'application/json'
+        options.body = formData ? data : JSON.stringify(data)
+      }
+
+      if (this.auth) {
+        headers['authorization'] = this.auth
+      }
+
+      options.headers = headers
+
+      return fetch(`${this.httpUrl}/${module.split('.').join('/')}`, options)
+        .catch((err) => {
+          console.error(err)
+          throw new NeemataError(
+            ErrorCode.ClientRequestError,
+            'HTTP channel request error'
+          )
+        })
+        .then((res) => res.json())
+        .catch((err) => {
+          console.error(err)
+          throw new NeemataError(
+            ErrorCode.ClientRequestError,
+            'HTTP channel parse error'
+          )
+        })
+        .then(({ error, data }) => {
+          return error
+            ? Promise.reject(new NeemataError(error.code, error.message, data))
+            : Promise.resolve(data)
+        })
+    } else {
+      const req = new Promise((resolve, reject) => {
+        const correlationId = randomUUID()
+        const handler = ({ data: rawMessage }: MessageEvent) => {
+          try {
+            const { type, payload } = JSON.parse(rawMessage)
+            if (
+              type === MessageType.Api &&
+              payload.correlationId === correlationId &&
+              payload.module === module
+            ) {
+              this.ws?.removeEventListener('message', handler)
+              if (payload.error)
+                reject(
+                  new NeemataError(
+                    payload.error.code,
+                    payload.error.message,
+                    payload.data
+                  )
+                )
+              else resolve(payload.data)
+            }
+          } catch (error) {
+            this.ws?.removeEventListener('message', handler)
+            console.error(error)
+            reject(
+              new NeemataError(
+                ErrorCode.ClientRequestError,
+                'WS channel message parse error'
+              )
+            )
+          }
+        }
+
+        this.ws?.addEventListener('message', handler)
+        this.ws?.send(
+          JSON.stringify({
+            type: MessageType.Api,
+            payload: { correlationId, module, data, version },
+          })
+        )
+      })
+
+      return req
+    }
+  }
+
+  private async waitHealthy() {
+    let healhy = false
+
+    while (!healhy) {
+      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
+        .then((r) => r.ok)
+        .catch((err) => false)
+      if (!healhy) await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
 }
+
+export const NeemataClient = Neemata

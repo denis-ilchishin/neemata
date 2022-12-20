@@ -12,7 +12,7 @@ const transports = [createHttpTransport, createWsTranport]
 
 class Server {
   /**
-   * @type {Set<import('./client').Client>}
+   * @type {Set<import('../types/internal').Client>}
    */
   clients = new Set()
   /**

@@ -1,7 +1,8 @@
 const { Transport, ErrorCode } = require('@neemata/common')
 const { createClient } = require('../client')
 const { ApiException } = require('../exceptions')
-const Zod = require('zod')
+const { Type } = require('@sinclair/typebox')
+const { TypeCompiler } = require('@sinclair/typebox/compiler')
 
 /**
  *
@@ -29,41 +30,31 @@ module.exports = function (server) {
     else throw new Error('Socket is already closed')
   }
 
-  const schema = Zod.discriminatedUnion('type', [
-    Zod.object({
-      type: Zod.literal('api'),
-      payload: Zod.object({
-        correlationId: Zod.string().uuid(),
-        module: Zod.string(),
-        version: Zod.string().default('*'),
-        data: Zod.any().optional(),
+  const schema = TypeCompiler.Compile(
+    Type.Union([
+      Type.Object({
+        type: Type.Literal('api'),
+        payload: Type.Object({
+          correlationId: Type.String(),
+          module: Type.String(),
+          version: Type.String({ default: '1' }),
+          data: Type.Optional(Type.Any()),
+        }),
       }),
-    }),
-    Zod.object({
-      type: Zod.literal('message'),
-      payload: Zod.object({
-        event: Zod.string(),
-        data: Zod.any(),
+      Type.Object({
+        type: Type.Literal('message'),
+        payload: Type.Object({
+          event: Type.String(),
+          data: Type.Optional(Type.Any()),
+        }),
       }),
-    }),
-  ])
+    ])
+  )
 
-  /**
-   * @typedef {{socket: import('ws').WebSocket, client: import('../client').Client, req: import('fastify').FastifyRequest}} HandlerPayload
-   */
-
-  /**
-   * @param {HandlerPayload} options
-   * @param {(import('zod').TypeOf<typeof schema> extends infer U ? (U extends {type: "message"} ? U : never) : never)['payload']} payload
-   */
   async function messageHandler({ client }, payload) {
     client.emit(payload.event, payload.data)
   }
 
-  /**
-   * @param {HandlerPayload} options
-   * @param {(import('zod').TypeOf<typeof schema> extends infer U ? (U extends {type: "api"} ? U : never) : never)['payload']} payload
-   */
   async function apiHandler({ client, socket, req }, payload) {
     try {
       const auth = client.auth
@@ -203,15 +194,11 @@ module.exports = function (server) {
 
           socket.on('message', async (raw) => {
             try {
-              const message = await schema.safeParseAsync(
-                JSON.parse(raw.toString('utf-8'))
-              )
+              const message = JSON.parse(raw.toString('utf-8'))
+              if (!schema.Check(message)) throw new Error('Invalid message')
               await authPromise
-
-              if (message.success) {
-                const { type, payload } = message.data
-                await handlers[type]({ client, socket, req }, payload)
-              } else throw message.error
+              const { type, payload } = message
+              await handlers[type]({ client, socket, req }, payload)
             } catch (err) {
               application.console.error(err, 'WS')
             }

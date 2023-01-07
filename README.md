@@ -1,6 +1,6 @@
 # Neemata
 
-Lightweight application server for nodejs, that uses `node:worker_threads` and `node:vm` contexts under the hood for scaling and isolation. Suitable for rapid development using protocol-agnostic API.
+Lightweight application server for nodejs, that uses `node:worker_threads` and `node:vm` contexts under the hood for scaling and isolation. Suitable for rapid development using protocol-agnostic approach.
 
 ---
 
@@ -12,13 +12,13 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 4. Delayed task execution using thread pool
 5. On-fly instant hot reloading, without process/worker restart
 6. File system routing (with optional versioning)
-7. Support for CommonJS and EcmaScript and Typescript modules
+7. Support for CommonJS, EcmaScript and Typescript modules
 
 ### Core dependencies
 
 - [Fastify](https://github.com/fastify/fastify) - web server
 - [WS](https://github.com/websockets/ws) - websocket protocol
-- [Zod](https://github.com/colinhacks/zod) - data schema validation
+- [Typebox](https://github.com/sinclairzx81/typebox) - data schema validation and response serialization
 
 ### [Roadmap](https://github.com/denis-ilchishin/neemata/issues?q=label%3Aroadmap)
 

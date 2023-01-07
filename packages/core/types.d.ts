@@ -1,37 +1,47 @@
 import { Transport, ValueOf, WorkerType } from '@neemata/common'
+import { Static, TSchema } from '@sinclair/typebox'
 import { FastifyReply, FastifyRequest } from 'fastify'
-import { TypeOf, ZodType } from 'zod'
 import { Client, Guard } from './types/internal'
 
-export type ApiModuleHandler<
-  D extends ZodType,
+export interface ApiModuleHandlerOptions<
+  D extends TSchema,
   T extends ValueOf<typeof Transport>,
-  A extends boolean,
-  R = any
-> = (params: {
-  auth: A extends false ? null | Auth : Auth
-  data: D extends ZodType ? TypeOf<D> : unknown
-  req: FastifyRequest
+  A extends boolean
+> {
+  auth: A extends false ? null | Auth : Readonly<Auth>
+  data: D extends TSchema ? Static<D> : unknown
+  req: Readonly<FastifyRequest>
   /**
    * Only available if request is made via http transport
    */
-  res: T extends typeof Transport.Ws
-    ? undefined
-    : T extends typeof Transport.Ws
-    ? FastifyReply
-    : undefined | FastifyReply
+  res: Readonly<
+    T extends typeof Transport.Ws
+      ? undefined
+      : T extends typeof Transport.Http
+      ? FastifyReply
+      : undefined | FastifyReply
+  >
   /**
    * Only available if request is made via ws transport
    */
-  client: T extends typeof Transport.Ws
-    ? undefined
-    : T extends typeof Transport.Ws
-    ? Client
-    : undefined | Client
-}) => R
+  client: Readonly<
+    T extends typeof Transport.Http
+      ? undefined
+      : T extends typeof Transport.Ws
+      ? Client
+      : undefined | Client
+  >
+}
+
+export type ApiModuleHandler<
+  D extends TSchema,
+  T extends ValueOf<typeof Transport>,
+  A extends boolean,
+  R = any
+> = (options: ApiModuleHandlerOptions<D, T, A>) => R
 
 export interface ApiModule<
-  D extends ZodType,
+  D extends TSchema,
   T extends ValueOf<typeof Transport>,
   A extends boolean
 > {
@@ -91,7 +101,7 @@ export interface Hooks {
   startup?: () => Promise<void>
   shutdown?: () => Promise<void>
   request?: (options: {
-    readonly auth: Auth | null
+    readonly auth?: Auth
     readonly req: FastifyRequest
     readonly module: { name: string; version: string }
     readonly client?: Client
@@ -116,13 +126,12 @@ export type DefineAuthModule = <
 ) => T
 export type DefineGuard = (guard: Guard) => Guard
 export type DefineApiModule = <
-  D extends ZodType,
+  D extends TSchema,
   T extends ValueOf<typeof Transport>,
-  A extends boolean,
-  M extends ApiModule<D, T, A>
+  A extends boolean
 >(
-  module: M
-) => M
+  module: ApiModule<D, T, A>
+) => ApiModule<D, T, A>
 
 declare global {
   const application: UserApplication

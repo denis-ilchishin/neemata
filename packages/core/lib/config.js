@@ -1,46 +1,43 @@
 'use strict'
 
-const Zod = require('zod')
+const { Type } = require('@sinclair/typebox')
+const { Value } = require('@sinclair/typebox/value')
 const { deepMerge } = require('./utils')
 const { Watcher } = require('./watcher')
 
-const schema = Zod.object({
-  workers: Zod.number().int().min(1),
-  ports: Zod.array(Zod.number().int().min(2).max(65535)).min(1),
-  api: Zod.object({
-    baseUrl: Zod.string().startsWith('/'),
-    hostname: Zod.string(),
-    cors: Zod.any().optional(),
-    multipart: Zod.any().optional(),
+const schema = Type.Object({
+  workers: Type.Number({ minimum: 1 }),
+  ports: Type.Array(Type.Number({ minimum: 1, maximum: 65535 }), {
+    minItems: 1,
   }),
-  log: Zod.object({
-    basePath: Zod.string(),
-    level: Zod.enum(['debug', 'info', 'warn', 'error']),
+  api: Type.Object({
+    baseUrl: Type.String(),
+    hostname: Type.String(),
+    cors: Type.Optional(Type.Any()),
+    multipart: Type.Optional(Type.Any()),
   }),
-  auth: Zod.object({
-    service: Zod.string(),
+  log: Type.Object({
+    basePath: Type.String(),
+    level: Type.Enum(['debug', 'info', 'warn', 'error']),
   }),
-  timeouts: Zod.object({
-    startup: Zod.number().int().min(0),
-    shutdown: Zod.number().int().min(0),
-    hrm: Zod.number().int().min(0),
-    request: Zod.number().int().min(0),
-    task: Zod.object({
-      execution: Zod.number().int().min(0),
-      allocation: Zod.number().int().min(0),
-    }),
+  auth: Type.Object({
+    service: Type.String(),
   }),
-  intervals: Zod.object({
-    ping: Zod.number().int().min(0),
+  timeouts: Type.Object({
+    startup: Type.Number({ minimum: 0 }),
+    shutdown: Type.Number({ minimum: 0 }),
   }),
-  scheduler: Zod.object({
-    tasks: Zod.array(
-      Zod.object({
-        name: Zod.string(),
-        task: Zod.string(),
-        cron: Zod.string(),
-        timeout: Zod.number().int().min(0),
-        args: Zod.array(Zod.any()).default(() => []),
+  intervals: Type.Object({
+    ping: Type.Number({ minimum: 0 }),
+  }),
+  scheduler: Type.Object({
+    tasks: Type.Array(
+      Type.Object({
+        name: Type.String(),
+        task: Type.String(),
+        cron: Type.String(),
+        timeout: Type.Number({ minimum: 0 }),
+        args: Type.Array(Type.Any(), { default: [] }),
       })
     ),
   }),
@@ -93,11 +90,10 @@ class Config extends Watcher {
     try {
       // Clear require cache before re-import
       delete require.cache[this.path]
-      const parsed = schema.safeParse(
-        deepMerge(defaultConfig, require(this.path))
-      )
-      if (parsed.success) this.resolved = parsed.data
-      else throw parsed.error
+      const merged = deepMerge(defaultConfig, require(this.path))
+      const errors = [...Value.Errors(schema, merged)]
+      if (!errors.length) this.resolved = merged
+      else throw errors
     } catch (error) {
       console.error(error)
     }

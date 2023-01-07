@@ -7,6 +7,7 @@ const createHttpTransport = require('./transports/http')
 const createWsTranport = require('./transports/ws')
 const { ApiException } = require('./exceptions')
 const { ErrorCode } = require('@neemata/common')
+const { Value } = require('@sinclair/typebox/value')
 
 const transports = [createHttpTransport, createWsTranport]
 
@@ -138,20 +139,17 @@ class Server {
 
   /**
    *
-   * @param {import('zod').Schema} schema
+   * @param {import('@sinclair/typebox').TSchema} schema
    * @param {*} data
-
    */
   async handleSchema(schema, data) {
-    const result = await schema.safeParseAsync(data)
-
-    if (result.success) {
-      return result.data
+    if (Value.Check(schema, data)) {
+      return Value.Cast(schema, data)
     } else {
       throw new ApiException({
         code: ErrorCode.ValidationError,
         message: 'Request body validation error',
-        data: result.error.format(),
+        data: [...Value.Errors(schema, data)],
       })
     }
   }

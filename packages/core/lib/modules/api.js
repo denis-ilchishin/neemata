@@ -1,6 +1,6 @@
 'use strict'
 
-const Zod = require('zod')
+const { TypeGuard } = require('@sinclair/typebox/guard')
 const { parse, sep } = require('node:path')
 const { Loader } = require('../loader')
 const { Transport } = require('@neemata/common')
@@ -53,12 +53,11 @@ class ApiModule {
         throw new Error("Api module 'handler' is invalid, should be a function")
       }
 
-      // TODO: another way to validate schema for both cjs or es modules
-      // if (this.schema && !(this.schema instanceof Zod.ZodType)) {
-      //   throw new Error(
-      //     "Api module 'schema' is invalid, should be a Zod schema"
-      //   )
-      // }
+      if (this.schema && !TypeGuard.TSchema(this.schema)) {
+        throw new Error(
+          "Api module 'schema' is invalid, should be a Typebox schema"
+        )
+      }
 
       if (this.guards && this.guards.find((g) => typeof g !== 'function')) {
         throw new Error(

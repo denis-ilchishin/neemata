@@ -88,12 +88,11 @@ class Neemata {
           sep + files.map((f) => `${f.eventType}: ${f.filename}`).join(sep),
           'Hot reload'
         )
+        this.typings.compile()
         this.reload()
       })
       this.hrm.watch()
-
-      this.console.debug('Watching typings')
-      this.typings.watch()
+      this.typings.compile()
     }
 
     if (this.startScheduler) {
@@ -164,10 +163,9 @@ class Neemata {
     this.console.info('Shutting down...')
 
     if (this.isDev && !this.isOneOff) {
-      this.console.debug('Clearing application, config and typings watchers')
+      this.console.debug('Clearing application and config')
       this.config.stop()
       this.hrm.stop()
-      this.typings.stop()
     }
 
     // Await for all workers to shutdown

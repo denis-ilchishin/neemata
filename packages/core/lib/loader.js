@@ -93,6 +93,7 @@ class Loader {
       const script = new Script(filePath, {
         context: this.application.sandbox,
         rootPath: this.application.rootPath,
+        application: this.application,
       })
       const { exports, hooks } = await script.execute()
 

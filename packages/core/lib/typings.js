@@ -1,6 +1,6 @@
+const { readFileSync } = require('node:fs')
 const fs = require('node:fs')
 const { resolve, join, sep, parse, relative, dirname } = require('node:path')
-const { TscWatchClient } = require('tsc-watch')
 
 function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1)
@@ -32,7 +32,7 @@ function dirTree(applicationPath, module) {
   let last = tree
 
   for (const file of files) {
-    const { dir, name, ext } = parse(file)
+    const { dir, name } = parse(file)
     if (name.startsWith('_') || name.startsWith('.')) continue
 
     const parts = dir ? dir.split(sep) : []
@@ -62,7 +62,7 @@ function dirTree(applicationPath, module) {
   return tree
 }
 
-function getIndex(applicationPath) {
+function getIndex(applicationPath, outputTypesDir) {
   const modules = ['config', 'lib', 'services', 'db']
 
   const interfaces = []
@@ -77,12 +77,8 @@ function getIndex(applicationPath) {
       .split(sep)
       .join('_')
       .replaceAll('.', '_')
-    imports[alias] = path
-    if (ext === '.mjs') {
-      return `${alias}['default'] & Omit<typeof ${alias}, 'default'>`
-    } else {
-      return alias
-    }
+    imports[alias] = relative(outputTypesDir, resolve(applicationPath, path))
+    return `typeof ${alias}`
   }
 
   for (const module of modules) {
@@ -97,7 +93,7 @@ function getIndex(applicationPath) {
         let res = ''
 
         if ('_' in value) {
-          res += `typeof ${addImport(value._)} &`
+          res += `${addImport(value._)} &`
         }
 
         res += '{\n'
@@ -111,7 +107,7 @@ function getIndex(applicationPath) {
 
         return res
       } else {
-        return `typeof ${addImport(value)}`
+        return addImport(value)
       }
     }
 
@@ -127,9 +123,8 @@ function getIndex(applicationPath) {
 
   const importsContent = Object.entries(imports)
     .map(([alias, path]) => {
-      const isMjs = path.endsWith('.mjs')
       path = path.replace(/\.ts$/, '')
-      return `import ${isMjs ? `* as ${alias}` : alias} from '${path}'`
+      return `import ${alias} from '${path}'`
     })
     .join('\n')
 
@@ -145,17 +140,9 @@ function getIndex(applicationPath) {
 }
 
 class Typings {
-  constructor(rootPath, silent = true) {
+  constructor(rootPath) {
     this.applicationPath = rootPath
     this.outputDir = join(process.cwd(), '.neemata')
-    this.outputTypesDir = join(this.outputDir, 'types')
-    this.silent = silent
-  }
-
-  watch() {
-    if (this.watcher) return
-
-    this.watcher = new TscWatchClient()
 
     try {
       if (!fs.statSync(this.outputDir).isDirectory()) {
@@ -164,12 +151,6 @@ class Typings {
     } catch (error) {
       fs.mkdirSync(this.outputDir)
     }
-
-    const relativeApplicationPath = relative(
-      this.outputDir,
-      this.applicationPath
-    )
-    const relativeCwdPath = relative(this.outputDir, process.cwd())
 
     fs.writeFileSync(
       join(this.outputDir, 'tsconfig.json'),
@@ -185,49 +166,25 @@ class Typings {
             declarationMap: true,
             noEmit: false,
             alwaysStrict: true,
-            baseUrl: '.',
+            baseUrl: dirname(relative(this.outputDir, this.applicationPath)),
             esModuleInterop: true,
             strict: true,
-            types: ['@neemata/core/types'],
-            outDir: './types',
-            rootDir: relativeApplicationPath,
-            isolatedModules: true,
+            rootDir: dirname(relative(this.outputDir, this.applicationPath)),
+            noImplicitAny: false,
           },
-          include: [
-            join(relativeApplicationPath, '**/*.js'),
-            join(relativeApplicationPath, '**/*.mjs'),
-            join(relativeApplicationPath, '**/*.ts'),
-          ],
-          exclude: [
-            join(relativeApplicationPath, 'api'),
-            join(relativeApplicationPath, 'tasks'),
-            join(relativeCwdPath, 'types'),
-            join(relativeCwdPath, 'tsconfig.json'),
-          ],
         },
         null,
         2
       )
     )
-
-    const args = ['--project', join(this.outputDir, 'tsconfig.json')]
-    if (this.silent) args.push('--silent')
-
-    this.watcher.on('success', () => this.compile())
-    this.watcher.on('error', () => console.error('Typings watcher error'))
-    this.watcher.start(...args)
   }
 
   compile() {
     fs.writeFileSync(
-      join(this.outputTypesDir, 'index.d.ts'),
-      getIndex(this.applicationPath),
+      join(this.outputDir, 'index.d.ts'),
+      getIndex(this.applicationPath, this.outputDir),
       { flag: 'w' }
     )
-  }
-
-  stop() {
-    this.watcher.kill()
   }
 }
 

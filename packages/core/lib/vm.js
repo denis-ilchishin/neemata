@@ -77,10 +77,18 @@ class Script {
     const linker = this.makeLinker()
     await esmodule.link(linker)
     await esmodule.evaluate()
-    const { default: _default, ...rest } = esmodule.namespace
+
+    const { default: _default } = esmodule.namespace
+
+    if (!('default' in esmodule.namespace)) {
+      this.options.application.console.warn(
+        this.filepath +
+          ': ECMAScript and Typescript modules must have default exports for typing annotations to work properly'
+      )
+    }
 
     return {
-      exports: Object.assign(_default ?? {}, rest),
+      exports: _default,
       hooks: context.hooks,
     }
   }

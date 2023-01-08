@@ -2,6 +2,8 @@
 
 Lightweight application server for nodejs, that uses `node:worker_threads` and `node:vm` contexts under the hood for scaling and isolation. Suitable for rapid development using protocol-agnostic approach.
 
+***Not ready for production use, and should only be considered as proof of concept***
+
 ---
 
 ### List of features

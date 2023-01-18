@@ -85,10 +85,10 @@ export interface UserApplication {
     level?: import('pino').Level
   ) => import('pino').BaseLogger
   workerId: number
-  invoke: (
-    task: string | { task: string; timeout: number },
-    ...args: any[]
-  ) => Promise<any>
+  invoke: <K extends keyof Tasks>(
+    task: K | { task: K; timeout: number },
+    ...args: Parameters<Tasks[K]>
+  ) => Promise<Awaited<ReturnType<Tasks[K]>>>
 }
 
 export interface Auth {}
@@ -96,6 +96,7 @@ export interface Lib {}
 export interface Config {}
 export interface Services {}
 export interface Db {}
+export interface Tasks {}
 
 export interface Hooks {
   startup?: () => Promise<void>

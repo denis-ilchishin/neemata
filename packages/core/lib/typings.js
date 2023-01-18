@@ -1,4 +1,3 @@
-const { readFileSync } = require('node:fs')
 const fs = require('node:fs')
 const { resolve, join, sep, parse, relative, dirname } = require('node:path')
 
@@ -6,7 +5,7 @@ function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1)
 }
 
-function dirTree(applicationPath, module) {
+function dirTree(applicationPath, module, flat = false) {
   const files = []
 
   const traverse = (path, name = '') => {
@@ -38,21 +37,28 @@ function dirTree(applicationPath, module) {
     const parts = dir ? dir.split(sep) : []
     parts.push(name)
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      last[part] = last[part] ?? {}
+    if (flat) {
+      last[parts.join('.')] = join(applicationPath, file).replace(
+        applicationPath,
+        './' + join(module)
+      )
+    } else {
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        last[part] = last[part] ?? {}
 
-      if (i + 1 === parts.length) {
-        const dtsPath = join(applicationPath, file).replace(
-          applicationPath,
-          './' + join(module)
-        )
-        last[part] =
-          typeof last[part] === 'object' && Object.keys(last[part]).length
-            ? { _: dtsPath, ...last[part] }
-            : dtsPath
-      } else {
-        last = last[part]
+        if (i + 1 === parts.length) {
+          const dtsPath = join(applicationPath, file).replace(
+            applicationPath,
+            './' + join(module)
+          )
+          last[part] =
+            typeof last[part] === 'object' && Object.keys(last[part]).length
+              ? { _: dtsPath, ...last[part] }
+              : dtsPath
+        } else {
+          last = last[part]
+        }
       }
     }
 
@@ -63,7 +69,7 @@ function dirTree(applicationPath, module) {
 }
 
 function getIndex(applicationPath, outputTypesDir) {
-  const modules = ['config', 'lib', 'services', 'db']
+  const modules = ['config', 'lib', 'services', 'db', 'tasks']
 
   const interfaces = []
   const imports = {}
@@ -82,7 +88,11 @@ function getIndex(applicationPath, outputTypesDir) {
   }
 
   for (const module of modules) {
-    const tree = dirTree(resolve(applicationPath, module), module)
+    const tree = dirTree(
+      resolve(applicationPath, module),
+      module,
+      module === 'tasks'
+    )
 
     let interfaceContent = `
         interface ${capitalize(module)} {

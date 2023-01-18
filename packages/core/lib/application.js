@@ -48,9 +48,9 @@ class WorkerApplication extends EventEmitter {
     this.console = new ConsoleLogger(this.config.log.level, 'Application')
 
     this.modules = {
+      lib: new Lib(this),
       config: new Config(this),
       db: new Db(this),
-      lib: new Lib(this),
       services: new Services(this),
       tasks: new Tasks(this),
       api: new Api(this),
@@ -62,9 +62,9 @@ class WorkerApplication extends EventEmitter {
   createSandbox() {
     this.console.debug('Creating application sandbox')
     this.sandbox = {
+      lib: this.modules.lib.sandbox,
       config: this.modules.config.sandbox,
       db: this.modules.db.sandbox,
-      lib: this.modules.lib.sandbox,
       services: this.modules.services.sandbox,
       application: new UserApplication(this),
     }
@@ -80,13 +80,15 @@ class WorkerApplication extends EventEmitter {
     this.createSandbox()
 
     // Load modules in order
-    for (const module of ['config', 'db', 'lib', 'services']) {
+    for (const module of ['lib', 'config', 'db', 'services']) {
       await this.modules[module].load()
     }
 
     await this.runHooks('startup')
 
-    await Promise.all([this.modules.api.load(), this.modules.tasks.load()])
+    await Promise.all(
+      ['api', 'tasks'].map((module) => this.modules[module].load())
+    )
   }
 
   async terminate() {

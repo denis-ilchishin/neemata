@@ -1,84 +1,74 @@
 import type { ApiRetrospectRespose, ValueOf } from '@neemata/common'
 import { ErrorCode, MessageType, Transport } from '@neemata/common'
 import { EventEmitter } from 'events'
-
-type ApiConstructOptions = {
-  transport?: ValueOf<typeof Transport>
-  formData?: FormData
-  version?: string
-}
-
-const randomUUID = () =>
-  typeof crypto.randomUUID !== 'undefined'
-    ? crypto.randomUUID()
-    : // @ts-expect-error
-      ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
-        (
-          c ^
-          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
-        ).toString(16)
-      )
-
-export class NeemataError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly message: string,
-    public readonly data?: any
-  ) {
-    super(message)
-  }
-}
-
-export type NeemataOptions = {
-  host: string
-  preferHttp?: boolean
-  basePath?: string
-}
+import { Stream } from './stream'
+import type { ApiConstructOptions, NeemataOptions } from './utils'
+import { NeemataError, randomUUID } from './utils'
 
 export class Neemata<T = any> extends EventEmitter {
   api: T = {} as T
-  ws: WebSocket | null = null
+  _ws?: WebSocket
 
-  private connecting: Promise<void> | null = null
-  private auth: string | null = null
-  private httpUrl: URL
-  private prefer: ValueOf<typeof Transport>
+  private _connecting: Promise<void> | null = null
+  private _url: URL
+  private _prefer: ValueOf<typeof Transport>
+  private _streams: Map<string, Stream>
 
-  constructor({ host, preferHttp = false, basePath = '/api' }: NeemataOptions) {
+  constructor({ host, preferHttp = false }: NeemataOptions) {
     super()
 
-    this.httpUrl = new URL(basePath, host)
-    this.prefer = preferHttp ? Transport.Http : Transport.Ws
+    this._url = new URL(host)
+    this._prefer = preferHttp ? Transport.Http : Transport.Ws
+    this._streams = new Map()
 
     // Neemata internal events
-    this.on('neemata:reload', () => this.introspect())
+    this.on('neemata:stream:init', ({ id }) =>
+      this._streams.get(id)?.emit('init')
+    )
+    this.on('neemata:stream:pull', ({ id }) =>
+      this._streams.get(id)?.emit('pull')
+    )
+    this.on('neemata:introspect', (data) => this._scaffold(data))
     this.on('neemata:ping', () =>
-      this.ws?.send(
+      this._ws?.send(
         JSON.stringify({
-          type: MessageType.Message,
+          type: MessageType.Event,
           payload: { event: 'neemata:pong' },
         })
       )
     )
   }
 
-  setAuth(token: string | null) {
-    this.auth = token ? `Token ${token}` : null
+  createStream(data: Blob | File) {
+    const stream = new Stream(this, data)
+    this._streams.set(stream.id, stream)
+    stream.once('finish', () => this._streams.delete(stream.id))
+    return stream
   }
 
-  async introspect() {
-    const api: ApiRetrospectRespose = await fetch(
-      `${this.httpUrl}/neemata/introspect`,
-      {
-        headers: this.auth ? { authorization: this.auth } : {},
+  _getUrl(path: string, query?: Record<string, string>) {
+    const url = new URL(path, this._url)
+    if (query) {
+      for (const [name, value] of Object.entries(query)) {
+        url.searchParams.set(name, value)
       }
-    ).then((res) => res.json())
+    }
+    return url
+  }
 
-    const modules = new Set<string>(api.map(({ name }) => name))
-    this.api = {} as T
+  _getWsUrl() {
+    const url = this._getUrl('')
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    return url
+  }
+
+  async _scaffold(data: ApiRetrospectRespose) {
+    const modules = new Set<string>(data.map(({ name }) => name))
+    // @ts-expect-error
+    this.api = {}
 
     for (const moduleName of modules) {
-      const versions = api.filter(({ name }) => name === moduleName)
+      const versions = data.filter(({ name }) => name === moduleName)
 
       const parts = moduleName.split('.')
       let last: any = this.api
@@ -92,6 +82,7 @@ export class Neemata<T = any> extends EventEmitter {
 
           for (const module of versions) {
             if (module.version === '1') {
+              // alias for convenience
               Object.defineProperty(last, part, {
                 configurable: false,
                 enumerable: true,
@@ -103,58 +94,48 @@ export class Neemata<T = any> extends EventEmitter {
                       ...options
                     }: ApiConstructOptions = {}
                   ) =>
-                    this.request(moduleName, data, {
+                    this._send(moduleName, data, {
                       ...options,
-                      transport: module.transport ?? _transport ?? this.prefer,
+                      transport: module.transport ?? _transport ?? this._prefer,
                       version: module.version,
                     }),
                   _prev
                 ),
               })
-            } else {
-              Object.defineProperty(last[part], `v${module.version}`, {
-                configurable: false,
-                enumerable: true,
-                value: (
-                  data: any,
-                  {
-                    transport: _transport,
-                    ...options
-                  }: ApiConstructOptions = {}
-                ) =>
-                  this.request(moduleName, data, {
-                    ...options,
-                    transport: module.transport ?? _transport ?? this.prefer,
-                    version: module.version,
-                  }),
-              })
             }
+
+            Object.defineProperty(last[part], `v${module.version}`, {
+              configurable: false,
+              enumerable: true,
+              value: (
+                data: any,
+                { transport: _transport, ...options }: ApiConstructOptions = {}
+              ) =>
+                this._send(moduleName, data, {
+                  ...options,
+                  transport: module.transport ?? _transport ?? this._prefer,
+                  version: module.version,
+                }),
+            })
           }
         } else {
           last = last[part]
         }
       }
-      moduleName
     }
   }
+
   connect() {
-    if (this.prefer === Transport.Ws) {
-      this.connecting = new Promise((resolve) => {
-        this.waitHealthy()
-          .then(() => this.introspect())
+    if (this._prefer === Transport.Ws) {
+      this._connecting = new Promise((resolve) => {
+        this._waitHealthy()
           .catch((err) => {
             this.connect()
             throw err
           })
           .then(() => {
-            const wsUrl = new URL(
-              this.httpUrl.pathname,
-              `${this.httpUrl.protocol === 'https:' ? 'wss' : 'ws'}://${
-                this.httpUrl.host
-              }`
-            )
-            if (this.auth) wsUrl.searchParams.set('authorization', this.auth)
-            const ws = (this.ws = new window.WebSocket(wsUrl))
+            const wsUrl = this._getWsUrl()
+            const ws = new window.WebSocket(wsUrl)
 
             ws.addEventListener(
               'error',
@@ -169,7 +150,7 @@ export class Neemata<T = any> extends EventEmitter {
             ws.addEventListener('message', (message) => {
               try {
                 const { type, payload } = JSON.parse(message.data)
-                if (type === MessageType.Message && payload.event)
+                if (type === MessageType.Event)
                   this.emit(payload.event, payload.data)
               } catch (err) {
                 console.error(err)
@@ -181,6 +162,7 @@ export class Neemata<T = any> extends EventEmitter {
               () => {
                 this.emit('neemata:disconnect')
                 this.connect()
+                this._streams.clear()
               },
               { once: true }
             )
@@ -193,56 +175,66 @@ export class Neemata<T = any> extends EventEmitter {
               },
               { once: true }
             )
+
+            this._ws = ws
           })
+          .then(() => new Promise((r) => this.once('neemata:introspect', r)))
       })
     } else {
-      this.connecting = this.waitHealthy().then(() => this.introspect())
+      this._connecting = this._waitHealthy().then(async () => {
+        const data = await fetch(this._getUrl('neemata/introspect')).then(
+          (res) => res.json()
+        )
+        this._scaffold(data)
+      })
     }
 
-    return this.connecting
+    return this._connecting
   }
 
   async reconnect() {
-    this.ws?.close()
+    this._ws?.close()
     return new Promise((resolve) => this.once('neemata:connect', resolve))
   }
 
   get isActive() {
     return [window.WebSocket.OPEN, window.WebSocket.CONNECTING].includes(
-      this.ws?.readyState!
+      this._ws?.readyState!
     )
   }
 
-  private async request(
+  async _send(
     module: string,
     data: any,
-    { transport, formData, version = '1' }: ApiConstructOptions = {}
+    { transport, version = '*' }: ApiConstructOptions = {}
   ) {
-    await this.connecting
+    await this._connecting
 
-    if (transport === Transport.Http || formData) {
-      const headers: HeadersInit = {
-        'accept-version': version,
-      }
+    const serialize = async (data) => {
+      const initializers: Promise<any>[] = []
+      const serialized = JSON.stringify(data, (key, value) => {
+        if (value instanceof Stream) {
+          if (value.streaming) throw new Error('Stream already initialized')
+          if (!value.initialized) initializers.push(value._init())
+          return value._serialize()
+        }
+        return value
+      })
+      await Promise.all(initializers)
+      return serialized
+    }
 
+    if (transport === Transport.Http) {
       const options: RequestInit = {
         method: 'POST',
+        body: await serialize(data),
+        headers: {
+          'accept-version': version,
+          'content-type': 'application/json',
+        },
       }
 
-      if (typeof data !== 'undefined') {
-        headers['content-type'] = formData
-          ? 'multipart/form-data'
-          : 'application/json'
-        options.body = formData ? data : JSON.stringify(data)
-      }
-
-      if (this.auth) {
-        headers['authorization'] = this.auth
-      }
-
-      options.headers = headers
-
-      return fetch(`${this.httpUrl}/${module.split('.').join('/')}`, options)
+      return fetch(this._getUrl(module.split('.').join('/')), options)
         .catch((err) => {
           console.error(err)
           throw new NeemataError(
@@ -270,23 +262,18 @@ export class Neemata<T = any> extends EventEmitter {
           try {
             const { type, payload } = JSON.parse(rawMessage)
             if (
-              type === MessageType.Api &&
+              type === MessageType.Call &&
               payload.correlationId === correlationId &&
               payload.module === module
             ) {
-              this.ws?.removeEventListener('message', handler)
+              this._ws?.removeEventListener('message', handler)
+              const { error, data } = payload
               if (payload.error)
-                reject(
-                  new NeemataError(
-                    payload.error.code,
-                    payload.error.message,
-                    payload.data
-                  )
-                )
-              else resolve(payload.data)
+                reject(new NeemataError(error.code, error.message, data))
+              else resolve(data)
             }
           } catch (error) {
-            this.ws?.removeEventListener('message', handler)
+            this._ws?.removeEventListener('message', handler)
             console.error(error)
             reject(
               new NeemataError(
@@ -297,24 +284,22 @@ export class Neemata<T = any> extends EventEmitter {
           }
         }
 
-        this.ws?.addEventListener('message', handler)
-        this.ws?.send(
-          JSON.stringify({
-            type: MessageType.Api,
-            payload: { correlationId, module, data, version },
-          })
-        )
+        this._ws?.addEventListener('message', handler)
+        serialize({
+          type: MessageType.Call,
+          payload: { correlationId, module, data, version },
+        }).then((serialized) => this._ws?.send(serialized))
       })
 
       return req
     }
   }
 
-  private async waitHealthy() {
+  async _waitHealthy() {
     let healhy = false
 
     while (!healhy) {
-      healhy = await fetch(`${this.httpUrl}/neemata/healthy`, { method: 'GET' })
+      healhy = await fetch(this._getUrl('neemata/healthy'), { method: 'GET' })
         .then((r) => r.ok)
         .catch((err) => false)
       if (!healhy) await new Promise((r) => setTimeout(r, 1000))

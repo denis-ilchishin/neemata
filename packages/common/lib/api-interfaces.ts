@@ -14,7 +14,7 @@ export interface WebSocketTransportInput<
   Type extends ValueOf<typeof MessageType>
 > {
   type: Type
-  payload: Type extends typeof MessageType.Api
+  payload: Type extends typeof MessageType.Call
     ? {
         module: string
         correlationId: string
@@ -28,7 +28,7 @@ export interface WebSocketTransportOutput<
   Type extends ValueOf<typeof MessageType>
 > {
   type: Type
-  payload: Type extends typeof MessageType.Api
+  payload: Type extends typeof MessageType.Event
     ? {
         module: string
         correlationId: string

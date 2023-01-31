@@ -1,4 +1,4 @@
 export const MessageType = {
-  Api: 'api',
-  Message: 'message',
+  Call: 'call',
+  Event: 'event',
 } as const

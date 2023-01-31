@@ -22,9 +22,14 @@ export declare interface NeemataConfig {
     /**
      * @default "/api"
      */
-    baseUrl: string
-    cors: import('@fastify/cors').FastifyCorsOptions
-    multipart: import('@fastify/multipart').FastifyMultipartOptions
+    basePath: string
+    cors: {
+      origin: string
+    }
+    queue: {
+      concurrency: number
+      size: number
+    }
   }
   log: {
     basePath: string
@@ -45,11 +50,17 @@ export declare interface NeemataConfig {
     /**
      * @default 250
      */
-    hrm: number
-    /**
-     * @default 5000
-     */
-    request: number
+    hmr: number
+    rpc: {
+      /**
+       * @default 15000
+       */
+      execution: number
+      /**
+       * @default 30000
+       */
+      queue: number
+    }
     task: {
       /**
        * @default 15000
@@ -78,17 +89,22 @@ export declare interface NeemataConfig {
   }
 }
 
-export declare type Guard = <Auth = any>(options: {
-  readonly req: import('fastify').FastifyRequest
-  readonly auth: Auth | null
+export declare type Guard = <Auth = unknown>(options: {
+  readonly req: import('node:http').IncomingMessage
+  readonly client: Client<Auth>
 }) => boolean | Promise<boolean>
 
-export declare type Client<Auth = any | null> =
+export declare type HttpClient<Auth = unknown> =
   import('events').EventEmitter & {
     readonly id: string
-    readonly auth: Auth
-    readonly send: (event: string, data: any) => void
-    readonly opened: boolean
-    readonly openedAt: Date
-    readonly closedAt: Date | null
+    readonly auth?: Auth
+    readonly session?: string
   }
+
+export declare type WsClient<Auth = unknown> = HttpClient<Auth> & {
+  readonly send: (event: string, data: any) => void
+  readonly openedAt: Date
+  readonly closedAt?: Date
+}
+
+export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>

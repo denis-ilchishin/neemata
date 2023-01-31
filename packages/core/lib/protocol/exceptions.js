@@ -1,3 +1,5 @@
+'use strict'
+
 class ApiException extends globalThis.Error {
   constructor({ code, message, data }) {
     super(message)

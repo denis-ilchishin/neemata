@@ -1,35 +1,21 @@
 import { Transport, ValueOf, WorkerType } from '@neemata/common'
 import { Static, TSchema } from '@sinclair/typebox'
-import { FastifyReply, FastifyRequest } from 'fastify'
-import { Client, Guard } from './types/internal'
+import { IncomingMessage } from 'node:http'
+import { Client, Guard, HttpClient, WsClient } from './types/internal'
 
 export interface ApiModuleHandlerOptions<
   D extends TSchema,
   T extends ValueOf<typeof Transport>,
   A extends boolean
 > {
-  auth: A extends false ? null | Auth : Readonly<Auth>
   data: D extends TSchema ? Static<D> : unknown
-  req: Readonly<FastifyRequest>
-  /**
-   * Only available if request is made via http transport
-   */
-  res: Readonly<
-    T extends typeof Transport.Ws
-      ? undefined
-      : T extends typeof Transport.Http
-      ? FastifyReply
-      : undefined | FastifyReply
-  >
-  /**
-   * Only available if request is made via ws transport
-   */
+  req: Readonly<IncomingMessage>
   client: Readonly<
     T extends typeof Transport.Http
-      ? undefined
+      ? HttpClient<A extends false ? null | Auth : Auth>
       : T extends typeof Transport.Ws
-      ? Client
-      : undefined | Client
+      ? WsClient<A extends false ? null | Auth : Auth>
+      : Client<A extends false ? null | Auth : Auth>
   >
 }
 
@@ -74,7 +60,7 @@ export interface ApiModule<
    * Whether current endpoint is introspectable from client application or not
    * @default true
    */
-  introspectable?: boolean | Guard
+  introspectable?: boolean | 'guards' | Guard
 }
 
 export interface UserApplication {
@@ -99,25 +85,28 @@ export interface Db {}
 export interface Tasks {}
 
 export interface Hooks {
-  startup?: () => Promise<void>
-  shutdown?: () => Promise<void>
-  request?: (options: {
-    readonly auth?: Auth
-    readonly req: FastifyRequest
-    readonly module: { name: string; version: string }
-    readonly client?: Client
-    readonly data?: any
-  }) => Promise<void>
-  connect?: (options: {
-    readonly auth: Auth
-    readonly client: Client
-    readonly req: FastifyRequest
-  }) => Promise<any>
-  disconnect?: (options: {
-    readonly auth: Auth
-    readonly client: Client
-    readonly req: FastifyRequest
-  }) => Promise<any>
+  startup?: () => Promise<any>
+  shutdown?: () => Promise<any>
+  call?: (
+    options: Readonly<{
+      data?: any
+      client: Client
+      req: IncomingMessage
+      module: { name: string; version: string }
+    }>
+  ) => Promise<any>
+  connect?: (
+    options: Readonly<{
+      client: Client
+      req: IncomingMessage
+    }>
+  ) => Promise<any>
+  disconnect?: (
+    options: Readonly<{
+      client: Client
+      req: IncomingMessage
+    }>
+  ) => Promise<any>
 }
 
 export type DefineAuthModule = <
@@ -144,6 +133,17 @@ declare global {
   const defineApiModule: DefineApiModule
   const defineAuthModule: DefineAuthModule
   const defineGuard: DefineGuard
+  const Typebox: typeof import('@sinclair/typebox') & {
+    compiler: typeof import('@sinclair/typebox/compiler')
+    conditional: typeof import('@sinclair/typebox/conditional')
+    custom: typeof import('@sinclair/typebox/custom')
+    errors: typeof import('@sinclair/typebox/errors')
+    format: typeof import('@sinclair/typebox/format')
+    guard: typeof import('@sinclair/typebox/guard')
+    hash: typeof import('@sinclair/typebox/hash')
+    system: typeof import('@sinclair/typebox/system')
+    value: typeof import('@sinclair/typebox/value')
+  }
 
   class ApiException {
     constructor(options: {

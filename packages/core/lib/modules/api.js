@@ -1,42 +1,23 @@
 'use strict'
 
 const { TypeGuard } = require('@sinclair/typebox/guard')
+
 const { parse, sep } = require('node:path')
 const { Loader } = require('../loader')
 const { Transport } = require('@neemata/common')
-const { versioning } = require('../utils')
+const { createSort, satisfy, compileSchema } = require('../utils/functions')
 
 class ApiModule {
-  /**
-   * @type {string}
-   */
-  name
-  /**
-   * @type {string}
-   */
-  url
-  /**
-   * @type {string}
-   */
-  version
-
-  schema = null
-  guards = null
-  transport = null
-  timeout = null
-  auth = true
-  introspectable = true
-
   constructor(exports) {
     if (typeof exports === 'function') {
       this.handler = exports
     } else {
       const {
         handler,
-        schema,
-        guards,
-        transport,
-        timeout,
+        schema = null,
+        guards = [],
+        transport = null,
+        timeout = null,
         auth = true,
         introspectable = true,
       } = exports
@@ -57,11 +38,13 @@ class ApiModule {
         throw new Error(
           "Api module 'schema' is invalid, should be a Typebox schema"
         )
+      } else if (this.schema) {
+        this.schema = compileSchema(this.schema)
       }
 
-      if (this.guards && this.guards.find((g) => typeof g !== 'function')) {
+      if (this.guards.find((g) => typeof g !== 'function')) {
         throw new Error(
-          "Api module 'guards' is invalid, should be a array of functions"
+          "Api module 'guards' is invalid, should be boolean or an array of guard functions"
         )
       }
       if (typeof this.auth !== 'boolean') {
@@ -71,11 +54,12 @@ class ApiModule {
       }
 
       if (
+        this.introspectable !== 'guards' &&
         typeof this.introspectable !== 'function' &&
         typeof this.introspectable !== 'boolean'
       ) {
         throw new Error(
-          "Api module 'introspeclable' is invalid, should be a boolean value or a function"
+          'Api module \'introspeclable\' is invalid, should be a boolean value, "guards" or custom guard-like function'
         )
       }
 
@@ -99,9 +83,6 @@ class ApiModule {
 }
 
 class Api extends Loader {
-  /**
-   * @type {Map<string, ApiModule>}
-   */
   modules = new Map()
   hooks = false
 
@@ -109,22 +90,12 @@ class Api extends Loader {
     super('api', application)
   }
 
-  /**
-   *
-   * @param {string} nameOrUrl
-   * @param {keyof Transport} transport
-   * @param {string} [version=1]
-   * @returns {ApiModule}
-   */
-  get(nameOrUrl, transport, version = '1') {
+  get(name, transport, version = '1') {
     const module = Array.from(this.modules.values())
-      .filter((module) => [module.url, module.name].includes(nameOrUrl))
-      .sort(versioning.sort((item) => item.version))
-      .find(
-        (module) =>
-          versioning.satisfy(version, module.version) &&
-          (!module.transport || module.transport === transport)
-      )
+      .filter((module) => module.name === name)
+      .sort(createSort((item) => item.version))
+      .filter((module) => satisfy(version, module.version))
+      .find((module) => !module.transport || module.transport === transport)
     return module
   }
 
@@ -133,7 +104,6 @@ class Api extends Loader {
 
     const nameParts = []
     const versionParts = []
-
     const namespaces = (dir ? dir.split(sep) : []).map((part) =>
       part.split('.')
     )
@@ -146,18 +116,11 @@ class Api extends Loader {
 
     const module = new ApiModule(exports)
 
-    module.name = nameParts
-      // TODO: fix naming conversion
-      // .map((part) =>
-      //   part
-      //     .toLowerCase()
-      //     .replace(/([-_][a-z])/g, (group) =>
-      //       group.toUpperCase().replace('-', '').replace('_', '')
-      //     )
-      // )
-      .join('.')
-    module.url = nameParts.join('/')
-    module.version = versionParts.length ? versionParts.join('.') : '1'
+    if (versionParts.length > 1)
+      throw new Error('Should not be not more than one version specified')
+
+    module.name = nameParts.join('.')
+    module.version = versionParts.length ? versionParts[0] : '1'
 
     return module
   }

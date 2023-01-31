@@ -2,8 +2,8 @@
 
 const { Type } = require('@sinclair/typebox')
 const { Value } = require('@sinclair/typebox/value')
-const { deepMerge } = require('./utils')
-const { Watcher } = require('./watcher')
+const { deepMerge } = require('./utils/functions')
+const { Watcher } = require('./utils/watcher')
 
 const schema = Type.Object({
   workers: Type.Number({ minimum: 1 }),
@@ -11,10 +11,13 @@ const schema = Type.Object({
     minItems: 1,
   }),
   api: Type.Object({
-    baseUrl: Type.String(),
+    basePath: Type.String(),
     hostname: Type.String(),
-    cors: Type.Optional(Type.Any()),
-    multipart: Type.Optional(Type.Any()),
+    cors: Type.Optional(Type.Object({ origin: Type.String() })),
+    queue: Type.Object({
+      concurrency: Type.Integer(),
+      size: Type.Integer(),
+    }),
   }),
   log: Type.Object({
     basePath: Type.String(),
@@ -24,11 +27,20 @@ const schema = Type.Object({
     service: Type.String(),
   }),
   timeouts: Type.Object({
-    startup: Type.Number({ minimum: 0 }),
-    shutdown: Type.Number({ minimum: 0 }),
+    startup: Type.Integer({ minimum: 0 }),
+    shutdown: Type.Integer({ minimum: 0 }),
+    hmr: Type.Integer({ minimum: 0 }),
+    task: Type.Object({
+      execution: Type.Integer({ minimum: 0 }),
+      allocation: Type.Integer({ minimum: 0 }),
+    }),
+    rpc: Type.Object({
+      execution: Type.Integer({ minimum: 0 }),
+      queue: Type.Integer({ minimum: 0 }),
+    }),
   }),
   intervals: Type.Object({
-    ping: Type.Number({ minimum: 0 }),
+    ping: Type.Integer({ minimum: 0 }),
   }),
   scheduler: Type.Object({
     tasks: Type.Array(
@@ -36,7 +48,7 @@ const schema = Type.Object({
         name: Type.String(),
         task: Type.String(),
         cron: Type.String(),
-        timeout: Type.Number({ minimum: 0 }),
+        timeout: Type.Integer({ minimum: 0 }),
         args: Type.Array(Type.Any(), { default: [] }),
       })
     ),
@@ -45,24 +57,32 @@ const schema = Type.Object({
 
 const defaultConfig = {
   api: {
-    baseUrl: '/api',
+    basePath: '/api',
     cors: {
       origin: '*',
     },
     hostname: '0.0.0.0',
+    queue: {
+      concurrency: 200,
+      size: 1000,
+    },
   },
   auth: {
     service: 'auth.api',
   },
   log: { basePath: 'logs', level: 'info' },
   timeouts: {
-    hrm: 250,
-    request: 5000,
+    hmr: 250,
+    // request: 5000,
     shutdown: 10000,
     startup: 10000,
     task: {
       allocation: 30000,
       execution: 15000,
+    },
+    rpc: {
+      execution: 10000,
+      queue: 30000,
     },
   },
   intervals: {

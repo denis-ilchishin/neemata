@@ -3,7 +3,6 @@
 const { EventEmitter } = require('node:events')
 const { workerData, parentPort, threadId } = require('node:worker_threads')
 const { randomUUID } = require('node:crypto')
-
 const { Config } = require('./modules/config')
 const { WorkerMessage, WorkerType } = require('@neemata/common')
 const { Logging } = require('./logging')
@@ -12,19 +11,16 @@ const { Lib } = require('./modules/lib')
 const { Services } = require('./modules/services')
 const { Tasks } = require('./modules/tasks')
 const { Api } = require('./modules/api')
-const { Server } = require('./server')
+const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
+const { Custom } = require('@sinclair/typebox/custom')
 
-/**
- * @type {{type: keyof typeof import('@neemata/common').WorkerType, port?: number, isDev: boolean, isDev: boolean, isProd: boolean, config: import('../types/neemata').NeemataConfig, rootPath: string}}
- */
 const { type, port, isDev, isProd, config, rootPath } = workerData
 
+const appConfig = config
+const appConsole = new ConsoleLogger(appConfig.log.level)
+
 class UserApplication {
-  /**
-   *
-   * @param {WorkerApplication} app
-   */
   constructor(app) {
     this.type = type
     this.invoke = app.invoke.bind(app)
@@ -98,6 +94,7 @@ class WorkerApplication extends EventEmitter {
   async reload() {
     this.console.debug('Reloading')
     await this.terminate()
+    Custom.Clear()
     await this.initialize()
   }
 
@@ -121,7 +118,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   async runHooks(hook, concurrently = false, ...args) {
-    const hooks = this.hooks.get(hook) ?? []
+    const hooks = this.hooks.get(hook) ?? new Set()
     if (concurrently) {
       for (const hook of hooks) {
         await hook(...args)
@@ -182,39 +179,4 @@ class WorkerApplication extends EventEmitter {
   }
 }
 
-const app = new WorkerApplication()
-
-app.on(WorkerMessage.Invoke, async (data) => {
-  const { task, id, timeout, args } = data
-  const result = await app.runTask(task, timeout, ...args)
-  parentPort.postMessage({ message: WorkerMessage.Result, id, ...result })
-})
-
-app.on(WorkerMessage.Result, (data) => {
-  const { id, ...rest } = data
-  app.emit(id, rest)
-})
-
-app.once(WorkerMessage.Startup, async () => {
-  await app.startup()
-  parentPort.postMessage({ message: WorkerMessage.Startup })
-})
-
-app.once(WorkerMessage.Shutdown, async () => {
-  parentPort.close()
-  await app.shutdown()
-})
-
-app.on(WorkerMessage.Reload, async () => {
-  await app.reload()
-  app.emit('reloaded')
-})
-
-parentPort.on('message', ({ message, ...data }) => {
-  app.emit(message, data)
-})
-
-process.on('uncaughtException', (err) => app.console.error(err))
-process.on('unhandledRejection', (err) => app.console.error(err))
-
-module.exports = { WorkerApplication, UserApplication }
+module.exports = { WorkerApplication, UserApplication, appConfig, appConsole }

@@ -4,8 +4,8 @@ const { Worker } = require('node:worker_threads')
 
 const { Config } = require('./config')
 const { WorkerMessage, WorkerType } = require('@neemata/common')
-const { Pool } = require('./pool')
-const { Watcher } = require('./watcher')
+const { Pool } = require('./utils/pool')
+const { Watcher } = require('./utils/watcher')
 const { LoggingBuffer } = require('./logging')
 
 const { Scheduler } = require('./scheduler')
@@ -14,19 +14,6 @@ const { join } = require('node:path')
 const { Typings } = require('./typings')
 
 class Neemata {
-  /**
-   * @type {Pool<Worker>}
-   */
-  workerPool
-  /**
-   * @type {null | Promise<void>}
-   */
-  shutting = null
-  /**
-   * @type {null | Promise<void>}
-   */
-  starting = null
-
   constructor({
     rootPath,
     configPath,
@@ -52,22 +39,17 @@ class Neemata {
 
   init() {
     this.console = new ConsoleLogger(this.config.resolved.log.level, 'Neemata')
-
     this.console.info('Initializing Neemata application server...')
-
     this.console.debug('Creating a worker pool')
     this.workerPool = new Pool({
       timeout: this.config.resolved.timeouts.task.allocation,
     })
-
-    this.hrm = new Watcher({
+    this.hmr = new Watcher({
       recursive: true,
       path: this.rootPath,
-      timeout: this.config.resolved.timeouts.hrm,
+      timeout: this.config.resolved.timeouts.hmr,
     })
-
     this.scheduler = new Scheduler(this.config.resolved.scheduler)
-
     this.typings = new Typings(this.rootPath)
   }
 
@@ -82,7 +64,7 @@ class Neemata {
       this.config.watch()
 
       this.console.debug('Watching application')
-      this.hrm.on('change', (files) => {
+      this.hmr.on('change', (files) => {
         const sep = '\n    - '
         this.console.debug(
           sep + files.map((f) => `${f.eventType}: ${f.filename}`).join(sep),
@@ -91,7 +73,7 @@ class Neemata {
         this.typings.compile()
         this.reload()
       })
-      this.hrm.watch()
+      this.hmr.watch()
       this.typings.compile()
     }
 
@@ -149,7 +131,7 @@ class Neemata {
             !Array.from(this.workerPool.items).find((worker) => !worker.ready)
           ) {
             resolve()
-            this.starting = null
+            this.starting = undefined
           }
         })
         worker.postMessage({ message: WorkerMessage.Startup })
@@ -165,7 +147,7 @@ class Neemata {
     if (this.isDev && !this.isOneOff) {
       this.console.debug('Clearing application and config')
       this.config.stop()
-      this.hrm.stop()
+      this.hmr.stop()
     }
 
     // Await for all workers to shutdown
@@ -174,7 +156,7 @@ class Neemata {
         worker.once('exit', () => {
           if (this.workerPool.size === 0) {
             resolve()
-            this.shutting = null
+            this.shutting = undefined
           }
         })
         worker.postMessage({ message: WorkerMessage.Shutdown })
@@ -210,13 +192,9 @@ class Neemata {
     })
   }
 
-  /**
-   * @param {import('@neemata/common').WorkerType} type
-   * @param [any] workerData
-   */
   createWorker(type, workerData = {}) {
     this.console.debug(`Creating ${type} worker`)
-    const worker = new Worker(join(__dirname, 'application.js'), {
+    const worker = new Worker(join(__dirname, 'worker.js'), {
       workerData: {
         isDev: this.isDev,
         isProd: this.isProd,

@@ -6,49 +6,15 @@ const {
   SourceTextModule,
   SyntheticModule,
 } = require('node:vm')
-const { dirname, parse, extname } = require('node:path')
+const { dirname, parse, extname, resolve } = require('node:path')
 const { readFile } = require('node:fs/promises')
+const { readFileSync } = require('node:fs')
 const { createRequire } = require('node:module')
 const { pathToFileURL } = require('node:url')
 const { ErrorCode, WorkerType } = require('@neemata/common')
-const { ApiException } = require('./exceptions')
+const { ApiException } = require('./protocol/exceptions')
+const { Stream } = require('./protocol/stream')
 const esbuld = require('esbuild')
-
-const typingHelpers = ['defineAuthModule', 'defineApiModule', 'defineGuard']
-
-const COMMON_CONTEXT = Object.freeze({
-  Buffer,
-  URL,
-  URLSearchParams,
-  TextDecoder,
-  TextEncoder,
-  queueMicrotask,
-  setTimeout,
-  setImmediate,
-  setInterval,
-  clearTimeout,
-  clearImmediate,
-  clearInterval,
-  process,
-  console,
-  ErrorCode,
-  WorkerType,
-  ApiException,
-  // Typing helpers
-  ...Object.fromEntries(
-    typingHelpers.map((name) => [name, ((value) => value).bind(undefined)])
-  ),
-})
-
-const RUNNING_OPTIONS = {
-  displayErrors: true,
-}
-
-const types = {
-  '.mjs': 'es',
-  '.js': 'cjs',
-  '.ts': 'ts',
-}
 
 class Script {
   constructor(filepath, options) {
@@ -201,6 +167,63 @@ class Script {
       )
     }
   }
+}
+
+const typingHelpers = ['defineAuthModule', 'defineApiModule', 'defineGuard']
+
+const typeBoxExports = JSON.parse(
+  readFileSync(
+    resolve(dirname(require.resolve('@sinclair/typebox')), 'package.json')
+  ).toString()
+).exports
+
+let Typebox = {}
+
+for (const key of Object.keys(typeBoxExports)) {
+  const importName = key.replace('.', '')
+
+  if (importName !== '')
+    Typebox = {
+      ...Typebox,
+      [importName.slice(1)]: require('@sinclair/typebox' + importName),
+    }
+  else Typebox = { ...Typebox, ...require('@sinclair/typebox') }
+}
+
+const COMMON_CONTEXT = Object.freeze({
+  Buffer,
+  URL,
+  URLSearchParams,
+  TextDecoder,
+  TextEncoder,
+  queueMicrotask,
+  setTimeout,
+  setImmediate,
+  setInterval,
+  clearTimeout,
+  clearImmediate,
+  clearInterval,
+  process,
+  console,
+  ErrorCode,
+  WorkerType,
+  ApiException,
+  Typebox,
+  Stream,
+  // Typing helpers
+  ...Object.fromEntries(
+    typingHelpers.map((name) => [name, ((value) => value).bind(undefined)])
+  ),
+})
+
+const RUNNING_OPTIONS = {
+  displayErrors: true,
+}
+
+const types = {
+  '.mjs': 'es',
+  '.js': 'cjs',
+  '.ts': 'ts',
 }
 
 module.exports = {

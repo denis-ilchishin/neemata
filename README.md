@@ -9,7 +9,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 ### List of features
 
 1. Vertical scaling using `worker_threads`
-2. Protocol-agnostic design: support for `http` and `ws` protocols
+2. Protocol-agnostic design: `http` and `ws` protocols 
 3. Task scheduler
 4. Delayed task execution using thread pool
 5. On-fly instant hot reloading, without process/worker restart

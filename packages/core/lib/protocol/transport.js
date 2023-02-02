@@ -35,23 +35,23 @@ class BaseTransport {
     return this.makeResponse({ error: { code, message }, data })
   }
 
-  getApiModule(name, type, version) {
-    const apiModule = this.server.application.modules.api.get(
+  findProcedure(name, type, version) {
+    const procedure = this.server.application.modules.api.get(
       name,
       type,
       version
     )
 
-    if (!apiModule)
+    if (!procedure)
       throw new ApiException({
         code: ErrorCode.NotFound,
-        message: 'Module not found',
+        message: 'Procedure not found',
       })
 
-    return apiModule
+    return procedure
   }
 
-  async handle({ apiModule, client, data, req }) {
+  async handle({ procedure, client, data, req }) {
     try {
       await this.server.queue.enter()
     } catch (err) {
@@ -69,19 +69,19 @@ class BaseTransport {
     }
 
     try {
-      if (apiModule.auth !== false && !client.auth) {
+      if (procedure.auth !== false && !client.auth) {
         throw new ApiException({
           code: ErrorCode.Unauthorized,
           message: 'Unauthorized',
         })
       }
 
-      if (apiModule.guards) {
-        await this.handleGuards(apiModule.guards, { client, data, req })
+      if (procedure.guards) {
+        await this.handleGuards(procedure.guards, { client, data, req })
       }
 
-      if (apiModule.schema) {
-        data = await this.handleValidation(apiModule.schema, data)
+      if (procedure.schema) {
+        data = await this.handleValidation(procedure.schema, data)
       }
 
       this.application.runHooks('call', true, {
@@ -89,12 +89,12 @@ class BaseTransport {
         data,
         req,
         trasport: this.trasport,
-        module: { name: apiModule.name, version: apiModule.version },
+        procedure: { name: procedure.name, version: procedure.version },
       })
 
       const result = await this.handleCall(
-        apiModule.handler,
-        apiModule.timeout,
+        procedure.handler,
+        procedure.timeout,
         {
           data,
           client,
@@ -142,7 +142,7 @@ class BaseTransport {
                 message: 'Request timeout',
               })
             ),
-          timeout || this.config.timeouts.request
+          timeout || this.config.timeouts.rpc.execution
         )
       ),
     ])
@@ -158,6 +158,16 @@ class BaseTransport {
         data: [...schema.Errors(data)],
       })
     }
+  }
+
+  handleVersion(version) {
+    const parsed = parseInt(version || 1)
+    if (!Number.isSafeInteger(parsed) || parsed <= 0)
+      throw new ApiException({
+        code: ErrorCode.BadRequest,
+        message: 'Invalid version',
+      })
+    return parsed
   }
 }
 

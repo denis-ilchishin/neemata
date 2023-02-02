@@ -13,7 +13,7 @@ const { Tasks } = require('./modules/tasks')
 const { Api } = require('./modules/api')
 const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
-const { Custom } = require('@sinclair/typebox/custom')
+const { prepareTypebox } = require('./vm')
 
 const { type, port, isDev, isProd, config, rootPath } = workerData
 
@@ -56,6 +56,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   createSandbox() {
+    prepareTypebox()
     this.console.debug('Creating application sandbox')
     this.sandbox = {
       lib: this.modules.lib.sandbox,
@@ -94,7 +95,6 @@ class WorkerApplication extends EventEmitter {
   async reload() {
     this.console.debug('Reloading')
     await this.terminate()
-    Custom.Clear()
     await this.initialize()
   }
 

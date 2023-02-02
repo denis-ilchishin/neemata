@@ -78,7 +78,11 @@ class HttpTransport extends BaseTransport {
     if (method !== 'POST' && !this[routeName]) return respondPlain404()
     const routeHandler = this[routeName] ?? this.rpc
     try {
-      const response = await routeHandler.call(this, { req, url })
+      const response = await routeHandler.call(this, {
+        req,
+        res,
+        url,
+      })
       return ['string', 'undefined'].includes(typeof response)
         ? respondPlain(response)
         : respond(response)
@@ -88,19 +92,25 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async rpc({ req, url }) {
+  async rpc({ req, res, url }) {
     try {
-      const auth = this.server.handleAuth(req)
-      const version = req.headers['accept-version'] ?? '*'
-      const moduleName = url.pathname.split('/').slice(1).join('.')
-      const apiModule = this.getApiModule(moduleName, Transport.Http, version)
+      const session = this.server.handleSession(req)
+      if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
+      const auth = this.server.handleAuth({ session: session.token, req })
+      const version = this.handleVersion(req.headers['accept-version'])
+      const procedureName = url.pathname.split('/').slice(1).join('.')
+      const procedure = this.findProcedure(
+        procedureName,
+        Transport.Http,
+        version
+      )
       const rawData = await this.getData(req)
       const data = this.deserialize(rawData.toString('utf8'))
       const client = createClient({
         auth: await auth,
-        session: this.server.getSession(req),
+        session: session.token,
       })
-      const result = await this.handle({ apiModule, client, data, req })
+      const result = await this.handle({ procedure, client, data, req })
       return this.makeResponse({ data: result })
     } catch (error) {
       if (error instanceof ApiException) return this.makeError(error)
@@ -131,10 +141,7 @@ class HttpTransport extends BaseTransport {
         new Error('Stream not found')
 
       req.on('end', resolve)
-      req.on('error', (err) => {
-        console.error(err)
-        reject('Stream error')
-      })
+      req.on('error', () => reject('Stream error'))
       req.pipe(stream)
     })
   }

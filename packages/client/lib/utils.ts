@@ -1,9 +1,9 @@
-import type { Transport, ValueOf } from 'node_modules/@neemata/common/dist'
+import type { Transport, ValueOf } from '@neemata/common'
 
 export function randomUUID() {
   if (typeof crypto.randomUUID !== 'undefined') return crypto.randomUUID()
   else {
-    // @ts-expect-error
+    // @ts-ignore
     return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
       (
         c ^

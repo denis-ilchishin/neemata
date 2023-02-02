@@ -35,8 +35,20 @@ class Server {
     return modules.services.get(config.auth.service) ?? AUTH_DEFAULT
   }
 
-  async handleAuth(...args) {
-    return this.authService(...args)
+  async handleAuth({ session, req }) {
+    return this.authService({ session, req })
+  }
+
+  async handleSession(req) {
+    let session = this.getSession(req)
+    let cookie
+
+    if (!session) {
+      session = this.createSession(req)
+      cookie = this.getSessionCookie(token)
+    }
+
+    return { session, cookie }
   }
 
   async introspect(req, auth) {
@@ -98,11 +110,14 @@ class Server {
       Buffer.from(Date.now().toString()),
     ])
     const token = createHash('sha1').update(data).digest('base64url')
-    const cookie = serialize(SESSION_COOKIE, token, {
+    return token
+  }
+
+  getSessionCookie(token) {
+    return serialize(SESSION_COOKIE, token, {
       secure: true,
       path: '/',
     })
-    return { token, cookie }
   }
 
   listen() {

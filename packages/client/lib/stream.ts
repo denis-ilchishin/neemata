@@ -5,7 +5,6 @@ import { randomUUID } from './utils'
 
 export class Stream extends EventEmitter {
   private _id: string
-  private _bytesSent: number
   private _streaming = false
   private _initialized = false
 
@@ -16,9 +15,6 @@ export class Stream extends EventEmitter {
     super()
 
     this._id = randomUUID()
-    this._initialized = false
-    this._data = _data
-    this._bytesSent = 0
 
     this.once('init', () => (this._initialized = true))
     this.once('pull', () => this._start())
@@ -33,6 +29,7 @@ export class Stream extends EventEmitter {
   }
 
   get name() {
+    // @ts-ignore
     return this._data.name
   }
 
@@ -66,30 +63,15 @@ export class Stream extends EventEmitter {
   async _start() {
     if (this._streaming) throw new Error('Stream already started')
     this._streaming = true
-    // const reader = this._data.stream().getReader()
-    // const stream = new ReadableStream({
-    //   pull: async (controller) => {
-    //     const result = await reader.read()
-    //     if (result.done) {
-    //       controller.close()
-    //       return
-    //     }
-    //     controller.enqueue(result.value)
-    //     this._bytesSent += result.value.byteLength
-    //     this.emit('progress', this._bytesSent)
-    //   },
-    // })
     await fetch(this._neemata._getUrl('neemata/stream', { id: this._id }), {
       method: 'POST',
-      body: this._data.stream(),
-      // @ts-ignore
-      duplex: 'half',
+      body: this._data,
       headers: {
         'Content-Type': 'application/octet-stream',
       },
     })
-
     this._streaming = false
+    this._initialized = false
     this.emit('finish')
   }
 

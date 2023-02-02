@@ -5,6 +5,8 @@ import { Stream } from './stream'
 import type { ApiConstructOptions, NeemataOptions } from './utils'
 import { NeemataError, randomUUID } from './utils'
 
+// TODO: refactor this mess
+
 export class Neemata<T = any> extends EventEmitter {
   api: T = {} as T
   _ws?: WebSocket
@@ -63,14 +65,14 @@ export class Neemata<T = any> extends EventEmitter {
   }
 
   async _scaffold(data: ApiRetrospectRespose) {
-    const modules = new Set<string>(data.map(({ name }) => name))
+    const procedures = new Set<string>(data.map(({ name }) => name))
     // @ts-expect-error
     this.api = {}
 
-    for (const moduleName of modules) {
-      const versions = data.filter(({ name }) => name === moduleName)
+    for (const procedureName of procedures) {
+      const versions = data.filter(({ name }) => name === procedureName)
 
-      const parts = moduleName.split('.')
+      const parts = procedureName.split('.')
       let last: any = this.api
 
       for (let i = 0; i < parts.length; i++) {
@@ -80,8 +82,8 @@ export class Neemata<T = any> extends EventEmitter {
         if (i === parts.length - 1) {
           const _prev = last[part]
 
-          for (const module of versions) {
-            if (module.version === '1') {
+          for (const procedure of versions) {
+            if (procedure.version === '1') {
               // alias for convenience
               Object.defineProperty(last, part, {
                 configurable: false,
@@ -94,27 +96,28 @@ export class Neemata<T = any> extends EventEmitter {
                       ...options
                     }: ApiConstructOptions = {}
                   ) =>
-                    this._send(moduleName, data, {
+                    this._send(procedureName, data, {
                       ...options,
-                      transport: module.transport ?? _transport ?? this._prefer,
-                      version: module.version,
+                      transport:
+                        procedure.transport ?? _transport ?? this._prefer,
+                      version: procedure.version,
                     }),
                   _prev
                 ),
               })
             }
 
-            Object.defineProperty(last[part], `v${module.version}`, {
+            Object.defineProperty(last[part], `v${procedure.version}`, {
               configurable: false,
               enumerable: true,
               value: (
                 data: any,
                 { transport: _transport, ...options }: ApiConstructOptions = {}
               ) =>
-                this._send(moduleName, data, {
+                this._send(procedureName, data, {
                   ...options,
-                  transport: module.transport ?? _transport ?? this._prefer,
-                  version: module.version,
+                  transport: procedure.transport ?? _transport ?? this._prefer,
+                  version: procedure.version,
                 }),
             })
           }
@@ -204,27 +207,30 @@ export class Neemata<T = any> extends EventEmitter {
   }
 
   async _send(
-    module: string,
+    procedure: string,
     data: any,
     { transport, version = '*' }: ApiConstructOptions = {}
   ) {
     await this._connecting
 
+    const streams: Promise<any>[] = []
     const serialize = async (data) => {
-      const initializers: Promise<any>[] = []
-      const serialized = JSON.stringify(data, (key, value) => {
+      const result = JSON.stringify(data, (key, value) => {
         if (value instanceof Stream) {
           if (value.streaming) throw new Error('Stream already initialized')
-          if (!value.initialized) initializers.push(value._init())
+          if (!value.initialized) streams.push(value._init())
           return value._serialize()
         }
         return value
       })
-      await Promise.all(initializers)
-      return serialized
+      await Promise.all(streams)
+      return result
     }
 
     if (transport === Transport.Http) {
+      if (streams.length)
+        throw new Error('Streams are not supported in HTTP transport')
+
       const options: RequestInit = {
         method: 'POST',
         body: await serialize(data),
@@ -234,7 +240,7 @@ export class Neemata<T = any> extends EventEmitter {
         },
       }
 
-      return fetch(this._getUrl(module.split('.').join('/')), options)
+      return fetch(this._getUrl(procedure.split('.').join('/')), options)
         .catch((err) => {
           console.error(err)
           throw new NeemataError(
@@ -264,7 +270,7 @@ export class Neemata<T = any> extends EventEmitter {
             if (
               type === MessageType.Call &&
               payload.correlationId === correlationId &&
-              payload.module === module
+              payload.procedure === procedure
             ) {
               this._ws?.removeEventListener('message', handler)
               const { error, data } = payload
@@ -287,7 +293,7 @@ export class Neemata<T = any> extends EventEmitter {
         this._ws?.addEventListener('message', handler)
         serialize({
           type: MessageType.Call,
-          payload: { correlationId, module, data, version },
+          payload: { correlationId, procedure, data, version },
         }).then((serialized) => this._ws?.send(serialized))
       })
 

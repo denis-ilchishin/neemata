@@ -18,40 +18,6 @@ function deepMerge(...objs) {
   return final
 }
 
-function satisfy(source, target) {
-  const parse = (ver) => ver.split('.').filter((v) => v)
-
-  if (target === '*') return true
-
-  source = parse(source).map((v) => parseInt(v))
-  target = parse(target)
-
-  if (
-    target
-      .filter((v) => v !== '*')
-      .map((v) => parseInt(v))
-      .findIndex((v) => Number.isNaN(v)) !== -1
-  )
-    return false
-
-  for (let i = 0; i < Math.min(source.length, target.length); i++) {
-    const v = source[i]
-    let r = target[i]
-
-    if (r === '*') return true
-    r = parseInt(r)
-    if (v > r) return false
-    else if (r > v) return true
-  }
-
-  return target.length >= source.length
-}
-
-const createSort =
-  (cb, desc = true) =>
-  (a, b) =>
-    cb(b) < cb(a) ? (desc ? -1 : 1) : desc ? 1 : -1
-
 const unique = (arr) => [...new Set(arr)]
 
 function compileSchema(schema) {
@@ -60,4 +26,4 @@ function compileSchema(schema) {
   return compiled
 }
 
-module.exports = { deepMerge, unique, satisfy, createSort, compileSchema }
+module.exports = { deepMerge, unique, compileSchema }

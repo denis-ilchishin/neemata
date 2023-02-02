@@ -88,23 +88,3 @@ export declare interface NeemataConfig {
     }>
   }
 }
-
-export declare type Guard = <Auth = unknown>(options: {
-  readonly req: import('node:http').IncomingMessage
-  readonly client: Client<Auth>
-}) => boolean | Promise<boolean>
-
-export declare type HttpClient<Auth = unknown> =
-  import('events').EventEmitter & {
-    readonly id: string
-    readonly auth?: Auth
-    readonly session?: string
-  }
-
-export declare type WsClient<Auth = unknown> = HttpClient<Auth> & {
-  readonly send: (event: string, data: any) => void
-  readonly openedAt: Date
-  readonly closedAt?: Date
-}
-
-export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>

@@ -10,7 +10,7 @@ const { LoggingBuffer } = require('./logging')
 
 const { Scheduler } = require('./scheduler')
 const { ConsoleLogger } = require('./console')
-const { join } = require('node:path')
+const { join, resolve } = require('node:path')
 const { Typings } = require('./typings')
 
 class Neemata {

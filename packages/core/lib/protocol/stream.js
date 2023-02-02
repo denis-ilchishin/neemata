@@ -4,9 +4,7 @@ const { Duplex } = require('node:stream')
 
 class Stream extends Duplex {
   constructor({ client, id, size, type, name }) {
-    super({
-      allowHalfOpen: false,
-    })
+    super({ allowHalfOpen: false })
 
     this.id = id
     this.meta = {
@@ -16,32 +14,24 @@ class Stream extends Duplex {
     }
 
     this.client = client
+    this._pulled = false
   }
 
-  _read() {}
+  _read() {
+    if (this._pulled) return
+    this.client.send('neemata:stream:pull', { id: this.id })
+    this._pulled = true
+  }
 
   _write(chunk, encoding, callback) {
     this.push(chunk, encoding)
     callback()
   }
 
-  _pull() {
-    this.client.send('neemata:stream:pull', {
-      id: this.id,
-    })
-    return this
-  }
-
-  pipe(...args) {
-    const stream = super.pipe(...args)
-    this._pull()
-    return stream
-  }
-
   done() {
-    return new Promise((res, rej) => {
-      this.once('end', () => res())
-      this.once('error', (err) => rej(err))
+    return new Promise((resolve, reject) => {
+      this.once('end', resolve)
+      this.once('error', reject)
     })
   }
 
@@ -51,8 +41,16 @@ class Stream extends Duplex {
       this.on('data', (chunk) => chunks.push(chunk))
       this.on('end', () => res(Buffer.concat(chunks)))
       this.on('error', (err) => rej(err))
-      this._pull()
+      this._read()
     })
+  }
+
+  toString() {
+    return 'neemata:stream:' + this.id
+  }
+
+  toJSON() {
+    return this.toString()
   }
 }
 

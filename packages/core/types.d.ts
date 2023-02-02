@@ -1,32 +1,33 @@
 import { Transport, ValueOf, WorkerType } from '@neemata/common'
 import { Static, TSchema } from '@sinclair/typebox'
 import { IncomingMessage } from 'node:http'
-import { Client, Guard, HttpClient, WsClient } from './types/internal'
+import { Readable } from 'node:stream'
 
-export interface ApiModuleHandlerOptions<
+export interface ProcedureHandlerOptions<
   D extends TSchema,
   T extends ValueOf<typeof Transport>,
-  A extends boolean
+  A extends boolean,
+  P = A extends false ? null | Auth : Auth
 > {
   data: D extends TSchema ? Static<D> : unknown
   req: Readonly<IncomingMessage>
   client: Readonly<
     T extends typeof Transport.Http
-      ? HttpClient<A extends false ? null | Auth : Auth>
+      ? HttpClient<P>
       : T extends typeof Transport.Ws
-      ? WsClient<A extends false ? null | Auth : Auth>
-      : Client<A extends false ? null | Auth : Auth>
+      ? WsClient<P>
+      : Client<P>
   >
 }
 
-export type ApiModuleHandler<
+export type ProcedureHandler<
   D extends TSchema,
   T extends ValueOf<typeof Transport>,
   A extends boolean,
   R = any
-> = (options: ApiModuleHandlerOptions<D, T, A>) => R
+> = (options: ProcedureHandlerOptions<D, T, A>) => R
 
-export interface ApiModule<
+export interface Procedure<
   D extends TSchema,
   T extends ValueOf<typeof Transport>,
   A extends boolean
@@ -34,7 +35,7 @@ export interface ApiModule<
   /**
    * Endpoint's handler
    */
-  handler: ApiModuleHandler<D, T, A>
+  handler: ProcedureHandler<D, T, A>
   /**
    * Yup schema to validate endpoint's body against
    */
@@ -92,7 +93,7 @@ export interface Hooks {
       data?: any
       client: Client
       req: IncomingMessage
-      module: { name: string; version: string }
+      procedure: { name: string; version: string }
     }>
   ) => Promise<any>
   connect?: (
@@ -109,40 +110,55 @@ export interface Hooks {
   ) => Promise<any>
 }
 
-export type DefineAuthModule = <
-  T extends (auth: string) => Promise<Auth | null>
+export type DefineAuthService = <
+  T extends (options: {
+    session: string
+    req: IncomingMessage
+  }) => Promise<Auth | null>
 >(
-  module: T
+  service: T
 ) => T
 export type DefineGuard = (guard: Guard) => Guard
-export type DefineApiModule = <
+export type DefineProcedure = <
   D extends TSchema,
   T extends ValueOf<typeof Transport>,
-  A extends boolean
+  A extends boolean = true
 >(
-  module: ApiModule<D, T, A>
-) => ApiModule<D, T, A>
+  procedure: Procedure<D, T, A>
+) => Procedure<D, T, A>
+
+export declare type Guard = (options: {
+  readonly req: import('node:http').IncomingMessage
+  readonly client: Client<Auth | null>
+}) => boolean | Promise<boolean>
+
+export declare type HttpClient<Auth = unknown> = {
+  readonly id: string
+  readonly auth: Auth
+  readonly session: string
+  readonly transport: typeof Transport.Http
+}
+
+export declare type WsClient<Auth = unknown> = HttpClient<Auth> & {
+  readonly send: (event: string, data: any) => void
+  readonly openedAt: Date
+  readonly closedAt?: Date
+  readonly transport: typeof Transport.Ws
+}
+
+export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>
+
+export type StreamTypeOptions = { maximum?: number }
 
 declare global {
-  const application: UserApplication
-  const lib: Lib
-  const config: Config
-  const services: Services
-  const db: Db
-  const hooks: Hooks
-  const defineApiModule: DefineApiModule
-  const defineAuthModule: DefineAuthModule
-  const defineGuard: DefineGuard
-  const Typebox: typeof import('@sinclair/typebox') & {
-    compiler: typeof import('@sinclair/typebox/compiler')
-    conditional: typeof import('@sinclair/typebox/conditional')
-    custom: typeof import('@sinclair/typebox/custom')
-    errors: typeof import('@sinclair/typebox/errors')
-    format: typeof import('@sinclair/typebox/format')
-    guard: typeof import('@sinclair/typebox/guard')
-    hash: typeof import('@sinclair/typebox/hash')
-    system: typeof import('@sinclair/typebox/system')
-    value: typeof import('@sinclair/typebox/value')
+  class Stream extends Readable {
+    meta: {
+      size: number
+      type: string
+      name?: string
+    }
+    done(): Promise<void>
+    toBuffer(): Promise<Buffer>
   }
 
   class ApiException {
@@ -152,4 +168,28 @@ declare global {
       message?: string
     })
   }
+
+  const application: UserApplication
+  const lib: Lib
+  const config: Config
+  const services: Services
+  const db: Db
+  const hooks: Hooks
+  const defineProcedure: DefineProcedure
+  const defineAuthService: DefineAuthService
+  const defineGuard: DefineGuard
+  const Typebox: typeof import('@sinclair/typebox') &
+    typeof import('@sinclair/typebox/compiler') &
+    typeof import('@sinclair/typebox/conditional') &
+    typeof import('@sinclair/typebox/custom') &
+    typeof import('@sinclair/typebox/errors') &
+    typeof import('@sinclair/typebox/format') &
+    typeof import('@sinclair/typebox/guard') &
+    typeof import('@sinclair/typebox/hash') &
+    typeof import('@sinclair/typebox/system') &
+    typeof import('@sinclair/typebox/value') & {
+      Stream: (
+        options?: Partial<StreamTypeOptions>
+      ) => import('@sinclair/typebox').TUnsafe<Stream>
+    }
 }

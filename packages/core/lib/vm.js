@@ -6,7 +6,7 @@ const {
   SourceTextModule,
   SyntheticModule,
 } = require('node:vm')
-const { dirname, parse, extname, resolve } = require('node:path')
+const { dirname, parse, extname, resolve, relative } = require('node:path')
 const { readFile } = require('node:fs/promises')
 const { readFileSync } = require('node:fs')
 const { createRequire } = require('node:module')
@@ -126,7 +126,9 @@ class Script {
         !name.startsWith('.') &&
         !name.startsWith('_')
       ) {
-        throw new Error('Internal application modules are auto injected')
+        throw new Error(
+          "Internal application modules are auto injected, there's no need to do it manually"
+        )
       }
       return _require(id)
     }
@@ -150,10 +152,16 @@ class Script {
         !name.startsWith('.') &&
         !name.startsWith('_')
       ) {
-        throw new Error('Internal application modules are auto injected')
+        throw new Error(
+          "Internal application modules are auto injected, there's no need to do it manually"
+        )
       }
 
-      const exports = await import(id)
+      const exports = await import(
+        id.startsWith('.')
+          ? relative(__dirname, resolve(this.filepath, id))
+          : id
+      )
 
       return new SyntheticModule(
         Array.from(new Set(['default', ...Object.keys(exports)])),
@@ -169,7 +177,7 @@ class Script {
   }
 }
 
-const typingHelpers = ['defineAuthModule', 'defineApiModule', 'defineGuard']
+const typingHelpers = ['defineProcedure', 'defineAuthService', 'defineGuard']
 
 const typeBoxExports = JSON.parse(
   readFileSync(
@@ -185,9 +193,19 @@ for (const key of Object.keys(typeBoxExports)) {
   if (importName !== '')
     Typebox = {
       ...Typebox,
-      [importName.slice(1)]: require('@sinclair/typebox' + importName),
+      ...require('@sinclair/typebox' + importName),
     }
   else Typebox = { ...Typebox, ...require('@sinclair/typebox') }
+}
+
+function prepareTypebox() {
+  Typebox.Custom.Clear()
+  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
+    if (!(value instanceof Stream)) return false
+    if (options.maximum !== undefined && value.meta.size > options.maximum)
+      return false
+    return true
+  })
 }
 
 const COMMON_CONTEXT = Object.freeze({
@@ -228,4 +246,5 @@ const types = {
 
 module.exports = {
   Script,
+  prepareTypebox,
 }

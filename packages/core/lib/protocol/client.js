@@ -1,7 +1,7 @@
 'use strict'
 
 const EventEmitter = require('node:events')
-const { MessageType } = require('@neemata/common')
+const { MessageType, Transport } = require('@neemata/common')
 const { randomUUID } = require('node:crypto')
 
 module.exports = {
@@ -10,6 +10,7 @@ module.exports = {
       id: randomUUID(),
       auth,
       session,
+      transport: socket ? Transport.Ws : Transport.Http,
     })
 
     if (socket) {

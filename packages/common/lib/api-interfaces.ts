@@ -10,36 +10,36 @@ export interface ApiResponse {
   data?: any
 }
 
-export interface WebSocketTransportInput<
+export interface WSTransportCallInterface<
   Type extends ValueOf<typeof MessageType>
 > {
   type: Type
   payload: Type extends typeof MessageType.Call
     ? {
-        module: string
+        procedure: string
         correlationId: string
-        version: string
+        version: number
         data?: any
       }
     : { event: string; data?: any }
 }
 
-export interface WebSocketTransportOutput<
+export interface WSTransportCallResponse<
   Type extends ValueOf<typeof MessageType>
 > {
   type: Type
   payload: Type extends typeof MessageType.Event
     ? {
-        module: string
+        procedure: string
         correlationId: string
       } & ApiResponse
     : ApiResponse
 }
 
-interface ApiRetrospectableModule {
+interface ApiIntrospectProcedure {
   name: string
-  version: string
+  version: number
   transport?: ValueOf<typeof Transport>
 }
 
-export type ApiRetrospectRespose = ApiRetrospectableModule[]
+export type ApiIntrospectResponse = ApiIntrospectProcedure[]

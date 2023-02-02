@@ -1,8 +1,8 @@
 export type {
+  ApiIntrospectResponse,
   ApiResponse,
-  ApiRetrospectRespose,
-  WebSocketTransportInput,
-  WebSocketTransportOutput,
+  WSTransportCallInterface,
+  WSTransportCallResponse,
 } from './lib/api-interfaces'
 export { ErrorCode } from './lib/error-code'
 export { MessageType } from './lib/message-type'

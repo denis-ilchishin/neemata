@@ -134,7 +134,6 @@ class WsTransport extends BaseTransport {
     // Handle streams
     client.on('neemata:stream:init', ({ id, size, type, name }) => {
       if (!this.server.streams.has(id)) {
-        console.log(id, size, type, name)
         const stream = new Stream({ client, id, size, type, name })
         this.server.streams.set(stream.id, stream)
         stream.once('close', () => this.server.streams.delete(stream.id))

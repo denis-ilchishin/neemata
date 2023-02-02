@@ -132,18 +132,20 @@ export declare type Guard = (options: {
   readonly client: Client<Auth | null>
 }) => boolean | Promise<boolean>
 
-export declare type HttpClient<Auth = unknown> = {
+export declare type HttpClient<Auth = unknown, T = typeof Transport.Http> = {
   readonly id: string
   readonly auth: Auth
   readonly session: string
-  readonly transport: typeof Transport.Http
+  readonly transport: T
 }
 
-export declare type WsClient<Auth = unknown> = HttpClient<Auth> & {
-  readonly send: (event: string, data: any) => void
+export declare type WsClient<Auth = unknown> = HttpClient<
+  Auth,
+  typeof Transport.Ws
+> & {
+  readonly send: (event: string, data?: any) => void
   readonly openedAt: Date
   readonly closedAt?: Date
-  readonly transport: typeof Transport.Ws
 }
 
 export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>

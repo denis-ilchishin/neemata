@@ -1,4 +1,4 @@
-import type { ApiRetrospectRespose, ValueOf } from '@neemata/common'
+import type { ApiIntrospectResponse, ValueOf } from '@neemata/common'
 import { ErrorCode, MessageType, Transport } from '@neemata/common'
 import { EventEmitter } from 'events'
 import { Stream } from './stream'
@@ -64,7 +64,7 @@ export class Neemata<T = any> extends EventEmitter {
     return url
   }
 
-  async _scaffold(data: ApiRetrospectRespose) {
+  async _scaffold(data: ApiIntrospectResponse) {
     const procedures = new Set<string>(data.map(({ name }) => name))
     // @ts-expect-error
     this.api = {}
@@ -83,42 +83,29 @@ export class Neemata<T = any> extends EventEmitter {
           const _prev = last[part]
 
           for (const procedure of versions) {
-            if (procedure.version === '1') {
+            const value = (
+              data: any,
+              { transport: _transport, ...options }: ApiConstructOptions = {}
+            ) =>
+              this._send(procedureName, data, {
+                ...options,
+                transport: procedure.transport ?? _transport ?? this._prefer,
+                version: procedure.version,
+              })
+
+            if (procedure.version === 1) {
               // alias for convenience
               Object.defineProperty(last, part, {
                 configurable: false,
                 enumerable: true,
-                value: Object.assign(
-                  (
-                    data: any,
-                    {
-                      transport: _transport,
-                      ...options
-                    }: ApiConstructOptions = {}
-                  ) =>
-                    this._send(procedureName, data, {
-                      ...options,
-                      transport:
-                        procedure.transport ?? _transport ?? this._prefer,
-                      version: procedure.version,
-                    }),
-                  _prev
-                ),
+                value,
               })
             }
 
             Object.defineProperty(last[part], `v${procedure.version}`, {
               configurable: false,
               enumerable: true,
-              value: (
-                data: any,
-                { transport: _transport, ...options }: ApiConstructOptions = {}
-              ) =>
-                this._send(procedureName, data, {
-                  ...options,
-                  transport: procedure.transport ?? _transport ?? this._prefer,
-                  version: procedure.version,
-                }),
+              value,
             })
           }
         } else {
@@ -209,7 +196,7 @@ export class Neemata<T = any> extends EventEmitter {
   async _send(
     procedure: string,
     data: any,
-    { transport, version = '*' }: ApiConstructOptions = {}
+    { transport, version = 1 }: ApiConstructOptions = {}
   ) {
     await this._connecting
 
@@ -235,7 +222,7 @@ export class Neemata<T = any> extends EventEmitter {
         method: 'POST',
         body: await serialize(data),
         headers: {
-          'accept-version': version,
+          'accept-version': version.toString(),
           'content-type': 'application/json',
         },
       }

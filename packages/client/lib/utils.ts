@@ -26,7 +26,7 @@ export class NeemataError extends Error {
 export type ApiConstructOptions = {
   transport?: ValueOf<typeof Transport>
   formData?: FormData
-  version?: string
+  version?: number
 }
 
 export type NeemataOptions = {

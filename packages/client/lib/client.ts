@@ -98,7 +98,7 @@ export class Neemata<T = any> extends EventEmitter {
               Object.defineProperty(last, part, {
                 configurable: false,
                 enumerable: true,
-                value,
+                value: _prev ? Object.assign(value, _prev) : value,
               })
             }
 
@@ -124,6 +124,7 @@ export class Neemata<T = any> extends EventEmitter {
             throw err
           })
           .then(() => {
+            this.once('neemata:introspect', resolve)
             const wsUrl = this._getWsUrl()
             const ws = new window.WebSocket(wsUrl)
 
@@ -168,7 +169,6 @@ export class Neemata<T = any> extends EventEmitter {
 
             this._ws = ws
           })
-          .then(() => new Promise((r) => this.once('neemata:introspect', r)))
       })
     } else {
       this._connecting = this._waitHealthy().then(async () => {

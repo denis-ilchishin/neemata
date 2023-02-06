@@ -1,6 +1,6 @@
 {
   "name": "@neemata/cli",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Neemata CLI package",
   "bin": {
     "neemata": "./index.js"

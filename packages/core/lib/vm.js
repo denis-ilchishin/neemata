@@ -15,6 +15,7 @@ const { ErrorCode, WorkerType } = require('@neemata/common')
 const { ApiException } = require('./protocol/exceptions')
 const { Stream } = require('./protocol/stream')
 const esbuld = require('esbuild')
+const zod = require('zod')
 
 class Script {
   constructor(filepath, options) {
@@ -208,6 +209,30 @@ function prepareTypebox() {
   })
 }
 
+zod.stream = (options) =>
+  zod.any().superRefine(
+    (value, ctx) => {
+      if (!(value instanceof Stream)) {
+        ctx.addIssue({
+          code: zod.ZodIssueCode.custom,
+          message: 'Stream not found',
+        })
+      } else if (
+        options.maximum !== undefined &&
+        value.meta.size > options.maximum
+      ) {
+        ctx.addIssue({
+          code: zod.ZodIssueCode.too_big,
+          message: 'Stream data size is too big',
+          maximum: options.maximum,
+          type: 'number',
+          inclusive: true,
+        })
+      }
+    },
+    { message: 'Invalid stream' }
+  )
+
 const COMMON_CONTEXT = Object.freeze({
   Buffer,
   URL,
@@ -227,6 +252,7 @@ const COMMON_CONTEXT = Object.freeze({
   WorkerType,
   ApiException,
   Typebox,
+  zod,
   Stream,
   // Typing helpers
   ...Object.fromEntries(

@@ -2,14 +2,15 @@ import { Transport, ValueOf, WorkerType } from '@neemata/common'
 import { Static, TSchema } from '@sinclair/typebox'
 import { IncomingMessage } from 'node:http'
 import { Readable } from 'node:stream'
+import { TypeOf, ZodType } from 'zod'
 
 export interface ProcedureHandlerOptions<
-  D extends TSchema,
+  D extends TSchema | ZodType,
   T extends ValueOf<typeof Transport>,
   A extends boolean,
   P = A extends false ? null | Auth : Auth
 > {
-  data: D extends TSchema ? Static<D> : unknown
+  data: D extends TSchema ? Static<D> : D extends ZodType ? TypeOf<D> : unknown
   req: Readonly<IncomingMessage>
   client: Readonly<
     T extends typeof Transport.Http
@@ -21,14 +22,14 @@ export interface ProcedureHandlerOptions<
 }
 
 export type ProcedureHandler<
-  D extends TSchema,
+  D extends TSchema | ZodType,
   T extends ValueOf<typeof Transport>,
   A extends boolean,
   R = any
 > = (options: ProcedureHandlerOptions<D, T, A>) => R
 
 export interface Procedure<
-  D extends TSchema,
+  D extends TSchema | ZodType,
   T extends ValueOf<typeof Transport>,
   A extends boolean
 > {
@@ -66,7 +67,7 @@ export interface Procedure<
 
 export interface UserApplication {
   type: ValueOf<typeof WorkerType>
-  clients: Set<Client>
+  clients: Set<WsClient<Auth | null>>
   createFileLogger: (
     name: string,
     level?: import('pino').Level
@@ -91,20 +92,20 @@ export interface Hooks {
   call?: (
     options: Readonly<{
       data?: any
-      client: Client
+      client: Client<Auth | null>
       req: IncomingMessage
       procedure: { name: string; version: string }
     }>
   ) => Promise<any>
   connect?: (
     options: Readonly<{
-      client: Client
+      client: WsClient<Auth | null>
       req: IncomingMessage
     }>
   ) => Promise<any>
   disconnect?: (
     options: Readonly<{
-      client: Client
+      client: WsClient<Auth | null>
       req: IncomingMessage
     }>
   ) => Promise<any>
@@ -120,7 +121,7 @@ export type DefineAuthService = <
 ) => T
 export type DefineGuard = (guard: Guard) => Guard
 export type DefineProcedure = <
-  D extends TSchema,
+  D extends TSchema | ZodType,
   T extends ValueOf<typeof Transport>,
   A extends boolean = true
 >(
@@ -132,17 +133,15 @@ export declare type Guard = (options: {
   readonly client: Client<Auth | null>
 }) => boolean | Promise<boolean>
 
-export declare type HttpClient<Auth = unknown, T = typeof Transport.Http> = {
+export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
   readonly id: string
   readonly auth: Auth
   readonly session: string
   readonly transport: T
 }
 
-export declare type WsClient<Auth = unknown> = HttpClient<
-  Auth,
-  typeof Transport.Ws
-> & {
+export declare interface WsClient<Auth = unknown>
+  extends HttpClient<Auth, typeof Transport.Ws> {
   readonly send: (event: string, data?: any) => void
   readonly openedAt: Date
   readonly closedAt?: Date
@@ -194,4 +193,9 @@ declare global {
         options?: Partial<StreamTypeOptions>
       ) => import('@sinclair/typebox').TUnsafe<Stream>
     }
+  const zod: typeof import('zod') & {
+    stream: (
+      options?: Partial<StreamTypeOptions>
+    ) => import('zod').ZodType<Stream>
+  }
 }

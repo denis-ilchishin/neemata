@@ -3,6 +3,7 @@
 const { ApiException } = require('./exceptions')
 const { ErrorCode } = require('@neemata/common')
 const { unique } = require('../utils/functions')
+const zod = require('zod')
 
 class BaseTransport {
   constructor(server) {
@@ -108,6 +109,7 @@ class BaseTransport {
       if (err instanceof ApiException) {
         return this.makeError(err)
       } else {
+        this.console.error(err)
         return this.makeError({
           code: ErrorCode.InternalServerError,
         })
@@ -149,14 +151,27 @@ class BaseTransport {
   }
 
   async handleValidation(schema, data) {
-    if (schema.Check(data)) {
-      return data // schema.Cast(data)
+    if (this.config.api.schema === 'zod') {
+      const result = await schema.safeParseAsync(data)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new ApiException({
+          code: ErrorCode.ValidationError,
+          message: 'Request body validation error',
+          data: result.error.format(),
+        })
+      }
     } else {
-      throw new ApiException({
-        code: ErrorCode.ValidationError,
-        message: 'Request body validation error',
-        data: [...schema.Errors(data)],
-      })
+      if (schema.Check(data)) {
+        return data // schema.Cast(data)
+      } else {
+        throw new ApiException({
+          code: ErrorCode.ValidationError,
+          message: 'Request body validation error',
+          data: [...schema.Errors(data)],
+        })
+      }
     }
   }
 

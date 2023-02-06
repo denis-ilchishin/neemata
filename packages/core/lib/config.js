@@ -18,13 +18,16 @@ const schema = Type.Object({
       concurrency: Type.Integer(),
       size: Type.Integer(),
     }),
+    auth: Type.Object({
+      service: Type.String(),
+    }),
+    schema: Type.Union(['zod', 'typebox'].map((v) => Type.Literal(v))),
   }),
   log: Type.Object({
     basePath: Type.String(),
-    level: Type.Enum(['debug', 'info', 'warn', 'error']),
-  }),
-  auth: Type.Object({
-    service: Type.String(),
+    level: Type.Union(
+      ['debug', 'info', 'warn', 'error'].map((v) => Type.Literal(v))
+    ),
   }),
   timeouts: Type.Object({
     startup: Type.Integer({ minimum: 0 }),
@@ -66,9 +69,10 @@ const defaultConfig = {
       concurrency: 200,
       size: 1000,
     },
-  },
-  auth: {
-    service: 'auth.api',
+    auth: {
+      service: 'auth.api',
+    },
+    schema: 'zod',
   },
   log: { basePath: 'logs', level: 'info' },
   timeouts: {

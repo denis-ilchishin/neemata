@@ -7,6 +7,7 @@ const { WsTransport } = require('./ws')
 const { parse, serialize } = require('cookie')
 const { createHash, randomBytes } = require('node:crypto')
 const { Semaphore } = require('../utils/semaphore')
+const { unique } = require('../utils/functions')
 
 const AUTH_DEFAULT = () => null
 const SESSION_COOKIE = '__NSID'
@@ -32,26 +33,14 @@ class Server {
 
   get authService() {
     const { modules, config } = this.application
-    return modules.services.get(config.auth.service) ?? AUTH_DEFAULT
+    return modules.services.get(config.api.auth.service) ?? AUTH_DEFAULT
   }
 
   async handleAuth({ session, req }) {
     return this.authService({ session, req })
   }
 
-  async handleSession(req) {
-    let session = this.getSession(req)
-    let cookie
-
-    if (!session) {
-      session = this.createSession(req)
-      cookie = this.getSessionCookie(token)
-    }
-
-    return { session, cookie }
-  }
-
-  async introspect(req, auth) {
+  async introspect(req, client) {
     const introspected = []
 
     const modules = Array.from(this.application.modules.api.modules.values())
@@ -73,8 +62,8 @@ class Server {
     }
 
     const settledGuards = await Promise.allSettled(
-      Array.from(guards).map(async (guard) => {
-        return guard({ req, auth })
+      unique(guards).map(async (guard) => {
+        if (await guard({ req, client })) return guard
       })
     )
 
@@ -100,11 +89,23 @@ class Server {
     return introspected
   }
 
-  getSession(req) {
+  handleSession(req) {
+    let token = this.getSessionToken(req)
+    let cookie
+
+    if (!token) {
+      token = this.createSessionToken(req)
+      cookie = this.getSessionCookie(token)
+    }
+
+    return { token, cookie }
+  }
+
+  getSessionToken(req) {
     return parse(req.headers.cookie || '')[SESSION_COOKIE]
   }
 
-  createSession() {
+  createSessionToken() {
     const data = Buffer.concat([
       randomBytes(64),
       Buffer.from(Date.now().toString()),
@@ -115,7 +116,6 @@ class Server {
 
   getSessionCookie(token) {
     return serialize(SESSION_COOKIE, token, {
-      secure: true,
       path: '/',
     })
   }

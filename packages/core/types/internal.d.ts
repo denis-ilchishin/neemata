@@ -30,13 +30,20 @@ export declare interface NeemataConfig {
       concurrency: number
       size: number
     }
+    auth: {
+      /**
+       * @default 'auth.api'
+       */
+      service: string
+    }
+    /**
+     * @default 'zod'
+     */
+    schema: 'zod' | 'typebox'
   }
   log: {
     basePath: string
     level: LogLevel
-  }
-  auth: {
-    service: string
   }
   timeouts: {
     /**

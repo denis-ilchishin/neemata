@@ -26,13 +26,10 @@ class HttpTransport extends BaseTransport {
     this.type = Transport.Http
   }
 
-  getData(req) {
-    return new Promise((resolve, reject) => {
-      const chunks = []
-      req.on('data', (chunk) => chunks.push(chunk))
-      req.on('error', (err) => reject(err))
-      req.on('end', () => resolve(Buffer.concat(chunks)))
-    })
+  async getData(req) {
+    const chunks = []
+    for await (const chunk of req) chunks.push(chunk)
+    return Buffer.concat(chunks)
   }
 
   setHeaders(res, extra = {}) {
@@ -43,10 +40,13 @@ class HttpTransport extends BaseTransport {
 
   createRespond(req, res) {
     res.statusCode = 200
-    this.setHeaders(res, {
-      'Access-Control-Allow-Origin':
-        this.cors.origin === '*' ? req.headers.origin : this.cors.origin,
-    })
+    this.setHeaders(
+      res,
+      req.headers.origin && {
+        'Access-Control-Allow-Origin':
+          this.cors.origin === '*' ? req.headers.origin : this.cors.origin,
+      }
+    )
 
     const respond = (data) => {
       res.setHeader(...JSON_CONTENT_TYPE_HEADER)
@@ -105,13 +105,14 @@ class HttpTransport extends BaseTransport {
         version
       )
       const rawData = await this.getData(req)
-      const data = this.deserialize(rawData.toString('utf8'))
+      const data = rawData.length
+        ? this.deserialize(rawData.toString('utf8'))
+        : undefined
       const client = createClient({
         auth: await auth,
         session: session.token,
       })
-      const result = await this.handle({ procedure, client, data, req })
-      return this.makeResponse({ data: result })
+      return this.handle({ procedure, client, data, req })
     } catch (error) {
       if (error instanceof ApiException) return this.makeError(error)
       else {
@@ -123,9 +124,15 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async ['GET.neemata/introspect']({ req }) {
+  async ['GET.neemata/introspect']({ req, res }) {
     const auth = this.server.handleAuth(req)
-    return this.server.introspect(req, await auth)
+    const session = this.server.handleSession(req)
+    const client = createClient({
+      auth: await auth,
+      session: session.token,
+    })
+    if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
+    return this.server.introspect(req, client)
   }
 
   ['GET.neemata/healthy']() {

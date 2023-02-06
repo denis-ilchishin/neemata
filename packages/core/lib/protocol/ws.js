@@ -80,8 +80,18 @@ class WsTransport extends BaseTransport {
       const _send = socket.send.bind(socket)
       socket.send = (type, payload) => _send(this.serialize({ type, payload }))
       socket.on('error', (err) => this.application.console.error(err))
-      client.on('close', () => this.server.clients.delete(client.id))
-      this.receiver(socket, req, client)
+      client.on('close', async () => {
+        await this.server.application.runHooks('disconnect', true, {
+          client,
+          req,
+        })
+        this.server.clients.delete(client.id)
+      })
+      const onConnect = this.server.application.runHooks('connect', true, {
+        client,
+        req,
+      })
+      this.receiver(socket, req, client, onConnect)
     })
   }
 
@@ -93,9 +103,10 @@ class WsTransport extends BaseTransport {
     })
   }
 
-  receiver(socket, req, client) {
+  receiver(socket, req, client, onConnect) {
     socket.on('message', async (rawMessage) => {
       try {
+        await onConnect
         const deserialized = this.deserialize(rawMessage)
         const isValid = messageSchema.Check(deserialized)
         if (!isValid) throw new Error('Invalid message')
@@ -112,7 +123,7 @@ class WsTransport extends BaseTransport {
     const introspectHandler = async () => {
       client.send(
         'neemata:introspect',
-        await this.server.introspect(req, client.auth)
+        await this.server.introspect(req, client)
       )
     }
     client.on('neemata:introspect', introspectHandler)

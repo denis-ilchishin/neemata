@@ -163,7 +163,7 @@ class WorkerApplication extends EventEmitter {
     } else {
       const id = randomUUID()
       return new Promise((resolve, reject) => {
-        app.once(id, (result) => {
+        this.once(id, (result) => {
           if (result.error) reject(new Error(result.data))
           else resolve(result.data)
         })

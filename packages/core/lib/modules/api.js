@@ -5,9 +5,10 @@ const { parse, sep } = require('node:path')
 const { Loader } = require('../loader')
 const { Transport } = require('@neemata/common')
 const { compileSchema } = require('../utils/functions')
+const zod = require('zod')
 
 class Procedure {
-  constructor(exports) {
+  constructor(exports, schemaType) {
     const {
       handler,
       schema = null,
@@ -30,12 +31,22 @@ class Procedure {
       throw new Error("Procedure's 'handler' is invalid, should be a function")
     }
 
-    if (this.schema && !TypeGuard.TSchema(this.schema)) {
-      throw new Error(
-        "Procedure's 'schema' is invalid, should be a Typebox schema"
-      )
-    } else if (this.schema) {
-      this.schema = compileSchema(this.schema)
+    if (this.schema) {
+      if (schemaType === 'typebox' && !TypeGuard.TSchema(this.schema)) {
+        throw new Error(
+          "Procedure's 'schema' is invalid, should be a Typebox schema"
+        )
+      }
+
+      if (schemaType === 'zod' && !(this.schema instanceof zod.ZodSchema)) {
+        throw new Error(
+          "Procedure's 'schema' is invalid, should be a Zod schema"
+        )
+      }
+
+      if (schemaType === 'typebox') {
+        this.schema = compileSchema(this.schema)
+      }
     }
 
     if (this.guards.find((g) => typeof g !== 'function')) {
@@ -107,7 +118,7 @@ class Api extends Loader {
       versionParts.push(...versions)
     }
 
-    const procedure = new Procedure(exports)
+    const procedure = new Procedure(exports, this.application.config.api.schema)
 
     if (versionParts.length > 1)
       throw new Error('Should not be not more than one version specified')

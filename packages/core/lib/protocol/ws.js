@@ -97,7 +97,11 @@ class WsTransport extends BaseTransport {
 
   deserialize(raw) {
     return JSON.parse(raw, (key, value) => {
-      if (typeof value === 'object' && value.__type === 'neemata:stream')
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        value.__type === 'neemata:stream'
+      )
         return this.server.streams.get(value.__id)
       return value
     })

@@ -77,11 +77,14 @@ class HttpTransport extends BaseTransport {
     const routeName = `${method}.${url.pathname.slice(1)}`
     if (method !== 'POST' && !this[routeName]) return respondPlain404()
     const routeHandler = this[routeName] ?? this.rpc
+    const session = this.server.handleSession(req)
+    if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
     try {
       const response = await routeHandler.call(this, {
         req,
         res,
         url,
+        session,
       })
       return ['string', 'undefined'].includes(typeof response)
         ? respondPlain(response)
@@ -92,10 +95,8 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async rpc({ req, res, url }) {
+  async rpc({ req, url, session }) {
     try {
-      const session = this.server.handleSession(req)
-      if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
       const auth = this.server.handleAuth({ session: session.token, req })
       const version = this.handleVersion(req.headers['accept-version'])
       const procedureName = url.pathname.split('/').slice(1).join('.')
@@ -124,14 +125,12 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async ['GET.neemata/introspect']({ req, res }) {
-    const auth = this.server.handleAuth(req)
-    const session = this.server.handleSession(req)
+  async ['GET.neemata/introspect']({ req, session }) {
+    const auth = this.server.handleAuth({ req, session })
     const client = createClient({
       auth: await auth,
       session: session.token,
     })
-    if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
     return this.server.introspect(req, client)
   }
 
@@ -139,11 +138,10 @@ class HttpTransport extends BaseTransport {
     return 'OK'
   }
 
-  ['POST.neemata/stream']({ req, url }) {
+  ['POST.neemata/stream']({ req, url, session }) {
     return new Promise((resolve, reject) => {
       const streamId = url.query.id
       const stream = this.server.streams.get(streamId)
-      const session = this.server.getSession(req)
       if (!stream || stream.client.session !== session)
         new Error('Stream not found')
 

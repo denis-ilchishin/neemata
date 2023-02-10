@@ -157,6 +157,9 @@ class Typings {
     try {
       if (!fs.statSync(this.outputDir).isDirectory()) {
         throw new Error()
+      } else {
+        fs.rmSync(this.outputDir, { recursive: true })
+        fs.mkdirSync(this.outputDir)
       }
     } catch (error) {
       fs.mkdirSync(this.outputDir)

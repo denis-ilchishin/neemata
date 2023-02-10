@@ -1,33 +1,23 @@
 'use strict'
 
 const { Worker } = require('node:worker_threads')
+const { join } = require('node:path')
 
-const { Config } = require('./config')
 const { WorkerMessage, WorkerType } = require('@neemata/common')
 const { Pool } = require('./utils/pool')
 const { Watcher } = require('./utils/watcher')
 const { LoggingBuffer } = require('./logging')
-
 const { Scheduler } = require('./scheduler')
-const { ConsoleLogger } = require('./console')
-const { join } = require('node:path')
 const { Typings } = require('./typings')
 
 class Neemata {
-  constructor({
-    rootPath,
-    configPath,
-    isDev,
-    isProd,
-    isOneOff,
-    startScheduler,
-  }) {
+  constructor({ rootPath, config, isDev, isProd, isOneOff, startScheduler }) {
     this.isDev = isDev
     this.isProd = isProd
     this.isOneOff = isOneOff
     this.rootPath = rootPath
     this.startScheduler = startScheduler ?? isProd
-    this.config = new Config(configPath)
+    this.config = config
     this.log = new LoggingBuffer()
   }
 
@@ -38,9 +28,8 @@ class Neemata {
   }
 
   init() {
-    this.console = new ConsoleLogger(this.config.resolved.log.level, 'Neemata')
-    this.console.info('Initializing Neemata application server...')
-    this.console.debug('Creating a worker pool')
+    logger.info('Initializing Neemata application server...')
+    logger.debug('Creating a worker pool')
     this.workerPool = new Pool({
       timeout: this.config.resolved.timeouts.task.allocation,
     })
@@ -59,14 +48,14 @@ class Neemata {
     this.init()
 
     if (this.isDev && !this.isOneOff) {
-      this.console.debug('Watching config')
+      logger.debug('Watching config')
       this.config.on('change', this.restart.bind(this))
       this.config.watch()
 
-      this.console.debug('Watching application')
+      logger.debug('Watching application')
       this.hmr.on('change', (files) => {
         const sep = '\n    - '
-        this.console.debug(
+        logger.debug(
           sep + files.map((f) => `${f.eventType}: ${f.filename}`).join(sep),
           'Hot reload'
         )
@@ -78,22 +67,17 @@ class Neemata {
     }
 
     if (this.startScheduler) {
-      this.console.debug('Starting scheduler')
+      logger.debug('Starting scheduler')
       this.scheduler.start()
       this.scheduler.on('task', ({ task, name, timeout, args }) => {
-        this.console.debug(`Spinning up task execution worker`, 'Scheduler')
+        logger.debug(`Spinning up task execution worker`, 'Scheduler')
         const worker = this.createWorker(WorkerType.OneOff)
-        this.console.info(
-          `Executing scheduled "${name}" task (${task})`,
-          'Scheduler'
-        )
+        logger.info(`Executing scheduled "${name}" task (${task})`, 'Scheduler')
         worker.once(WorkerMessage.Result, ({ error, data }) => {
           if (error) {
-            this.console.error(
-              `Scheduled "${name}" task (${task}) failed: ${data}`
-            )
+            logger.error(`Scheduled "${name}" task (${task}) failed: ${data}`)
           } else {
-            this.console.info(
+            logger.info(
               `Scheduled "${name}" task (${task}) successfully finished`,
               'Scheduler'
             )
@@ -114,12 +98,12 @@ class Neemata {
       })
     }
 
-    this.console.info('Spinning up API workers...')
+    logger.info('Spinning up API workers...')
     for (const port of this.config.resolved.ports) {
       this.createWorker(WorkerType.Api, { port })
     }
 
-    this.console.info('Spinning up Task workers...')
+    logger.info('Spinning up Task workers...')
     for (let i = 0; i < this.config.resolved.workers; i++) {
       this.createWorker(WorkerType.Task)
     }
@@ -143,10 +127,10 @@ class Neemata {
   async shutdown() {
     if (this.shutting) return this.shutting
 
-    this.console.info('Shutting down...')
+    logger.info('Shutting down...')
 
     if (this.isDev && !this.isOneOff) {
-      this.console.debug('Clearing application and config')
+      logger.debug('Clearing application and config')
       this.config.stop()
       this.hmr.stop()
     }
@@ -178,11 +162,11 @@ class Neemata {
     return new Promise((resolve) => {
       worker.once(WorkerMessage.Startup, () => {
         worker.once(WorkerMessage.Result, ({ error, data }) => {
-          if (error) this.console.error(`Command failed: ${data}`)
-          else this.console.info(`Command done succesfully`)
+          if (error) logger.error(`Command failed: ${data}`)
+          else logger.info(`Command done succesfully`)
           this.shutdown().then(resolve)
         })
-        this.console.info(`Executing "${task}"`)
+        logger.info(`Executing "${task}"`)
         worker.postMessage({
           message: WorkerMessage.Invoke,
           task,
@@ -194,7 +178,7 @@ class Neemata {
   }
 
   createWorker(type, workerData = {}) {
-    this.console.debug(`Creating ${type} worker`)
+    logger.debug(`Creating ${type} worker`)
     const worker = new Worker(join(__dirname, 'worker.js'), {
       workerData: {
         isDev: this.isDev,

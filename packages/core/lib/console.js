@@ -1,7 +1,8 @@
 'use strict'
 
-const { workerData, threadId, isMainThread } = require('node:worker_threads')
-const { type } = workerData ?? {}
+const { workerData, isMainThread } = require('node:worker_threads')
+let { type, workerId } = workerData ?? { type: 'none' }
+type = type.slice(0, 1).toUpperCase() + type.slice(1)
 
 const styles = {
   reset: '\x1b[0m',
@@ -56,15 +57,15 @@ const levels = {
   },
 }
 
-const getThread = () =>
-  isMainThread ? 'Main' : `${type ? type + ' ' : ''}Worker-${threadId}`
+const wType = isMainThread ? 'Main' : type
+const wId = isMainThread ? '' : `W${workerId}-`
 
 function writeToStream(stream, level, group, content) {
   const { text, bg } = levels[level] ?? levels.log
   const _level = `${bg} ${level.toUpperCase()} ${level.length < 5 ? ' ' : ''}${
     styles.reset
   }`
-  const _prefix = `${text}[${new Date().toISOString()}] ${_level} ${getThread()}${
+  const _prefix = `${text}[${new Date().toISOString()}] ${_level} ${wId}${wType}${
     styles.reset
   }`
   const _content = `${text}${content}${styles.reset}`

@@ -15,29 +15,54 @@ const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
 const { clearVM } = require('./vm')
 
-const { type, port, isDev, isProd, config, rootPath, workerId } = workerData
-
-const appConfig = config
-const appConsole = new ConsoleLogger(appConfig.log.level)
-
 class UserApplication {
+  #app
+  #worker
+
   constructor(app) {
-    this.invoke = app.invoke.bind(app)
-    this.clients = app.server?.clients
-    this.worker = {
+    const { workerId, threadId, type } = app
+
+    this.#app = app
+    this.#worker = Object.freeze({
       workerId,
       threadId,
       type,
-    }
-    this.createFileLogger = app.logging.createFileLogger.bind(app.logging)
+    })
+  }
+
+  get clients() {
+    return this.#app.server?.clients
+  }
+
+  get worker() {
+    return this.#worker
+  }
+
+  invoke(...args) {
+    return this.#app.invoke(...args)
+  }
+
+  createFileLogger(...args) {
+    return app.logging.createFileLogger(...args)
   }
 }
 
 class WorkerApplication extends EventEmitter {
-  constructor() {
+  constructor({
+    type,
+    port,
+    isDev,
+    isProd,
+    config,
+    rootPath,
+    workerId,
+    threadId,
+  }) {
     super()
     this.setMaxListeners(0)
 
+    this.type = type
+    this.threadId = threadId
     this.workerId = workerId
     this.isDev = isDev
     this.isProd = isProd
@@ -45,7 +70,6 @@ class WorkerApplication extends EventEmitter {
     this.config = config
 
     this.logging = new Logging(this.config.log)
-    this.console = new ConsoleLogger(this.config.log.level, 'Application')
 
     this.modules = {
       lib: new Lib(this),
@@ -60,7 +84,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   createSandbox() {
-    this.console.debug('Creating application sandbox')
+    logger.debug('Creating application sandbox')
     clearVM()
     this.sandbox = {
       lib: this.modules.lib.sandbox,
@@ -95,27 +119,27 @@ class WorkerApplication extends EventEmitter {
   }
 
   async reload() {
-    this.console.debug('Reloading')
+    logger.debug('Reloading')
     await this.terminate()
     await this.initialize()
   }
 
   async startup() {
-    this.console.info('Starting worker application...')
+    logger.info('Starting worker application...')
     await this.initialize()
 
     // Api worker start the server, other workers wait for a incomming tasks
-    if (type === WorkerType.Api) {
+    if (this.server) {
       const address = await this.server.listen()
-      this.console.info(`Listening on ${address}...`)
+      logger.info(`Listening on ${address}...`)
     } else {
-      this.console.info('Waiting for a task...')
+      logger.info('Waiting for a task...')
       new Promise((r) => this.once(WorkerMessage.Shutdown, r))
     }
   }
 
   async shutdown() {
-    this.console.debug('Shutting worker application')
+    logger.debug('Shutting worker application')
     if (this.server) await this.server.close()
     await this.terminate()
   }
@@ -182,4 +206,4 @@ class WorkerApplication extends EventEmitter {
   }
 }
 
-module.exports = { WorkerApplication, UserApplication, appConfig, appConsole }
+module.exports = { WorkerApplication, UserApplication }

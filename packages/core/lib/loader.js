@@ -97,7 +97,6 @@ class Loader {
       const script = new Script(filePath, {
         context: this.application.sandbox,
         rootPath: this.application.rootPath,
-        application: this.application,
       })
       const { exports, hooks } = await script.execute()
 
@@ -122,8 +121,8 @@ class Loader {
       if (this.sandbox) this.makeSandbox(modulePath, transformed)
     } catch (error) {
       if (this.application.workerId === 1) {
-        this.application.console.warn(`Unable to load the module ${filePath}`)
-        this.application.console.error(error)
+        logger.warn(`Unable to load the module ${filePath}`)
+        logger.error(error)
       }
     }
   }

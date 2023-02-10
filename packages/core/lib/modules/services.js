@@ -14,7 +14,7 @@ class Services extends Loader {
     await super.load(...args)
     const authService = this.get(this.application.config.api.auth.service)
     if (!isAsyncFunction(authService)) {
-      this.application.console.error('Auth service must be an async function')
+      logger.error('Auth service must be an async function')
     }
   }
 }

@@ -7,6 +7,14 @@
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types",
+    "package.json",
+    "lib",
+    "templates"
+  ],
   "exports": {
     ".": {
       "require": "./index.js",

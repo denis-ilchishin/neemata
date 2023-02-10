@@ -8,6 +8,9 @@
     "build": "tsup",
     "watch": "tsup --watch"
   },
+  "files": [
+    "dist"
+  ],
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {

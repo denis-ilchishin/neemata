@@ -16,6 +16,7 @@ const { ApiException } = require('./protocol/exceptions')
 const { Stream } = require('./protocol/stream')
 const esbuld = require('esbuild')
 const zod = require('zod')
+const sourceMapSupport = require('source-map-support')
 
 class Script {
   constructor(filepath, options) {
@@ -61,14 +62,17 @@ class Script {
   }
 
   async ts() {
-    this.content = esbuld
-      .transform(await this.content, {
-        target: 'es2022',
-        ignoreAnnotations: true,
-        loader: 'ts',
-      })
-      .then((result) => result.code)
-
+    const transpilation = await esbuld.transform(await this.content, {
+      platform: 'node',
+      target: 'es2022',
+      ignoreAnnotations: true,
+      loader: 'ts',
+      minify: false,
+      sourcemap: 'external',
+      sourcefile: this.filepath,
+    })
+    SOUCRE_MAPS.set(this.filepath, JSON.parse(transpilation.map))
+    this.content = transpilation.code
     return this.es()
   }
 
@@ -254,6 +258,7 @@ const COMMON_CONTEXT = Object.freeze({
   Typebox,
   zod,
   Stream,
+  Error,
   // Typing helpers
   ...Object.fromEntries(
     typingHelpers.map((name) => [name, ((value) => value).bind(undefined)])
@@ -269,6 +274,15 @@ const types = {
   '.js': 'cjs',
   '.ts': 'ts',
 }
+
+const SOUCRE_MAPS = new Map()
+
+sourceMapSupport.install({
+  retrieveSourceMap(source) {
+    const map = SOUCRE_MAPS.get(source)
+    if (map) return { url: source, map }
+  },
+})
 
 module.exports = {
   Script,

@@ -4,7 +4,7 @@ const { EventEmitter } = require('node:events')
 const { workerData, parentPort, threadId } = require('node:worker_threads')
 const { randomUUID } = require('node:crypto')
 const { Config } = require('./modules/config')
-const { WorkerMessage, WorkerType } = require('@neemata/common')
+const { WorkerMessage, WorkerType, WorkerHook } = require('@neemata/common')
 const { Logging } = require('./logging')
 const { Db } = require('./modules/db')
 const { Lib } = require('./modules/lib')
@@ -69,9 +69,7 @@ class WorkerApplication extends EventEmitter {
 
   async initialize() {
     this.hooks = new Map(
-      ['startup', 'shutdown', 'connect', 'disconnect', 'request'].map(
-        (hook) => [hook, new Set()]
-      )
+      Object.values(WorkerHook).map((hook) => [hook, new Set()])
     )
 
     this.createSandbox()
@@ -81,7 +79,7 @@ class WorkerApplication extends EventEmitter {
       await this.modules[module].load()
     }
 
-    await this.runHooks('startup')
+    await this.runHooks(WorkerHook.Startup)
 
     await Promise.all(
       ['api', 'tasks'].map((module) => this.modules[module].load())
@@ -89,7 +87,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   async terminate() {
-    await this.runHooks('shutdown')
+    await this.runHooks(WorkerHook.Shutdown)
   }
 
   async reload() {
@@ -117,8 +115,8 @@ class WorkerApplication extends EventEmitter {
     await this.terminate()
   }
 
-  async runHooks(hook, concurrently = false, ...args) {
-    const hooks = this.hooks.get(hook) ?? new Set()
+  async runHooks(hookType, concurrently = false, ...args) {
+    const hooks = this.hooks.get(hookType) ?? new Set()
     if (concurrently) {
       for (const hook of hooks) {
         await hook(...args)

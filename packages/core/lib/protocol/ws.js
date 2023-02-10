@@ -3,7 +3,7 @@
 const { createClient } = require('./client')
 const { Type } = require('@sinclair/typebox')
 const { BaseTransport } = require('./transport')
-const { MessageType, Transport } = require('@neemata/common')
+const { MessageType, Transport, WorkerHook } = require('@neemata/common')
 const { compileSchema } = require('../utils/functions')
 const { Stream } = require('./stream')
 const { parse } = require('node:url')
@@ -81,16 +81,20 @@ class WsTransport extends BaseTransport {
       socket.send = (type, payload) => _send(this.serialize({ type, payload }))
       socket.on('error', (err) => this.application.console.error(err))
       client.on('close', async () => {
-        await this.server.application.runHooks('disconnect', true, {
+        await this.server.application.runHooks(WorkerHook.Disconnect, true, {
           client,
           req,
         })
         this.server.clients.delete(client.id)
       })
-      const onConnect = this.server.application.runHooks('connect', true, {
-        client,
-        req,
-      })
+      const onConnect = this.server.application.runHooks(
+        WorkerHook.Connect,
+        true,
+        {
+          client,
+          req,
+        }
+      )
       this.receiver(socket, req, client, onConnect)
     })
   }

@@ -99,6 +99,8 @@ class Loader {
 
       if (this.hooks) {
         for (const [hookname, hook] of Object.entries(hooks)) {
+          if (Array.isArray(this.hooks) && !this.hooks.includes(hookname))
+            continue
           if (this.application.hooks.has(hookname)) {
             if (isAsyncFunction(hook)) {
               this.application.hooks.get(hookname).add(hook)

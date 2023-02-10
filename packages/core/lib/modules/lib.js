@@ -3,7 +3,7 @@
 const { Loader } = require('../loader')
 
 class Lib extends Loader {
-  hooks = true
+  hooks = [WorkerHook.Startup, WorkerHook.Shutdown]
 
   constructor(application) {
     super('lib', application)

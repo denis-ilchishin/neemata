@@ -18,6 +18,7 @@
   },
   "scripts": {
     "version": "node scripts/version.js",
+    "pack": "node scripts/pack.js",
     "build": "pnpm -r run build",
     "watch": "pnpm -r --parallel run watch"
   },

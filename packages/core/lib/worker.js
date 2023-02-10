@@ -19,6 +19,13 @@ app.on(WorkerMessage.Result, (data) => {
   app.emit(id, rest)
 })
 
+app.on(WorkerMessage.Invoke + WorkerMessage.Result, (data) => {
+  parentPort.postMessage({
+    message: WorkerMessage.Invoke,
+    ...data,
+  })
+})
+
 app.once(WorkerMessage.Startup, async () => {
   await app.startup()
   parentPort.postMessage({ message: WorkerMessage.Startup })

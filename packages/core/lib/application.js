@@ -1,7 +1,6 @@
 'use strict'
 
 const { EventEmitter } = require('node:events')
-const { workerData, parentPort, threadId } = require('node:worker_threads')
 const { randomUUID } = require('node:crypto')
 const { Config } = require('./modules/config')
 const { WorkerMessage, WorkerType, WorkerHook } = require('@neemata/common')
@@ -194,8 +193,7 @@ class WorkerApplication extends EventEmitter {
           if (result.error) reject(new Error(result.data))
           else resolve(result.data)
         })
-        parentPort.postMessage({
-          message: WorkerMessage.Invoke,
+        this.emit(WorkerMessage.Invoke + WorkerMessage.Result, {
           id,
           task,
           timeout,

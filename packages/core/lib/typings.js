@@ -139,9 +139,9 @@ function getIndex(applicationPath, outputTypesDir) {
     .join('\n')
 
   const fileContent = [
-    '/// <reference types="@neemata/core/types" />',
+    '/// <reference types="@neemata/core/types/external" />',
     importsContent,
-    `declare module '@neemata/core/types' {
+    `declare module '@neemata/core/types/external' {
     ${interfaces.join('')}
     }`,
   ].join('\n')

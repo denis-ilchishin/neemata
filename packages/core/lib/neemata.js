@@ -10,7 +10,7 @@ const { LoggingBuffer } = require('./logging')
 
 const { Scheduler } = require('./scheduler')
 const { ConsoleLogger } = require('./console')
-const { join, resolve } = require('node:path')
+const { join } = require('node:path')
 const { Typings } = require('./typings')
 
 class Neemata {
@@ -127,9 +127,10 @@ class Neemata {
     return (this.starting = new Promise(async (resolve) => {
       for (const worker of this.workerPool.items) {
         worker.once(WorkerMessage.Startup, () => {
-          if (
-            !Array.from(this.workerPool.items).find((worker) => !worker.ready)
-          ) {
+          const ready = !Array.from(this.workerPool.items).find(
+            (worker) => !worker.ready
+          )
+          if (ready) {
             resolve()
             this.starting = undefined
           }
@@ -201,6 +202,7 @@ class Neemata {
         config: this.config.resolved,
         rootPath: this.rootPath,
         type,
+        id: this.workerPool.size + 1,
         ...workerData,
       },
       env: process.env,

@@ -21,7 +21,7 @@ const sourceMapSupport = require('source-map-support')
 class Script {
   constructor(filepath, options) {
     this.filepath = filepath
-    this.type = types[extname(this.filepath)]
+    this.type = TYPES[extname(this.filepath)]
     this.options = options
     this.content = readFile(this.filepath).then((buff) =>
       buff.toString('utf-8')
@@ -203,16 +203,6 @@ for (const key of Object.keys(typeBoxExports)) {
   else Typebox = { ...Typebox, ...require('@sinclair/typebox') }
 }
 
-function prepareTypebox() {
-  Typebox.Custom.Clear()
-  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
-    if (!(value instanceof Stream)) return false
-    if (options.maximum !== undefined && value.meta.size > options.maximum)
-      return false
-    return true
-  })
-}
-
 zod.stream = (options) =>
   zod.any().superRefine(
     (value, ctx) => {
@@ -269,7 +259,7 @@ const RUNNING_OPTIONS = {
   displayErrors: true,
 }
 
-const types = {
+const TYPES = {
   '.mjs': 'es',
   '.js': 'cjs',
   '.ts': 'ts',
@@ -284,7 +274,18 @@ sourceMapSupport.install({
   },
 })
 
+function clearVM() {
+  SOUCRE_MAPS.clear()
+  Typebox.Custom.Clear()
+  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
+    if (!(value instanceof Stream)) return false
+    if (options.maximum !== undefined && value.meta.size > options.maximum)
+      return false
+    return true
+  })
+}
+
 module.exports = {
   Script,
-  prepareTypebox,
+  clearVM,
 }

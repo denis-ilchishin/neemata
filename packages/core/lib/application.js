@@ -13,19 +13,22 @@ const { Tasks } = require('./modules/tasks')
 const { Api } = require('./modules/api')
 const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
-const { prepareTypebox } = require('./vm')
+const { clearVM } = require('./vm')
 
-const { type, port, isDev, isProd, config, rootPath } = workerData
+const { type, port, isDev, isProd, config, rootPath, id } = workerData
 
 const appConfig = config
 const appConsole = new ConsoleLogger(appConfig.log.level)
 
 class UserApplication {
   constructor(app) {
-    this.type = type
     this.invoke = app.invoke.bind(app)
     this.clients = app.server?.clients
-    this.workerId = threadId
+    this.worker = {
+      id,
+      threadId,
+      type,
+    }
     this.createFileLogger = app.logging.createFileLogger.bind(app.logging)
   }
 }
@@ -56,8 +59,8 @@ class WorkerApplication extends EventEmitter {
   }
 
   createSandbox() {
-    prepareTypebox()
     this.console.debug('Creating application sandbox')
+    clearVM()
     this.sandbox = {
       lib: this.modules.lib.sandbox,
       config: this.modules.config.sandbox,
@@ -100,6 +103,7 @@ class WorkerApplication extends EventEmitter {
     this.console.info('Starting worker application...')
     await this.initialize()
 
+    // Api worker start the server, other workers wait for a incomming tasks
     if (type === WorkerType.Api) {
       const address = await this.server.listen()
       this.console.info(`Listening on ${address}...`)
@@ -143,7 +147,7 @@ class WorkerApplication extends EventEmitter {
       ])
       return { error: false, data: result }
     } catch (error) {
-      return { error: true, data: error.message }
+      return { error: true, data: error.stack || error.message }
     }
   }
 

@@ -1,4 +1,4 @@
-import { Transport, ValueOf, WorkerType } from '@neemata/common'
+import { Transport, WorkerHook, WorkerType } from '@neemata/common'
 import { Static, TSchema } from '@sinclair/typebox'
 import { IncomingMessage } from 'node:http'
 import { Readable } from 'node:stream'
@@ -6,7 +6,7 @@ import { TypeOf, ZodType } from 'zod'
 
 export interface ProcedureHandlerOptions<
   D extends TSchema | ZodType,
-  T extends ValueOf<typeof Transport>,
+  T extends Transport,
   A extends boolean,
   P = A extends false ? null | Auth : Auth
 > {
@@ -23,14 +23,14 @@ export interface ProcedureHandlerOptions<
 
 export type ProcedureHandler<
   D extends TSchema | ZodType,
-  T extends ValueOf<typeof Transport>,
+  T extends Transport,
   A extends boolean,
   R = any
 > = (options: ProcedureHandlerOptions<D, T, A>) => R
 
 export interface Procedure<
   D extends TSchema | ZodType,
-  T extends ValueOf<typeof Transport>,
+  T extends Transport,
   A extends boolean
 > {
   /**
@@ -66,13 +66,16 @@ export interface Procedure<
 }
 
 export interface UserApplication {
-  type: ValueOf<typeof WorkerType>
   clients: Set<WsClient<Auth | null>>
   createFileLogger: (
     name: string,
     level?: import('pino').Level
   ) => import('pino').BaseLogger
-  workerId: number
+  worker: {
+    id: number
+    type: WorkerType
+    threadId: number
+  }
   invoke: <K extends keyof Tasks>(
     task: K | { task: K; timeout: number },
     ...args: Parameters<Tasks[K]>
@@ -87,9 +90,9 @@ export interface Db {}
 export interface Tasks {}
 
 export interface Hooks {
-  startup?: () => Promise<any>
-  shutdown?: () => Promise<any>
-  call?: (
+  [WorkerHook.Startup]?: () => Promise<any>
+  [WorkerHook.Shutdown]?: () => Promise<any>
+  [WorkerHook.Call]?: (
     options: Readonly<{
       data?: any
       client: Client<Auth | null>
@@ -97,13 +100,13 @@ export interface Hooks {
       procedure: { name: string; version: string }
     }>
   ) => Promise<any>
-  connect?: (
+  [WorkerHook.Connect]?: (
     options: Readonly<{
       client: WsClient<Auth | null>
       req: IncomingMessage
     }>
   ) => Promise<any>
-  disconnect?: (
+  [WorkerHook.Disconnect]?: (
     options: Readonly<{
       client: WsClient<Auth | null>
       req: IncomingMessage
@@ -122,7 +125,7 @@ export type DefineAuthService = <
 export type DefineGuard = (guard: Guard) => Guard
 export type DefineProcedure = <
   D extends TSchema | ZodType,
-  T extends ValueOf<typeof Transport>,
+  T extends Transport,
   A extends boolean = true
 >(
   procedure: Procedure<D, T, A>
@@ -152,6 +155,9 @@ export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>
 export type StreamTypeOptions = { maximum?: number }
 
 declare global {
+  const ErrorCode: typeof import('@neemata/common').ErrorCode
+  const WorkerType: typeof import('@neemata/common').WorkerType
+
   class Stream extends Readable {
     meta: {
       size: number

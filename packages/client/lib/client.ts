@@ -124,7 +124,7 @@ export class Neemata<T = any> extends EventEmitter {
             throw err
           })
           .then(() => {
-            this.once('neemata:introspect', resolve)
+            this.once('neemata:introspect', () => setTimeout(resolve, 0))
             const wsUrl = this._getWsUrl()
             const ws = new window.WebSocket(wsUrl)
 

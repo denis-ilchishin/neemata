@@ -45,11 +45,15 @@ class Loader {
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
-      last[part] = last[part] ?? {}
-      if (i + 1 === parts.length) {
-        last[part] = exports
+      if (part === 'index' && parts.length > 1) {
+        last = Object.assign(last, exports)
       } else {
-        last = last[part]
+        last[part] = last[part] ?? {}
+        if (i + 1 === parts.length) {
+          last[part] = Object.assign(last[part], exports)
+        } else {
+          last = last[part]
+        }
       }
     }
   }

@@ -49,7 +49,7 @@ class Script {
     const { default: _default } = esmodule.namespace
 
     if (!('default' in esmodule.namespace)) {
-      this.options.application.console.warn(
+      logger.warn(
         this.filepath +
           ': ECMAScript and Typescript modules must have default exports for typing annotations to work properly'
       )

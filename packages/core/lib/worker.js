@@ -1,8 +1,12 @@
-const { parentPort } = require('node:worker_threads')
+const { parentPort, workerData, threadId } = require('node:worker_threads')
 const { WorkerApplication } = require('./application')
 const { WorkerMessage } = require('@neemata/common')
+const { ConsoleLogger } = require('./console')
 
-const app = new WorkerApplication()
+const logLevel = workerData.config.log.level
+globalThis.logger = new ConsoleLogger(logLevel, 'Worker')
+
+const app = new WorkerApplication({ ...workerData, threadId })
 
 app.on(WorkerMessage.Invoke, async (data) => {
   const { task, id, timeout, args } = data
@@ -34,5 +38,5 @@ parentPort.on('message', ({ message, ...data }) => {
   app.emit(message, data)
 })
 
-process.on('uncaughtException', (err) => app.console.error(err))
-process.on('unhandledRejection', (err) => app.console.error(err))
+process.on('uncaughtException', (err) => logger.error(err))
+process.on('unhandledRejection', (err) => logger.error(err))

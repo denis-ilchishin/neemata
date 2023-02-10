@@ -6,6 +6,8 @@ async function start({
   scheduler,
   timeout,
 }) {
+  const { Config } = require('./lib/config')
+  const { ConsoleLogger } = require('./lib/console')
   const { Neemata } = require('./lib/neemata')
 
   const commands = ['dev', 'prod', 'task']
@@ -15,8 +17,10 @@ async function start({
   const isDev = command === 'dev'
   const isOneOff = command === 'task'
 
+  const config = new Config(configPath)
+  globalThis.logger = new ConsoleLogger(config.resolved.log.level, 'Neemata')
   const neemata = new Neemata({
-    configPath,
+    config,
     isDev,
     isProd,
     rootPath,

@@ -79,7 +79,7 @@ class WsTransport extends BaseTransport {
       this.server.clients.set(client.id, client)
       const _send = socket.send.bind(socket)
       socket.send = (type, payload) => _send(this.serialize({ type, payload }))
-      socket.on('error', (err) => this.application.console.error(err))
+      socket.on('error', (err) => logger.error(err))
       client.on('close', async () => {
         await this.server.application.runHooks(WorkerHook.Disconnect, true, {
           client,

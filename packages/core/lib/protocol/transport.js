@@ -12,7 +12,6 @@ class BaseTransport {
     this.server = server
     this.application = application
     this.modules = modules
-    this.console = console
     this.config = config
   }
 
@@ -107,7 +106,7 @@ class BaseTransport {
       if (err instanceof ApiException) {
         return this.makeError(err)
       } else {
-        this.console.error(err)
+        logger.error(err)
         return this.makeError({
           code: ErrorCode.InternalServerError,
         })

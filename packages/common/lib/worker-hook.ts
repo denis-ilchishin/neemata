@@ -5,7 +5,7 @@ export const WorkerHook = {
   Shutdown: 'shutdown',
   Connect: 'connect',
   Disconnect: 'disconnect',
-  Request: 'request',
+  Call: 'call',
 } as const
 
 export type WorkerHook = ValueOf<typeof WorkerHook>

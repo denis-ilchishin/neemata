@@ -1,6 +1,5 @@
 import { MessageType } from './message-type'
 import { Transport } from './transport'
-import type { ValueOf } from './utils'
 
 export interface ApiResponse {
   error: {
@@ -10,9 +9,7 @@ export interface ApiResponse {
   data?: any
 }
 
-export interface WSTransportCallInterface<
-  Type extends ValueOf<typeof MessageType>
-> {
+export interface WSTransportCallInterface<Type extends MessageType> {
   type: Type
   payload: Type extends typeof MessageType.Call
     ? {
@@ -24,9 +21,7 @@ export interface WSTransportCallInterface<
     : { event: string; data?: any }
 }
 
-export interface WSTransportCallResponse<
-  Type extends ValueOf<typeof MessageType>
-> {
+export interface WSTransportCallResponse<Type extends MessageType> {
   type: Type
   payload: Type extends typeof MessageType.Event
     ? {
@@ -39,7 +34,7 @@ export interface WSTransportCallResponse<
 interface ApiIntrospectProcedure {
   name: string
   version: number
-  transport?: ValueOf<typeof Transport>
+  transport?: Transport
 }
 
 export type ApiIntrospectResponse = ApiIntrospectProcedure[]

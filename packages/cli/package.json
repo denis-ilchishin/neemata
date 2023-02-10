@@ -8,6 +8,10 @@
   "author": "Denis Ilchyshyn",
   "license": "MIT",
   "dependencies": {
-    "@neemata/core": "workspace:*"
-  }
+    "@neemata/core": "workspace:*",
+    "dotenv": "^16.0.3"
+  },
+  "files": [
+    "index.js"
+  ]
 }

@@ -24,13 +24,12 @@ if (!commands.includes(command)) {
   throw new Error(`Available commands: ${commands}`)
 }
 
-const dirs = [
-  resolve('.'),
-  ...readdirSync(resolve('packages')).map((pkg) => resolve('packages', pkg)),
-]
+const dirs = ['.', ...readdirSync(resolve('packages'))]
 
-for (const dir of dirs) {
-  if (dir.startsWith('.')) continue
+for (const dirName of dirs) {
+  const isRoot = dirName === '.'
+  if (!isRoot && dirName.startsWith('.')) continue
+  const dir = isRoot ? resolve('.') : resolve('packages', dirName)
   const path = resolve(dir, 'package.json')
   const pkg = require(path)
   if (!pkg.version) continue

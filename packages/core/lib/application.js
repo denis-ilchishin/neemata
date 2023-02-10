@@ -42,7 +42,7 @@ class UserApplication {
   }
 
   createFileLogger(...args) {
-    return app.logging.createFileLogger(...args)
+    return this.#app.logging.createFileLogger(...args)
   }
 }
 

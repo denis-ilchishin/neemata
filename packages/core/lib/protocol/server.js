@@ -110,13 +110,19 @@ class Server {
       randomBytes(64),
       Buffer.from(Date.now().toString()),
     ])
-    const token = createHash('sha1').update(data).digest('base64url')
+    const token = createHash('sha512').update(data).digest('base64url')
     return token
   }
 
   getSessionCookie(token) {
+    // TODO: configurable cookie options?
+    const expires = new Date()
+    expires.setFullYear(expires.getFullYear() + 1)
     return serialize(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: !this.application.isDev,
       path: '/',
+      expires,
     })
   }
 
@@ -126,9 +132,19 @@ class Server {
         this.port,
         this.application.config.api.hostname,
         undefined,
-        () => r(JSON.stringify(this.httpServer.address()))
+        () => r(this.getAddress())
       )
     )
+  }
+
+  getAddress() {
+    const address = this.httpServer.address()
+    if (!address) return null
+    if (typeof address === 'string') return address
+    const { address: hostname, port, family } = address
+    return `${family === 'IPv6' ? '[' : ''}${hostname}${
+      family === 'IPv6' ? ']' : ''
+    }:${port}`
   }
 
   close() {

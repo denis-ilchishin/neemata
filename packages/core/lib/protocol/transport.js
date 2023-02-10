@@ -1,7 +1,7 @@
 'use strict'
 
 const { ApiException } = require('./exceptions')
-const { ErrorCode } = require('@neemata/common')
+const { ErrorCode, WorkerHook } = require('@neemata/common')
 const { unique } = require('../utils/functions')
 const zod = require('zod')
 
@@ -85,11 +85,10 @@ class BaseTransport {
         data = await this.handleValidation(procedure.schema, data)
       }
 
-      this.application.runHooks('call', true, {
+      this.application.runHooks(WorkerHook.Call, true, {
         client,
         data,
         req,
-        trasport: this.trasport,
         procedure: { name: procedure.name, version: procedure.version },
       })
 
@@ -100,7 +99,6 @@ class BaseTransport {
           data,
           client,
           req,
-          trasport: this.trasport,
         }
       )
 

@@ -4,7 +4,7 @@ const { EventEmitter } = require('node:events')
 const { workerData, parentPort, threadId } = require('node:worker_threads')
 const { randomUUID } = require('node:crypto')
 const { Config } = require('./modules/config')
-const { WorkerMessage, WorkerType } = require('@neemata/common')
+const { WorkerMessage, WorkerType, WorkerHook } = require('@neemata/common')
 const { Logging } = require('./logging')
 const { Db } = require('./modules/db')
 const { Lib } = require('./modules/lib')
@@ -13,19 +13,22 @@ const { Tasks } = require('./modules/tasks')
 const { Api } = require('./modules/api')
 const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
-const { prepareTypebox } = require('./vm')
+const { clearVM } = require('./vm')
 
-const { type, port, isDev, isProd, config, rootPath } = workerData
+const { type, port, isDev, isProd, config, rootPath, workerId } = workerData
 
 const appConfig = config
 const appConsole = new ConsoleLogger(appConfig.log.level)
 
 class UserApplication {
   constructor(app) {
-    this.type = type
     this.invoke = app.invoke.bind(app)
     this.clients = app.server?.clients
-    this.workerId = threadId
+    this.worker = {
+      workerId,
+      threadId,
+      type,
+    }
     this.createFileLogger = app.logging.createFileLogger.bind(app.logging)
   }
 }
@@ -35,6 +38,7 @@ class WorkerApplication extends EventEmitter {
     super()
     this.setMaxListeners(0)
 
+    this.workerId = workerId
     this.isDev = isDev
     this.isProd = isProd
     this.rootPath = rootPath
@@ -56,8 +60,8 @@ class WorkerApplication extends EventEmitter {
   }
 
   createSandbox() {
-    prepareTypebox()
     this.console.debug('Creating application sandbox')
+    clearVM()
     this.sandbox = {
       lib: this.modules.lib.sandbox,
       config: this.modules.config.sandbox,
@@ -69,9 +73,7 @@ class WorkerApplication extends EventEmitter {
 
   async initialize() {
     this.hooks = new Map(
-      ['startup', 'shutdown', 'connect', 'disconnect', 'request'].map(
-        (hook) => [hook, new Set()]
-      )
+      Object.values(WorkerHook).map((hook) => [hook, new Set()])
     )
 
     this.createSandbox()
@@ -81,7 +83,7 @@ class WorkerApplication extends EventEmitter {
       await this.modules[module].load()
     }
 
-    await this.runHooks('startup')
+    await this.runHooks(WorkerHook.Startup)
 
     await Promise.all(
       ['api', 'tasks'].map((module) => this.modules[module].load())
@@ -89,7 +91,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   async terminate() {
-    await this.runHooks('shutdown')
+    await this.runHooks(WorkerHook.Shutdown)
   }
 
   async reload() {
@@ -102,6 +104,7 @@ class WorkerApplication extends EventEmitter {
     this.console.info('Starting worker application...')
     await this.initialize()
 
+    // Api worker start the server, other workers wait for a incomming tasks
     if (type === WorkerType.Api) {
       const address = await this.server.listen()
       this.console.info(`Listening on ${address}...`)
@@ -117,8 +120,8 @@ class WorkerApplication extends EventEmitter {
     await this.terminate()
   }
 
-  async runHooks(hook, concurrently = false, ...args) {
-    const hooks = this.hooks.get(hook) ?? new Set()
+  async runHooks(hookType, concurrently = false, ...args) {
+    const hooks = this.hooks.get(hookType) ?? new Set()
     if (concurrently) {
       for (const hook of hooks) {
         await hook(...args)
@@ -145,7 +148,7 @@ class WorkerApplication extends EventEmitter {
       ])
       return { error: false, data: result }
     } catch (error) {
-      return { error: true, data: error.message }
+      return { error: true, data: error.stack || error.message }
     }
   }
 

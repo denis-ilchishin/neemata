@@ -7,13 +7,21 @@
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "types",
+    "package.json",
+    "lib",
+    "templates"
+  ],
   "exports": {
     ".": {
       "require": "./index.js",
       "types": "./index.d.ts"
     },
     "./types": {
-      "types": "./types.d.ts"
+      "types": "./types/external.d.ts"
     },
     "./package.json": "./package.json"
   },
@@ -25,6 +33,7 @@
     "esbuild": "0.16.10",
     "pino": "8.7.0",
     "qs": "6.11.0",
+    "source-map-support": "^0.5.21",
     "ws": "8.10.0",
     "zod": "3.20.2"
   },

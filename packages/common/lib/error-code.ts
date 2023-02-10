@@ -1,3 +1,5 @@
+import { ValueOf } from './utils'
+
 export const ErrorCode = {
   ValidationError: 'VALIDATION_ERROR',
   BadRequest: 'BAD_REQUEST',
@@ -13,3 +15,5 @@ export const ErrorCode = {
   StreamNotFound: 'STREAM_NOT_FOUND',
   StreamAlreadyInitalized: 'STREAM_ALREADY_INITALIZED',
 } as const
+
+export type ErrorCode = ValueOf<typeof ErrorCode>

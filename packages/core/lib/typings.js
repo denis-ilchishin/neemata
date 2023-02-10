@@ -139,9 +139,9 @@ function getIndex(applicationPath, outputTypesDir) {
     .join('\n')
 
   const fileContent = [
-    '/// <reference types="@neemata/core/types" />',
+    '/// <reference types="@neemata/core/types/external" />',
     importsContent,
-    `declare module '@neemata/core/types' {
+    `declare module '@neemata/core/types/external' {
     ${interfaces.join('')}
     }`,
   ].join('\n')
@@ -157,6 +157,9 @@ class Typings {
     try {
       if (!fs.statSync(this.outputDir).isDirectory()) {
         throw new Error()
+      } else {
+        fs.rmSync(this.outputDir, { recursive: true })
+        fs.mkdirSync(this.outputDir)
       }
     } catch (error) {
       fs.mkdirSync(this.outputDir)

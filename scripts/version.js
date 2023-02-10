@@ -30,6 +30,7 @@ const dirs = [
 ]
 
 for (const dir of dirs) {
+  if (dir.startsWith('.')) continue
   const path = resolve(dir, 'package.json')
   const pkg = require(path)
   if (!pkg.version) continue

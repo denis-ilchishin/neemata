@@ -45,11 +45,15 @@ class Loader {
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
-      last[part] = last[part] ?? {}
-      if (i + 1 === parts.length) {
-        last[part] = exports
+      if (part === 'index' && parts.length > 1) {
+        last = Object.assign(last, exports)
       } else {
-        last = last[part]
+        last[part] = last[part] ?? {}
+        if (i + 1 === parts.length) {
+          last[part] = Object.assign(last[part], exports)
+        } else {
+          last = last[part]
+        }
       }
     }
   }
@@ -99,6 +103,8 @@ class Loader {
 
       if (this.hooks) {
         for (const [hookname, hook] of Object.entries(hooks)) {
+          if (Array.isArray(this.hooks) && !this.hooks.includes(hookname))
+            continue
           if (this.application.hooks.has(hookname)) {
             if (isAsyncFunction(hook)) {
               this.application.hooks.get(hookname).add(hook)
@@ -115,8 +121,10 @@ class Loader {
       this.modules.set(modulePath, transformed)
       if (this.sandbox) this.makeSandbox(modulePath, transformed)
     } catch (error) {
-      this.application.console.error(`Unable to load the module ${filePath}`)
-      this.application.console.error(error)
+      if (this.application.workerId === 1) {
+        this.application.console.warn(`Unable to load the module ${filePath}`)
+        this.application.console.error(error)
+      }
     }
   }
 

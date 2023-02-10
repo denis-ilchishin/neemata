@@ -16,11 +16,12 @@ const { ApiException } = require('./protocol/exceptions')
 const { Stream } = require('./protocol/stream')
 const esbuld = require('esbuild')
 const zod = require('zod')
+const sourceMapSupport = require('source-map-support')
 
 class Script {
   constructor(filepath, options) {
     this.filepath = filepath
-    this.type = types[extname(this.filepath)]
+    this.type = TYPES[extname(this.filepath)]
     this.options = options
     this.content = readFile(this.filepath).then((buff) =>
       buff.toString('utf-8')
@@ -61,14 +62,17 @@ class Script {
   }
 
   async ts() {
-    this.content = esbuld
-      .transform(await this.content, {
-        target: 'es2022',
-        ignoreAnnotations: true,
-        loader: 'ts',
-      })
-      .then((result) => result.code)
-
+    const transpilation = await esbuld.transform(await this.content, {
+      platform: 'node',
+      target: 'es2022',
+      ignoreAnnotations: true,
+      loader: 'ts',
+      minify: false,
+      sourcemap: 'external',
+      sourcefile: this.filepath,
+    })
+    SOUCRE_MAPS.set(this.filepath, JSON.parse(transpilation.map))
+    this.content = transpilation.code
     return this.es()
   }
 
@@ -199,16 +203,6 @@ for (const key of Object.keys(typeBoxExports)) {
   else Typebox = { ...Typebox, ...require('@sinclair/typebox') }
 }
 
-function prepareTypebox() {
-  Typebox.Custom.Clear()
-  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
-    if (!(value instanceof Stream)) return false
-    if (options.maximum !== undefined && value.meta.size > options.maximum)
-      return false
-    return true
-  })
-}
-
 zod.stream = (options) =>
   zod.any().superRefine(
     (value, ctx) => {
@@ -254,6 +248,7 @@ const COMMON_CONTEXT = Object.freeze({
   Typebox,
   zod,
   Stream,
+  Error,
   // Typing helpers
   ...Object.fromEntries(
     typingHelpers.map((name) => [name, ((value) => value).bind(undefined)])
@@ -264,13 +259,33 @@ const RUNNING_OPTIONS = {
   displayErrors: true,
 }
 
-const types = {
+const TYPES = {
   '.mjs': 'es',
   '.js': 'cjs',
   '.ts': 'ts',
 }
 
+const SOUCRE_MAPS = new Map()
+
+sourceMapSupport.install({
+  retrieveSourceMap(source) {
+    const map = SOUCRE_MAPS.get(source)
+    if (map) return { url: source, map }
+  },
+})
+
+function clearVM() {
+  SOUCRE_MAPS.clear()
+  Typebox.Custom.Clear()
+  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
+    if (!(value instanceof Stream)) return false
+    if (options.maximum !== undefined && value.meta.size > options.maximum)
+      return false
+    return true
+  })
+}
+
 module.exports = {
   Script,
-  prepareTypebox,
+  clearVM,
 }

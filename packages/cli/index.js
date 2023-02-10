@@ -17,7 +17,7 @@ const { positionals, values } = parseArgs({
   strict: true,
 })
 
-const { config, root, timeout, scheduler: startScheduler } = values
+const { config, root, timeout, scheduler: startScheduler, dotenv } = values
 const [command, ...args] = positionals
 
 const rootPath = resolve(root)

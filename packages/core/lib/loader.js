@@ -121,8 +121,10 @@ class Loader {
       this.modules.set(modulePath, transformed)
       if (this.sandbox) this.makeSandbox(modulePath, transformed)
     } catch (error) {
-      this.application.console.error(`Unable to load the module ${filePath}`)
-      this.application.console.error(error)
+      if (application.workerId === 1) {
+        this.application.console.error(`Unable to load the module ${filePath}`)
+        this.application.console.error(error)
+      }
     }
   }
 

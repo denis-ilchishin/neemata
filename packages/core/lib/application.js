@@ -38,6 +38,7 @@ class WorkerApplication extends EventEmitter {
     super()
     this.setMaxListeners(0)
 
+    this.workerId = id
     this.isDev = isDev
     this.isProd = isProd
     this.rootPath = rootPath

@@ -15,7 +15,7 @@ const { Server } = require('./protocol/server')
 const { ConsoleLogger } = require('./console')
 const { clearVM } = require('./vm')
 
-const { type, port, isDev, isProd, config, rootPath, id } = workerData
+const { type, port, isDev, isProd, config, rootPath, workerId } = workerData
 
 const appConfig = config
 const appConsole = new ConsoleLogger(appConfig.log.level)
@@ -25,7 +25,7 @@ class UserApplication {
     this.invoke = app.invoke.bind(app)
     this.clients = app.server?.clients
     this.worker = {
-      id,
+      workerId,
       threadId,
       type,
     }
@@ -38,7 +38,7 @@ class WorkerApplication extends EventEmitter {
     super()
     this.setMaxListeners(0)
 
-    this.workerId = id
+    this.workerId = workerId
     this.isDev = isDev
     this.isProd = isProd
     this.rootPath = rootPath

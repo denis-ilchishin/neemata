@@ -103,7 +103,7 @@ class Api extends Loader {
     return procedure
   }
 
-  async transform(exports, modulePath) {
+  async transform(exports, moduleName, modulePath) {
     let { dir, name } = parse(modulePath)
 
     const nameParts = []

@@ -6,7 +6,7 @@ const {
   SourceTextModule,
   SyntheticModule,
 } = require('node:vm')
-const { dirname, parse, extname, resolve, relative } = require('node:path')
+const { dirname, parse, extname, resolve } = require('node:path')
 const { readFile } = require('node:fs/promises')
 const { readFileSync } = require('node:fs')
 const { createRequire } = require('node:module')
@@ -34,6 +34,8 @@ class Script {
 
   async es() {
     const context = this.makeContext({ hooks: {} })
+    const linker = this.makeLinker()
+
     const esmodule = new SourceTextModule(await this.content, {
       context,
       lineOffset: 0,
@@ -42,23 +44,25 @@ class Script {
         meta.url = pathToFileURL(this.filepath).toString()
       },
     })
-    const linker = this.makeLinker()
+
     await esmodule.link(linker)
     await esmodule.evaluate()
 
-    const { default: _default } = esmodule.namespace
+    const hooks = context.hooks
+    const { default: _default, ...other } = esmodule.namespace
 
-    if (!('default' in esmodule.namespace)) {
-      logger.warn(
-        this.filepath +
-          ': ECMAScript and Typescript modules must have default exports for typing annotations to work properly'
-      )
+    if ('default' in esmodule.namespace) {
+      if (Object.keys(other).length) {
+        if (typeof _default === 'undefined' || _default === null)
+          throw Error(
+            'Unabled to map merge exports because default export is typeof undefined or null'
+          )
+      }
+
+      return { exports: Object.assign(_default, other), hooks }
     }
 
-    return {
-      exports: _default,
-      hooks: context.hooks,
-    }
+    return { exports: other, hooks }
   }
 
   async ts() {
@@ -83,6 +87,7 @@ class Script {
       await this.content,
       '});',
     ].join('\n')
+
     const context = this.makeContext()
 
     /**
@@ -103,41 +108,28 @@ class Script {
     const __filename = this.filepath
     const __dirname = dirname(this.filepath)
     const require = this.makeRequire()
-    const exports = {}
     const hooks = {}
-    const module = { exports, hooks }
+    const module = { exports: {} }
 
     await closure({
       module,
       require,
-      exports,
       hooks,
       __dirname,
       __filename,
     })
 
-    return module
+    return { exports: module.exports, hooks }
   }
 
   makeRequire() {
-    // TODO: make `safe` require
     const _require = createRequire(this.filepath)
-    const handler = (id) => {
-      const resolved = _require.resolve(id)
-      const { name } = parse(resolved)
-
-      if (
-        resolved.startsWith(this.options.rootPath) &&
-        !name.startsWith('.') &&
-        !name.startsWith('_')
-      ) {
-        throw new Error(
-          "Internal application modules are auto injected, there's no need to do it manually"
-        )
-      }
-      return _require(id)
+    const handler = (specifier) => {
+      const resolved = _require.resolve(specifier)
+      if (resolved.startsWith(this.options.rootPath))
+        throw Error('Unable to require local application modules')
+      return _require(specifier)
     }
-
     return Object.assign(handler, _require)
   }
 
@@ -147,37 +139,48 @@ class Script {
   }
 
   makeLinker() {
-    const _require = createRequire(this.filepath)
-    return async (id, _ref) => {
-      const resolved = _require.resolve(id)
-      const { name } = parse(resolved)
+    return async (specifier, _ref) => {
+      const isPackageName = !['.', '/'].includes(specifier[0])
 
-      if (
-        resolved.startsWith(this.options.rootPath) &&
-        !name.startsWith('.') &&
-        !name.startsWith('_')
-      ) {
-        throw new Error(
-          "Internal application modules are auto injected, there's no need to do it manually"
+      function asSyntheticModule(exports) {
+        return new SyntheticModule(
+          Array.from(new Set(['default', ...Object.keys(exports)])),
+          function () {
+            this.setExport('default', exports.default ?? exports)
+            for (const [key, value] of Object.entries(exports)) {
+              this.setExport(key, value)
+            }
+          },
+          { context: _ref.context }
         )
       }
 
-      const exports = await import(
-        id.startsWith('.')
-          ? relative(__dirname, resolve(this.filepath, id))
-          : id
-      )
+      async function native(specifier) {
+        const exports = await import(specifier)
+        return asSyntheticModule(exports)
+      }
 
-      return new SyntheticModule(
-        Array.from(new Set(['default', ...Object.keys(exports)])),
-        function () {
-          this.setExport('default', exports.default ?? exports)
-          for (const [key, value] of Object.entries(exports)) {
-            this.setExport(key, value)
-          }
-        },
-        { context: _ref.context }
-      )
+      if (isPackageName) {
+        try {
+          return await native(specifier)
+        } catch (error) {
+          return native(resolve('node_modules', specifier))
+        }
+      } else {
+        let targetPath =
+          specifier[0] === '/'
+            ? specifier
+            : resolve(dirname(this.filepath), specifier)
+        if (!targetPath.startsWith(this.options.rootPath))
+          return native(targetPath)
+        const { ext } = parse(targetPath)
+        const type = this.type === 'ts' && ext === '' ? 'ts' : TYPES[ext]
+        if (!type) return native(targetPath)
+        targetPath = type === 'ts' ? targetPath + '.ts' : targetPath
+        const script = new Script(targetPath, this.options)
+        const { exports } = await script.execute(true)
+        return asSyntheticModule(exports)
+      }
     }
   }
 }
@@ -262,6 +265,7 @@ const RUNNING_OPTIONS = {
 const TYPES = {
   '.mjs': 'es',
   '.js': 'cjs',
+  '.cjs': 'cjs',
   '.ts': 'ts',
 }
 
@@ -288,4 +292,5 @@ function clearVM() {
 module.exports = {
   Script,
   clearVM,
+  TYPES,
 }

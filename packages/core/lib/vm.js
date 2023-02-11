@@ -264,8 +264,7 @@ const RUNNING_OPTIONS = {
 
 const TYPES = {
   '.mjs': 'es',
-  '.js': 'cjs',
-  '.cjs': 'cjs',
+  '.js': 'es',
   '.ts': 'ts',
 }
 

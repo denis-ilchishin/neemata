@@ -57,12 +57,9 @@ async function readFilesystem(root, nested = false, flat = false) {
   }
 
   await traverse(tree, await readdir(root))
-
   if (!flat) return tree
 
   const flatTree = {}
-
-  // make flat tree
   const traverseFlat = (tree, path = '') => {
     for (const [key, value] of Object.entries(tree)) {
       if (key === 'index') {
@@ -104,26 +101,16 @@ class Loader {
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
       const isLast = i === parts.length - 1
-      if (isLast) {
-        last[part] =
-          typeof last[part] !== 'undefined'
-            ? Object.assign(last[part], exports)
-            : exports
-      } else {
-        last[part] = last[part] ?? {}
-      }
-
+      if (isLast) last[part] = exports
+      else last[part] = last[part] ?? {}
       last = last[part]
     }
   }
 
   async load() {
     this.tree = await readFilesystem(this.path, this.recursive, true)
-    await Promise.all(
-      Object.entries(this.tree).map(([name, path]) =>
-        this.loadModule(name, path)
-      )
-    )
+    const entries = Object.entries(this.tree)
+    await Promise.all(entries.map((e) => this.loadModule(...e)))
     for (const moduleName of this.modules.keys()) {
       if (moduleName in this.tree) continue
       this.modules.delete(moduleName)

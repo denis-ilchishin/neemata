@@ -20,7 +20,8 @@
     "version": "node scripts/version.js",
     "pack": "node scripts/pack.js",
     "build": "pnpm -r run build",
-    "watch": "pnpm -r --parallel run watch"
+    "watch": "pnpm -r --parallel run watch",
+    "publish": "pnpm -r build && pnpm -r publish --no-git-checks --access public"
   },
   "version": "0.4.0"
 }

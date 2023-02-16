@@ -58,11 +58,10 @@ class Script {
             'Unabled to map merge exports because default export is typeof undefined or null'
           )
       }
-
       return { exports: Object.assign(_default, other), hooks }
     }
 
-    return { exports: other, hooks }
+    return { exports: Object.keys(other).length ? other : undefined, hooks }
   }
 
   async ts() {

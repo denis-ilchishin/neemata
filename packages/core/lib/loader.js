@@ -20,7 +20,7 @@ async function readFilesystem(root, nested = false, flat = false) {
 
   const isSupportedFile = (entryName) => {
     if (entryName.startsWith('.')) return false
-    if (!/\.(js|ts)/.test(extname(entryName))) return false
+    if (!/\.(js|ts|mjs)/.test(extname(entryName))) return false
     return true
   }
 

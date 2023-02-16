@@ -114,7 +114,7 @@ class Api extends Loader {
     namespaces.push(name.split('.'))
 
     for (const [name, ...versions] of namespaces) {
-      nameParts.push(name)
+      if (name !== 'index') nameParts.push(name)
       versionParts.push(...versions)
     }
 

@@ -8,9 +8,7 @@ class Typings {
     this.outputDir = join(process.cwd(), '.neemata')
 
     try {
-      if (existsSync(this.outputDir))
-        rmSync(this.outputDir, { recursive: true })
-      mkdirSync(this.outputDir)
+      if (!existsSync(this.outputDir)) mkdirSync(this.outputDir)
     } catch (err) {
       looger.warn('Could not create typings directory')
       logger.warn(err)

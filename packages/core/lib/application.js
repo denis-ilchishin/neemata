@@ -181,7 +181,7 @@ class WorkerApplication extends EventEmitter {
         ? { task: taskOrOptions, timeout: this.config.timeouts.task.execution }
         : taskOrOptions
 
-    if (this.type === WorkerType.Task) {
+    if (this.type !== WorkerType.Api) {
       // Call invoked task on the same thread, if it's called inside task worker
       const result = await this.runTask(task, timeout, ...args)
       if (result.error) return Promise.reject(new Error(result.data))

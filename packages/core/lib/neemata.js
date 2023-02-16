@@ -211,7 +211,7 @@ class Neemata {
         this.createWorker(type, workerData)
     })
 
-    if (type !== WorkerType.Task) {
+    if (type === WorkerType.Api) {
       worker.on(WorkerMessage.Invoke, async (task) => {
         const { id } = task
         const executer = await this.workerPool.next(0) // TODO: add allocation timeout

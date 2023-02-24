@@ -26,4 +26,6 @@ function compileSchema(schema) {
   return compiled
 }
 
-module.exports = { deepMerge, unique, compileSchema }
+const isNullish = (val) => typeof val === 'undefined' || val === null
+
+module.exports = { deepMerge, unique, compileSchema, isNullish }

@@ -1,5 +1,7 @@
 'use strict'
 
+const { isNullish } = require('./functions')
+
 class Pool {
   constructor(options = {}) {
     this.items = new Set()
@@ -14,13 +16,13 @@ class Pool {
   }
 
   get available() {
-    return this.size - this.free.size
+    return this.free.size
   }
 
   async next(timeout = null) {
     timeout = timeout ?? this.timeout
     if (this.size === 0)
-      throw new Error('Unable to allocate next item in empty pool')
+      throw new Error('Unable to allocate an item in empty pool')
     if (this.available === 0) {
       return new Promise((resolve, reject) => {
         const queue = { resolve, timer: null }
@@ -28,7 +30,7 @@ class Pool {
           ? setTimeout(() => {
               queue.resolve = null
               this.queue.delete(queue)
-              reject(new Error('Next item allocate timeout'))
+              reject(new Error('Unable to allocate next item, timeout error'))
             }, timeout)
           : null
         this.queue.add(queue)
@@ -49,10 +51,11 @@ class Pool {
   }
 
   add(item, capture = false) {
-    if (this.items.has(item)) throw new Error('Item already in pool')
+    if (isNullish(item)) throw new Error('Unable to add nullish item')
+    if (this.items.has(item)) throw new Error('Unable to add existing item')
     this.items.add(item)
     if (!capture) this.free.add(item)
-    this.unqueue()
+    this.unqueue(item)
   }
 
   remove(item) {
@@ -60,13 +63,13 @@ class Pool {
       if (this.free.has(item)) {
         this.items.delete(item)
         this.free.delete(item)
-      } else throw new Error('Unable to remove captured item') // TODO: await for item to release?
+      } else throw new Error('Unable to remove captured item')
     } else throw new Error('Unable to remove not existing item')
   }
 
   async capture() {
     const item = await this.next()
-    if (!item) throw new Error('Unable to capture an item')
+    if (isNullish(item)) throw new Error('Unable to capture an item')
     this.free.delete(item)
     return item
   }
@@ -74,13 +77,13 @@ class Pool {
   release(item) {
     if (!this.items.has(item))
       throw new Error('Unable to release not existing item')
-    if (this.free.has(item))
-      throw new Error('Unable to release not captured item')
-    this.free.add(item)
-    this.unqueue()
+    if (!this.free.has(item)) {
+      this.free.add(item)
+      this.unqueue(item)
+    }
   }
 
-  unqueue() {
+  unqueue(item) {
     if (this.queue.size > 0) {
       const queue = Array.from(this.queue).shift()
       this.queue.delete(queue)

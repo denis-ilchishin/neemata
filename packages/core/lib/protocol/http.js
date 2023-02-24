@@ -124,7 +124,7 @@ class HttpTransport extends BaseTransport {
   }
 
   async ['GET.neemata/introspect']({ req, session }) {
-    const auth = this.server.handleAuth({ req, session })
+    const auth = this.server.handleAuth({ req, session: session.token })
     const client = createClient({
       auth: await auth,
       session: session.token,

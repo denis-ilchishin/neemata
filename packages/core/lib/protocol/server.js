@@ -11,6 +11,7 @@ const { unique } = require('../utils/functions')
 
 const AUTH_DEFAULT = () => null
 const SESSION_COOKIE = '__NSID'
+const SESSION_DELETED_VALUE = '__DELETED'
 
 class Server {
   constructor(port, application) {
@@ -93,12 +94,16 @@ class Server {
     let token = this.getSessionToken(req)
     let cookie
 
-    if (!token) {
+    if (!token || token === SESSION_DELETED_VALUE) {
       token = this.createSessionToken(req)
       cookie = this.getSessionCookie(token)
     }
 
     return { token, cookie }
+  }
+
+  clearSession(res) {
+    res.setHeader('Set-Cookie', SESSION_DELETED_VALUE)
   }
 
   getSessionToken(req) {
@@ -152,4 +157,4 @@ class Server {
   }
 }
 
-module.exports = { Server }
+module.exports = { Server, SESSION_DELETED_VALUE }

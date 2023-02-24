@@ -19,7 +19,7 @@ class Stream extends Duplex {
 
   _read() {
     if (this._pulled) return
-    this.client.send('neemata:stream:pull', { id: this.id })
+    this.client.send('neemata/stream/pull', { id: this.id })
     this._pulled = true
   }
 
@@ -46,7 +46,7 @@ class Stream extends Duplex {
   }
 
   toString() {
-    return 'neemata:stream:' + this.id
+    return 'neemata/stream/' + this.id
   }
 
   toJSON() {

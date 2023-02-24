@@ -24,18 +24,22 @@ export class Neemata<T = any> extends EventEmitter {
     this._streams = new Map()
 
     // Neemata internal events
-    this.on('neemata:stream:init', ({ id }) =>
+    this.on('neemata/stream/init', ({ id }) =>
       this._streams.get(id)?.emit('init')
     )
-    this.on('neemata:stream:pull', ({ id }) =>
+    this.on('neemata/stream/pull', ({ id }) =>
       this._streams.get(id)?.emit('pull')
     )
-    this.on('neemata:introspect', (data) => this._scaffold(data))
-    this.on('neemata:ping', () =>
+    this.on('neemata/session/clear', async () => {
+      await fetch(this._getUrl('neemata/session/clear'))
+      setTimeout(() => this._ws?.close(), 0)
+    })
+    this.on('neemata/introspect', (data) => this._scaffold(data))
+    this.on('neemata/ping', () =>
       this._ws?.send(
         JSON.stringify({
           type: MessageType.Event,
-          payload: { event: 'neemata:pong' },
+          payload: { event: 'neemata/pong' },
         })
       )
     )
@@ -124,7 +128,7 @@ export class Neemata<T = any> extends EventEmitter {
             throw err
           })
           .then(() => {
-            this.once('neemata:introspect', () => setTimeout(resolve, 0))
+            this.once('neemata/introspect', () => setTimeout(resolve, 0))
             const wsUrl = this._getWsUrl()
             const ws = new window.WebSocket(wsUrl)
 
@@ -132,7 +136,7 @@ export class Neemata<T = any> extends EventEmitter {
               'error',
               (err) => {
                 console.error(err)
-                this.emit('neemata:error', err)
+                this.emit('neemata/error', err)
                 ws.close()
               },
               { once: true }
@@ -151,7 +155,7 @@ export class Neemata<T = any> extends EventEmitter {
             ws.addEventListener(
               'close',
               () => {
-                this.emit('neemata:disconnect')
+                this.emit('neemata/disconnect')
                 this.connect()
                 this._streams.clear()
               },
@@ -161,7 +165,7 @@ export class Neemata<T = any> extends EventEmitter {
             ws.addEventListener(
               'open',
               () => {
-                this.emit('neemata:connect')
+                this.emit('neemata/connect')
                 setTimeout(resolve, 0)
               },
               { once: true }
@@ -184,7 +188,7 @@ export class Neemata<T = any> extends EventEmitter {
 
   async reconnect() {
     this._ws?.close()
-    return new Promise((resolve) => this.once('neemata:connect', resolve))
+    return new Promise((resolve) => this.once('neemata/connect', resolve))
   }
 
   get isActive() {

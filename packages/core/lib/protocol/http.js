@@ -80,12 +80,8 @@ class HttpTransport extends BaseTransport {
     const session = this.server.handleSession(req)
     if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
     try {
-      const response = await routeHandler.call(this, {
-        req,
-        res,
-        url,
-        session,
-      })
+      const payload = { req, res, url, session }
+      const response = await routeHandler.call(this, payload)
       return ['string', 'undefined'].includes(typeof response)
         ? respondPlain(response)
         : respond(response)
@@ -95,7 +91,7 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async rpc({ req, url, session }) {
+  async rpc({ req, url, session, res }) {
     try {
       const auth = this.server.handleAuth({ session: session.token, req })
       const version = this.handleVersion(req.headers['accept-version'])
@@ -112,6 +108,7 @@ class HttpTransport extends BaseTransport {
       const client = createClient({
         auth: await auth,
         session: session.token,
+        clearSession: () => this.server.clearSession(res),
       })
       return this.handle({ procedure, client, data, req })
     } catch (error) {
@@ -132,6 +129,10 @@ class HttpTransport extends BaseTransport {
       session: session.token,
     })
     return this.server.introspect(req, client)
+  }
+
+  ['GET.neemata/session/clear']({ res }) {
+    return this.server.clearSession(res)
   }
 
   ['GET.neemata/healthy']() {

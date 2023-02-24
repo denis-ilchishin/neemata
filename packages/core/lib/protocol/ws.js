@@ -64,6 +64,7 @@ class WsTransport extends BaseTransport {
             socket,
             session: req[SESSION_KEY].token,
             auth: req[AUTH_KEY],
+            clearSession: () => socket.send('neemata/session/clear'),
           })
           this.server.wsServer.emit('connection', socket, req, client)
         }
@@ -101,11 +102,7 @@ class WsTransport extends BaseTransport {
 
   deserialize(raw) {
     return JSON.parse(raw, (key, value) => {
-      if (
-        value !== null &&
-        typeof value === 'object' &&
-        value.__type === 'neemata:stream'
-      )
+      if (value && value['__type'] === 'neemata/stream' && value['__id'])
         return this.server.streams.get(value.__id)
       return value
     })
@@ -130,36 +127,36 @@ class WsTransport extends BaseTransport {
     // Handle introspection
     const introspectHandler = async () => {
       client.send(
-        'neemata:introspect',
+        'neemata/introspect',
         await this.server.introspect(req, client)
       )
     }
-    client.on('neemata:introspect', introspectHandler)
+    client.on('neemata/introspect', introspectHandler)
     this.server.application.on('reloaded', introspectHandler)
 
     // Handle ping/pong
-    client.on('neemata:ping', () => client.send('neemata:pong'))
+    client.on('neemata/ping', () => client.send('neemata/pong'))
     const intervalValue = this.config.intervals.ping
     const interval = setInterval(async () => {
       const result = Promise.race([
         new Promise((r) => setTimeout(() => r(false), intervalValue / 2)),
-        new Promise((r) => client.once('neemata:pong', () => r(true))),
+        new Promise((r) => client.once('neemata/pong', () => r(true))),
       ])
-      client.send('neemata:ping')
+      client.send('neemata/ping')
       if (await result) return
       else socket.close()
     }, intervalValue)
 
     // Handle streams
-    client.on('neemata:stream:init', ({ id, size, type, name }) => {
+    client.on('neemata/stream/init', ({ id, size, type, name }) => {
       if (!this.server.streams.has(id)) {
         const stream = new Stream({ client, id, size, type, name })
         this.server.streams.set(stream.id, stream)
         stream.once('close', () => this.server.streams.delete(stream.id))
-        client.send('neemata:stream:init', { id })
+        client.send('neemata/stream/init', { id })
       }
     })
-    client.on('neemata:stream:abort', ({ id, reason }) => {
+    client.on('neemata/stream/abort', ({ id, reason }) => {
       const stream = this.server.streams.get(id)
       if (stream && stream.client.session === client.session) {
         stream.destroy(reason)

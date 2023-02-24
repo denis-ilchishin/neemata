@@ -52,7 +52,7 @@ export class Stream extends EventEmitter {
       JSON.stringify({
         type: MessageType.Event,
         payload: {
-          event: 'neemata:stream:init',
+          event: 'neemata/stream/init',
           data: { id: this._id, size, type, name },
         },
       })
@@ -76,6 +76,6 @@ export class Stream extends EventEmitter {
   }
 
   _serialize() {
-    return { __type: 'neemata:stream', __id: this._id }
+    return { __type: 'neemata/stream', __id: this._id }
   }
 }

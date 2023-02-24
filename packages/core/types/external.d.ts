@@ -141,6 +141,7 @@ export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
   readonly auth: Auth
   readonly session: string
   readonly transport: T
+  readonly clearSession: () => void
 }
 
 export declare interface WsClient<Auth = unknown>

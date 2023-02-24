@@ -31,7 +31,9 @@ export class Neemata<T = any> extends EventEmitter {
       this._streams.get(id)?.emit('pull')
     )
     this.on('neemata/session/clear', async () => {
-      await fetch(this._getUrl('neemata/session/clear'))
+      await fetch(this._getUrl('neemata/session/clear'), {
+        credentials: 'include',
+      })
       setTimeout(() => this._ws?.close(), 0)
     })
     this.on('neemata/introspect', (data) => this._scaffold(data))
@@ -176,9 +178,9 @@ export class Neemata<T = any> extends EventEmitter {
       })
     } else {
       this._connecting = this._waitHealthy().then(async () => {
-        const data = await fetch(this._getUrl('neemata/introspect')).then(
-          (res) => res.json()
-        )
+        const data = await fetch(this._getUrl('neemata/introspect'), {
+          credentials: 'include',
+        }).then((res) => res.json())
         this._scaffold(data)
       })
     }
@@ -231,7 +233,12 @@ export class Neemata<T = any> extends EventEmitter {
         },
       }
 
-      return fetch(this._getUrl(procedure.split('.').join('/')), options)
+      return fetch(
+        this._getUrl(procedure.split('.').join('/'), {
+          credentials: 'include',
+        }),
+        options
+      )
         .catch((err) => {
           console.error(err)
           throw new NeemataError(
@@ -296,7 +303,10 @@ export class Neemata<T = any> extends EventEmitter {
     let healhy = false
 
     while (!healhy) {
-      healhy = await fetch(this._getUrl('neemata/healthy'), { method: 'GET' })
+      healhy = await fetch(this._getUrl('neemata/healthy'), {
+        method: 'GET',
+        credentials: 'include',
+      })
         .then((r) => r.ok)
         .catch((err) => false)
       if (!healhy) await new Promise((r) => setTimeout(r, 1000))

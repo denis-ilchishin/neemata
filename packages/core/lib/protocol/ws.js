@@ -64,7 +64,7 @@ class WsTransport extends BaseTransport {
             socket,
             session: req[SESSION_KEY].token,
             auth: req[AUTH_KEY],
-            clearSession: () => socket.send('neemata/session/clear'),
+            clearSession: () => client.send('neemata/session/clear'),
           })
           this.server.wsServer.emit('connection', socket, req, client)
         }

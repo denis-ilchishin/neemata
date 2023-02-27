@@ -14,12 +14,9 @@ export function randomUUID() {
 }
 
 export class NeemataError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly message: string,
-    public readonly data?: any
-  ) {
+  constructor(code: string, message: string, public readonly data?: any) {
     super(message)
+    this.name = code
   }
 }
 

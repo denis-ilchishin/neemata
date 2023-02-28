@@ -81,20 +81,19 @@ class WsTransport extends BaseTransport {
       const _send = socket.send.bind(socket)
       socket.send = (type, payload) => _send(this.serialize({ type, payload }))
       socket.on('error', (err) => logger.error(err))
+      const hookArgs = { client, req }
       client.on('close', async () => {
-        await this.server.application.runHooks(WorkerHook.Disconnect, true, {
-          client,
-          req,
-        })
+        await this.server.application.runHooks(
+          WorkerHook.Disconnect,
+          true,
+          hookArgs
+        )
         this.server.clients.delete(client.id)
       })
       const onConnect = this.server.application.runHooks(
         WorkerHook.Connect,
         true,
-        {
-          client,
-          req,
-        }
+        hookArgs
       )
       this.receiver(socket, req, client, onConnect)
     })
@@ -102,7 +101,11 @@ class WsTransport extends BaseTransport {
 
   deserialize(raw) {
     return JSON.parse(raw, (key, value) => {
-      if (value && value['__type'] === 'neemata/stream' && value['__id'])
+      if (
+        value &&
+        value['__type'] === 'neemata/stream' &&
+        typeof value['__id'] === 'string'
+      )
         return this.server.streams.get(value.__id)
       return value
     })

@@ -1,18 +1,13 @@
 'use strict'
 
-const { Duplex } = require('node:stream')
+const { PassThrough } = require('node:stream')
 
-class Stream extends Duplex {
+class Stream extends PassThrough {
   constructor({ client, id, size, type, name }) {
     super({ allowHalfOpen: false })
 
     this.id = id
-    this.meta = {
-      size,
-      type,
-      name,
-    }
-
+    this.meta = { size, type, name }
     this.client = client
     this._pulled = false
   }
@@ -29,6 +24,7 @@ class Stream extends Duplex {
   }
 
   done() {
+    if (this.readableEnded) return
     return new Promise((resolve, reject) => {
       this.once('end', resolve)
       this.once('error', reject)
@@ -39,9 +35,9 @@ class Stream extends Duplex {
     return new Promise((res, rej) => {
       const chunks = []
       this.on('data', (chunk) => chunks.push(chunk))
-      this.on('end', () => res(Buffer.concat(chunks)))
-      this.on('error', (err) => rej(err))
-      this._read()
+      this.once('end', () => res(Buffer.concat(chunks)))
+      this.once('error', (err) => rej(err))
+      this.read()
     })
   }
 

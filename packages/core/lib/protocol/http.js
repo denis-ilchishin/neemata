@@ -147,8 +147,8 @@ class HttpTransport extends BaseTransport {
       if (!stream || stream.client.session !== session)
         new Error('Stream not found')
 
-      req.on('end', resolve)
-      req.on('error', () => reject('Stream error'))
+      stream.once('end', resolve)
+      stream.once('error', () => reject('Stream error'))
       req.pipe(stream)
     })
   }

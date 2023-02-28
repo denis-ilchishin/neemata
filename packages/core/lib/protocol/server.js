@@ -8,6 +8,7 @@ const { parse, serialize } = require('cookie')
 const { createHash, randomBytes } = require('node:crypto')
 const { Semaphore } = require('../utils/semaphore')
 const { unique } = require('../utils/functions')
+const { setTimeout } = require('node:timers/promises')
 
 const AUTH_DEFAULT = () => null
 const SESSION_COOKIE = '__NSID'
@@ -164,11 +165,11 @@ class Server {
       this.wsServer.close()
 
       this.wsServer.clients.forEach((client) => client.close())
-      const timeoutPromise = new Promise((r) =>
-        setTimeout(r, this.application.config.timeouts.shutdown / 2)
-      )
 
-      Promise.race([closing, timeoutPromise]).then(() => {
+      Promise.race([
+        closing,
+        setTimeout(this.application.config.timeouts.shutdown / 2),
+      ]).then(() => {
         this.httpServer.closeAllConnections()
         resolve()
       })

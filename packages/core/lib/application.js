@@ -11,8 +11,8 @@ const { Services } = require('./modules/services')
 const { Tasks } = require('./modules/tasks')
 const { Api } = require('./modules/api')
 const { Server } = require('./protocol/server')
-const { ConsoleLogger } = require('./console')
 const { clearVM } = require('./vm')
+const { setTimeout } = require('node:timers/promises')
 
 class UserApplication {
   #app
@@ -156,12 +156,13 @@ class WorkerApplication extends EventEmitter {
     try {
       task = this.modules.tasks.get(task)
       if (!task) throw new Error('Task not found')
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Task execution timeout')), timeout)
-      )
       const result = timeout
-        ? await Promise.race([task(...args), timeoutPromise])
+        ? await Promise.race([
+            task(...args),
+            setTimeout(timeout, new Error('Task execution timeout')),
+          ])
         : await task(...args)
+      if (result instanceof Error) throw result
       return { error: false, data: result }
     } catch (error) {
       return { error: true, data: error.stack || error.message }

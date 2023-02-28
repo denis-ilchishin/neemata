@@ -72,8 +72,8 @@ export interface UserApplication {
     level?: import('pino').Level
   ) => import('pino').BaseLogger
   worker: {
-    id: number
     type: WorkerType
+    workerId: number
     threadId: number
   }
   invoke: <K extends keyof Tasks>(

@@ -32,7 +32,7 @@ export class Neemata<T = any> extends EventEmitter {
     this._prefer = preferHttp ? Transport.Http : Transport.Ws
     this._streams = new Map()
     this._pingTimeout = pingTimeout
-    this._pingTimeout = pingInterval
+    this._pingInterval = pingInterval
 
     // Neemata internal events
     this.on('neemata/stream/init', ({ id }) =>
@@ -133,26 +133,25 @@ export class Neemata<T = any> extends EventEmitter {
   }
 
   connect() {
-    if (pingInterval) clearInterval(pingInterval)
-    pingInterval = setInterval(async () => {
-      if (!this.isActive) return
-      const resultPromise = Promise.race([
-        new Promise((r) => setTimeout(() => r(false), this._pingTimeout)),
-        new Promise((r) => this.once('neemata/pong', () => r(true))),
-      ])
-      this._ws?.send(
-        JSON.stringify({
-          type: MessageType.Event,
-          payload: {
-            event: 'neemata/ping',
-          },
-        })
-      )
-      const result = await resultPromise
-      if (!result) this._ws?.close()
-    }, this._pingInterval)
-
     if (this._prefer === Transport.Ws) {
+      if (pingInterval) clearInterval(pingInterval)
+      pingInterval = setInterval(async () => {
+        if (!this.isActive) return
+        const resultPromise = Promise.race([
+          new Promise((r) => setTimeout(() => r(false), this._pingTimeout)),
+          new Promise((r) => this.once('neemata/pong', () => r(true))),
+        ])
+        this._ws?.send(
+          JSON.stringify({
+            type: MessageType.Event,
+            payload: {
+              event: 'neemata/ping',
+            },
+          })
+        )
+        const result = await resultPromise
+        if (!result) this._ws?.close()
+      }, this._pingInterval)
       this._connecting = new Promise((resolve) => {
         this._waitHealthy()
           .catch((err) => {

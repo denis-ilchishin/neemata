@@ -7,6 +7,8 @@ import { NeemataError, randomUUID } from './utils'
 
 // TODO: refactor this mess
 
+let pingInterval
+
 export class Neemata<T = any> extends EventEmitter {
   api: T = {} as T
   _ws?: WebSocket
@@ -15,13 +17,22 @@ export class Neemata<T = any> extends EventEmitter {
   private _url: URL
   private _prefer: ValueOf<typeof Transport>
   private _streams: Map<string, Stream>
+  private _pingTimeout: number
+  private _pingInterval: number
 
-  constructor({ host, preferHttp = false }: NeemataOptions) {
+  constructor({
+    host,
+    preferHttp = false,
+    pingInterval = 15000,
+    pingTimeout = 10000,
+  }: NeemataOptions) {
     super()
 
     this._url = new URL(host)
     this._prefer = preferHttp ? Transport.Http : Transport.Ws
     this._streams = new Map()
+    this._pingTimeout = pingTimeout
+    this._pingTimeout = pingInterval
 
     // Neemata internal events
     this.on('neemata/stream/init', ({ id }) =>
@@ -122,6 +133,25 @@ export class Neemata<T = any> extends EventEmitter {
   }
 
   connect() {
+    if (pingInterval) clearInterval(pingInterval)
+    pingInterval = setInterval(async () => {
+      if (!this.isActive) return
+      const resultPromise = Promise.race([
+        new Promise((r) => setTimeout(() => r(false), this._pingTimeout)),
+        new Promise((r) => this.once('neemata/pong', () => r(true))),
+      ])
+      this._ws?.send(
+        JSON.stringify({
+          type: MessageType.Event,
+          payload: {
+            event: 'neemata/ping',
+          },
+        })
+      )
+      const result = await resultPromise
+      if (!result) this._ws?.close()
+    }, this._pingInterval)
+
     if (this._prefer === Transport.Ws) {
       this._connecting = new Promise((resolve) => {
         this._waitHealthy()

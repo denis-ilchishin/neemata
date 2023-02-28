@@ -29,4 +29,6 @@ export type ApiConstructOptions = {
 export type NeemataOptions = {
   host: string
   preferHttp?: boolean
+  pingInterval?: number
+  pingTimeout?: number
 }

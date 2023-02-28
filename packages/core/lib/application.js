@@ -143,12 +143,10 @@ class WorkerApplication extends EventEmitter {
     await this.terminate()
   }
 
-  async runHooks(hookType, concurrently = false, ...args) {
+  async runHooks(hookType, concurrently = true, ...args) {
     const hooks = this.hooks.get(hookType) ?? new Set()
-    if (concurrently) {
-      for (const hook of hooks) {
-        await hook(...args)
-      }
+    if (!concurrently) {
+      for (const hook of hooks) await hook(...args)
     } else {
       await Promise.all(Array.from(hooks).map((hook) => hook(...args)))
     }
@@ -158,17 +156,12 @@ class WorkerApplication extends EventEmitter {
     try {
       task = this.modules.tasks.get(task)
       if (!task) throw new Error('Task not found')
-      const result = await Promise.race([
-        task(...args),
-        timeout
-          ? new Promise((_, reject) =>
-              setTimeout(
-                () => reject(new Error('Task execution timeout')),
-                timeout
-              )
-            )
-          : new Promise(() => {}),
-      ])
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Task execution timeout')), timeout)
+      )
+      const result = timeout
+        ? await Promise.race([task(...args), timeoutPromise])
+        : await task(...args)
       return { error: false, data: result }
     } catch (error) {
       return { error: true, data: error.stack || error.message }

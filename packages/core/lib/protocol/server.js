@@ -153,7 +153,26 @@ class Server {
   }
 
   close() {
-    return new Promise((r) => this.httpServer.close(r))
+    return new Promise((resolve) => {
+      logger.debug(`Shutting http server...`)
+      const closing = Promise.allSettled([
+        new Promise((r) => this.httpServer.once('close', r)),
+        new Promise((r) => this.wsServer.once('close', r)),
+      ])
+
+      this.httpServer.close()
+      this.wsServer.close()
+
+      this.wsServer.clients.forEach((client) => client.close())
+      const timeoutPromise = new Promise((r) =>
+        setTimeout(r, this.application.config.timeouts.shutdown / 2)
+      )
+
+      Promise.race([closing, timeoutPromise]).then(() => {
+        this.httpServer.closeAllConnections()
+        resolve()
+      })
+    })
   }
 }
 

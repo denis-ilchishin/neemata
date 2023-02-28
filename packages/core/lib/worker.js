@@ -33,7 +33,7 @@ app.once(WorkerMessage.Startup, async () => {
 
 app.once(WorkerMessage.Shutdown, async () => {
   parentPort.close()
-  await app.shutdown()
+  await app.shutdown().finally(() => process.exit(0))
 })
 
 app.on(WorkerMessage.Reload, async () => {

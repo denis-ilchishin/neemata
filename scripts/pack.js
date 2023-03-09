@@ -14,5 +14,8 @@ for (const dirName of dirs) {
     .join('-')
   const tarball = `${packName}-${version}.tgz`
   const renameTo = `${packName}.tgz`
-  execSync(`cd ${packagePath} && pnpm pack && mv ${tarball} ${renameTo}`, opts)
+  execSync(
+    `cd ${packagePath} && pnpm pack && mv -f ${tarball} ${renameTo}`,
+    opts
+  )
 }

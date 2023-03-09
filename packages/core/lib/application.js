@@ -13,6 +13,8 @@ const { Api } = require('./modules/api')
 const { Server } = require('./protocol/server')
 const { clearVM } = require('./vm')
 const { setTimeout } = require('node:timers/promises')
+const { sep } = require('node:path')
+const { unique } = require('./utils/functions')
 
 class UserApplication {
   #app
@@ -85,12 +87,44 @@ class WorkerApplication extends EventEmitter {
   createSandbox() {
     logger.debug('Creating application sandbox')
     clearVM()
+
+    const checkDependency = (name) => {
+      const [namespaceName, ...parts] = name.split(sep)
+      const moduleName = parts.join(sep)
+      if (!['db', 'config', 'services', 'lib'].includes(namespaceName))
+        throw new Error(
+          `Unabled to inject modules from "${namespaceName}" namespace`
+        )
+      const namespace = this.modules[namespaceName]
+      if (!namespace.entries.has(moduleName))
+        throw new Error(
+          `Module "${moduleName}" in "${namespaceName}" namespace is not found`
+        )
+      return { namespace, moduleName }
+    }
+
     this.sandbox = {
-      lib: this.modules.lib.sandbox,
-      config: this.modules.config.sandbox,
-      db: this.modules.db.sandbox,
-      services: this.modules.services.sandbox,
       application: new UserApplication(this),
+      dependency: async (...names) => {
+        const dependencies = []
+        for (const name of unique(names)) {
+          const { namespace, moduleName } = checkDependency(name)
+          if (namespace.modules.has(moduleName))
+            dependencies.push(namespace.get(moduleName))
+          const filePath = namespace.entries.get(moduleName)
+          await namespace.loadModule(moduleName, filePath)
+          dependencies.push(namespace.get(moduleName))
+        }
+        return dependencies
+      },
+      inject: (name) => {
+        const { namespace, moduleName } = checkDependency(name)
+        if (!namespace.modules.has(moduleName))
+          throw new Error(
+            `Module "${name}" is not loaded yet. Try to add \`await dependency('${name}') before the injection\``
+          )
+        return namespace.get(moduleName)
+      },
     }
   }
 
@@ -100,6 +134,10 @@ class WorkerApplication extends EventEmitter {
     )
 
     this.createSandbox()
+
+    await Promise.all(
+      Object.values(this.modules).map((module) => module.preload())
+    )
 
     // Load modules in order
     for (const module of ['lib', 'config', 'db', 'services']) {
@@ -120,6 +158,7 @@ class WorkerApplication extends EventEmitter {
   async reload() {
     logger.debug('Reloading')
     await this.terminate()
+    for (const module of Object.values(this.modules)) module.clear()
     await this.initialize()
   }
 

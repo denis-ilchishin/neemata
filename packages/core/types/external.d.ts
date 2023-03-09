@@ -83,10 +83,7 @@ export interface UserApplication {
 }
 
 export interface Auth {}
-export interface Lib {}
-export interface Config {}
-export interface Services {}
-export interface Db {}
+export interface Injection {}
 export interface Tasks {}
 
 export interface Hooks {
@@ -178,10 +175,10 @@ declare global {
   }
 
   const application: UserApplication
-  const lib: Lib
-  const config: Config
-  const services: Services
-  const db: Db
+  const inject: <T extends keyof Injection>(injection: T) => Injection[T]
+  const dependency: <T extends Array<keyof Injection>>(
+    ...injections: T
+  ) => Promise<Array<Injection[T[number]]>>
   const hooks: Hooks
   const defineProcedure: DefineProcedure
   const defineAuthService: DefineAuthService

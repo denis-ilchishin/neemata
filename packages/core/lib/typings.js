@@ -1,5 +1,5 @@
 const { readFilesystem } = require('./loader')
-const { existsSync, rmSync, mkdirSync, writeFileSync } = require('node:fs')
+const { existsSync, mkdirSync, writeFileSync } = require('node:fs')
 const { join, sep, parse, relative, dirname } = require('node:path')
 const { writeFile } = require('node:fs/promises')
 class Typings {
@@ -55,21 +55,7 @@ class Typings {
   }
 }
 
-function capitalize(str) {
-  return str[0].toUpperCase() + str.slice(1)
-}
-
-const GENERICS = `type Merge<T, T2> = {
-  [K in keyof T | keyof T2]: K extends keyof T2
-    ? T2[K] extends symbol | number | string | boolean | undefined | null
-      ? K extends keyof T
-        ? T[K]
-        : never
-      : T2[K]
-    : K extends keyof T
-    ? T[K]
-    : never
-}
+const GENERICS = `
 type IsEmpty<T> = keyof T extends never ? true : false
 type Resolve<T> = IsEmpty<T> extends false
   ? 'default' extends keyof T
@@ -78,7 +64,7 @@ type Resolve<T> = IsEmpty<T> extends false
   : unknown`
 
 async function generateDts(applicationPath, outputPath) {
-  const scopes = ['config', 'lib', 'services', 'db', 'tasks']
+  const namespaces = ['config', 'lib', 'services', 'db']
   const interfaces = []
   const imports = {}
 
@@ -97,42 +83,29 @@ async function generateDts(applicationPath, outputPath) {
     return `Resolve<typeof ${alias}>`
   }
 
-  for (const scope of scopes) {
-    const tree = await readFilesystem(
-      join(applicationPath, scope),
-      !['db', 'config'].includes(scope),
-      scope === 'tasks'
+  let content = `interface Injection {\n`
+  for (const namespace of namespaces) {
+    const entries = await readFilesystem(
+      join(applicationPath, namespace),
+      !['db', 'config'].includes(namespace),
+      true
     )
-
-    let content = `interface ${capitalize(scope)} {\n`
-
-    const concatenate = (tree) => {
-      content = ''
-      const keys = Object.keys(tree)
-      const hasIndex = keys.find((key) => key === 'index')
-      const nested = keys.filter((key) => key !== 'index')
-      if (hasIndex && nested.length) content += `Merge<`
-      if (hasIndex) content += `${addImport(tree.index)}`
-      if (nested.length) {
-        if (hasIndex) content += ', '
-        content += '{\n'
-        for (const key of nested) {
-          content += `'${key}': ${concatenate(tree[key])}\n`
-        }
-        content += '}'
-      }
-      if (hasIndex && nested.length) content += `>`
-      return content
-    }
-
-    for (const [key, value] of Object.entries(tree)) {
-      if (scope === 'tasks') content += `'${key}': ${addImport(value)}\n`
-      else content += `'${key}': ${concatenate(value)}\n`
-    }
-
-    content += '}\n'
-    interfaces.push(content)
+    for (const [key, value] of Object.entries(entries))
+      content += `'${namespace}/${key}': ${addImport(value)}\n`
   }
+  content += '}\n'
+  interfaces.push(content)
+
+  content = `interface Tasks {\n`
+  const entries = await readFilesystem(
+    join(applicationPath, 'tasks'),
+    true,
+    true
+  )
+  for (const [key, value] of Object.entries(entries))
+    content += `'${key}': ${addImport(value)}\n`
+  content += '}\n'
+  interfaces.push(content)
 
   const importsContent = Object.entries(imports)
     .map(([alias, path]) => {

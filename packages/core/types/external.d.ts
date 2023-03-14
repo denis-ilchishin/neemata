@@ -83,10 +83,7 @@ export interface UserApplication {
 }
 
 export interface Auth {}
-export interface Lib {}
-export interface Config {}
-export interface Services {}
-export interface Db {}
+export interface Injection {}
 export interface Tasks {}
 
 export interface Hooks {

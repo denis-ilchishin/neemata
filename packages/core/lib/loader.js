@@ -63,24 +63,21 @@ async function readFilesystem(root, nested = false, flat = false) {
   const traverseFlat = (tree, path = '') => {
     for (const [key, value] of Object.entries(tree)) {
       if (key === 'index') {
-        flatTree[path.split(sep).join('.')] = value
+        flatTree[path] = value
         continue
       }
       traverseFlat(value, join(path, key))
     }
   }
   traverseFlat(tree)
-  return Object.fromEntries(
-    Object.entries(flatTree).sort((a, b) => a[0] > b[0])
-  )
+  return flatTree
 }
 
 class Loader {
   hooks = false
   recursive = true
-  tree = {}
   modules = new Map()
-  sandbox = {}
+  entries = new Map()
 
   /**
    * @param {string} path
@@ -95,25 +92,20 @@ class Loader {
     return this.modules.get(name)
   }
 
-  makeSandbox(exports, moduleName) {
-    let last = this.sandbox
-    const parts = moduleName.split('.')
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const isLast = i === parts.length - 1
-      if (isLast) last[part] = exports
-      else last[part] = last[part] ?? {}
-      last = last[part]
-    }
+  clear() {
+    this.entries.clear()
+    this.modules.clear()
+  }
+
+  async preload() {
+    const modules = await readFilesystem(this.path, this.recursive, true)
+    this.entries = new Map(Object.entries(modules))
   }
 
   async load() {
-    this.tree = await readFilesystem(this.path, this.recursive, true)
-    const entries = Object.entries(this.tree)
-    await Promise.all(entries.map((e) => this.loadModule(...e)))
-    for (const moduleName of this.modules.keys()) {
-      if (moduleName in this.tree) continue
-      this.modules.delete(moduleName)
+    for (const [name, path] of this.entries) {
+      // Skip already loaded dependencies
+      if (!this.modules.has(name)) await this.loadModule(name, path)
     }
   }
 
@@ -145,7 +137,7 @@ class Loader {
         moduleName,
         filePath.replace(this.path, '').slice(1)
       )
-      if (this.sandbox) this.makeSandbox(transformed, moduleName)
+
       this.modules.set(moduleName, transformed)
     } catch (error) {
       if (this.application.workerId === 1) {

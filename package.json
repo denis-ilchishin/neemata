@@ -23,5 +23,5 @@
     "watch": "pnpm -r --parallel run watch",
     "publish": "pnpm -r build && pnpm -r publish --no-git-checks --access public"
   },
-  "version": "0.5.1"
+  "version": "0.5.2"
 }

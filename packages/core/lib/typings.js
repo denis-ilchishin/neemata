@@ -1,4 +1,4 @@
-const { readFilesystem } = require('./loader')
+const { readFilesystem, SEPARATOR } = require('./loader')
 const { existsSync, rmSync, mkdirSync, writeFileSync } = require('node:fs')
 const { join, sep, parse, relative, dirname } = require('node:path')
 const { writeFile } = require('node:fs/promises')
@@ -78,7 +78,7 @@ type Resolve<T> = IsEmpty<T> extends false
   : unknown`
 
 async function generateDts(applicationPath, outputPath) {
-  const scopes = ['config', 'lib', 'services', 'db', 'tasks']
+  const namespaces = ['config', 'lib', 'services', 'db', 'tasks']
   const interfaces = []
   const imports = {}
 
@@ -92,19 +92,20 @@ async function generateDts(applicationPath, outputPath) {
       .join('_')
       .replaceAll('.', '_')
       .replaceAll('-', '_')
+    const typing = `Resolve<typeof ${alias}>`
+    if (alias in imports) return typing
     imports[alias] = relative(outputPath, path)
-
-    return `Resolve<typeof ${alias}>`
+    return typing
   }
 
-  for (const scope of scopes) {
+  for (const namespace of namespaces) {
     const tree = await readFilesystem(
-      join(applicationPath, scope),
-      !['db', 'config'].includes(scope),
-      scope === 'tasks'
+      join(applicationPath, namespace),
+      !['db', 'config'].includes(namespace),
+      namespace === 'tasks'
     )
 
-    let content = `interface ${capitalize(scope)} {\n`
+    let content = `interface ${capitalize(namespace)} {\n`
 
     const concatenate = (tree) => {
       content = ''
@@ -126,13 +127,28 @@ async function generateDts(applicationPath, outputPath) {
     }
 
     for (const [key, value] of Object.entries(tree)) {
-      if (scope === 'tasks') content += `'${key}': ${addImport(value)}\n`
+      if (namespace === 'tasks') content += `'${key}': ${addImport(value)}\n`
       else content += `'${key}': ${concatenate(value)}\n`
     }
 
     content += '}\n'
     interfaces.push(content)
   }
+
+  let content = `interface Injections {\n`
+  for (const namespace of namespaces) {
+    if (namespace === 'tasks') continue
+    const tree = await readFilesystem(
+      join(applicationPath, namespace),
+      !['db', 'config'].includes(namespace),
+      true
+    )
+    for (const [key, value] of Object.entries(tree)) {
+      content += `'${namespace}${SEPARATOR}${key}': ${addImport(value)}\n`
+    }
+  }
+  content += '}\n'
+  interfaces.push(content)
 
   const importsContent = Object.entries(imports)
     .map(([alias, path]) => {

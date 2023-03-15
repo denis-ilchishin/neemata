@@ -11,7 +11,6 @@ const schema = Type.Object({
     minItems: 1,
   }),
   api: Type.Object({
-    basePath: Type.String(),
     hostname: Type.String(),
     cors: Type.Optional(Type.Object({ origin: Type.String() })),
     queue: Type.Object({
@@ -60,7 +59,6 @@ const schema = Type.Object({
 
 const defaultConfig = {
   api: {
-    basePath: '/api',
     cors: {
       origin: '*',
     },

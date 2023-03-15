@@ -6,6 +6,8 @@ const { join, parse, extname, sep } = require('node:path')
 const { isAsyncFunction } = require('node:util/types')
 const { Script } = require('./vm')
 
+const SEPARATOR = '.'
+
 async function readFilesystem(root, nested = false, flat = false) {
   if (!existsSync(root)) return {}
   if (!(await fsp.stat(root)).isDirectory()) return {}
@@ -63,23 +65,21 @@ async function readFilesystem(root, nested = false, flat = false) {
   const traverseFlat = (tree, path = '') => {
     for (const [key, value] of Object.entries(tree)) {
       if (key === 'index') {
-        flatTree[path.split(sep).join('.')] = value
+        flatTree[path.split(sep).join(SEPARATOR)] = value
         continue
       }
       traverseFlat(value, join(path, key))
     }
   }
   traverseFlat(tree)
-  return Object.fromEntries(
-    Object.entries(flatTree).sort((a, b) => a[0] > b[0])
-  )
+  return flatTree
 }
 
 class Loader {
   hooks = false
   recursive = true
-  tree = {}
   modules = new Map()
+  entries = new Map()
   sandbox = {}
 
   /**
@@ -107,13 +107,21 @@ class Loader {
     }
   }
 
+  clear() {
+    this.entries.clear()
+    this.modules.clear()
+    this.sandbox = {}
+  }
+
+  async preload() {
+    const resolved = await readFilesystem(this.path, this.recursive, true)
+    this.entries = new Map(Object.entries(resolved))
+  }
+
   async load() {
-    this.tree = await readFilesystem(this.path, this.recursive, true)
-    const entries = Object.entries(this.tree)
-    await Promise.all(entries.map((e) => this.loadModule(...e)))
-    for (const moduleName of this.modules.keys()) {
-      if (moduleName in this.tree) continue
-      this.modules.delete(moduleName)
+    for (const [name, path] of this.entries) {
+      // Skip already loaded dependencies
+      if (!this.modules.has(name)) await this.loadModule(name, path)
     }
   }
 
@@ -163,4 +171,5 @@ class Loader {
 module.exports = {
   Loader,
   readFilesystem,
+  SEPARATOR,
 }

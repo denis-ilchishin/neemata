@@ -34,8 +34,8 @@ class Server {
   }
 
   get authService() {
-    const { modules, config } = this.application
-    return modules.services.get(config.api.auth.service) ?? AUTH_DEFAULT
+    const { namespaces, config } = this.application
+    return namespaces.services.get(config.api.auth.service) ?? AUTH_DEFAULT
   }
 
   async handleAuth({ session, req }) {
@@ -45,7 +45,7 @@ class Server {
   async introspect(req, client) {
     const introspected = []
 
-    const modules = Array.from(this.application.modules.api.modules.values())
+    const modules = Array.from(this.application.namespaces.api.modules.values())
     const hasGuardsIntrospectable = modules.some(
       ({ introspectable }) => introspectable === 'guards'
     )

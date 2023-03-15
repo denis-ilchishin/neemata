@@ -86,7 +86,6 @@ class Procedure {
 }
 
 class Api extends Loader {
-  modules = new Map()
   hooks = false
 
   constructor(application) {

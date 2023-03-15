@@ -8,10 +8,10 @@ const zod = require('zod')
 class BaseTransport {
   constructor(server) {
     const { application } = server
-    const { modules, console, config } = application
+    const { namespaces, console, config } = application
     this.server = server
     this.application = application
-    this.modules = modules
+    this.namespaces = namespaces
     this.config = config
   }
 
@@ -36,7 +36,7 @@ class BaseTransport {
   }
 
   findProcedure(name, type, version) {
-    const procedure = this.server.application.modules.api.get(
+    const procedure = this.server.application.namespaces.api.get(
       name,
       type,
       version

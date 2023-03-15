@@ -135,14 +135,18 @@ class Loader {
 
       if (typeof exports === 'undefined') return
       else if (this.hooks) {
-        for (const [hookname, hook] of Object.entries(hooks)) {
+        for (const [hookname, hookSet] of Object.entries(hooks)) {
           if (Array.isArray(this.hooks) && !this.hooks.includes(hookname))
             continue
           if (this.application.hooks.has(hookname)) {
-            if (isAsyncFunction(hook)) {
-              this.application.hooks.get(hookname).add(hook)
-            } else if (hook) {
-              throw new Error('Hook must be type of async function')
+            for (const hook of hookSet) {
+              if (isAsyncFunction(hook)) {
+                this.application.hooks.get(hookname).add(hook)
+              } else if (hook) {
+                throw new Error(
+                  `Hook ${hookname} must be type of async function`
+                )
+              }
             }
           }
         }

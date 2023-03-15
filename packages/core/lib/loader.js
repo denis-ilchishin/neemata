@@ -123,6 +123,18 @@ class Loader {
     }
   }
 
+  makeSandbox(exports, moduleName) {
+    let last = this.sandbox
+    const parts = moduleName.split('.')
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+      const isLast = i === parts.length - 1
+      if (isLast) last[part] = exports
+      else last[part] = last[part] ?? {}
+      last = last[part]
+    }
+  }
+
   async loadModule(moduleName, filePath) {
     try {
       const script = new Script(filePath, {
@@ -155,7 +167,7 @@ class Loader {
         moduleName,
         filePath.replace(this.path, '').slice(1)
       )
-
+      if (this.sandbox) this.makeSandbox(transformed, moduleName)
       this.modules.set(moduleName, transformed)
     } catch (error) {
       if (this.application.workerId === 1) {

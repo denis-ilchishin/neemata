@@ -2,6 +2,7 @@ const { readFilesystem, SEPARATOR } = require('./loader')
 const { existsSync, rmSync, mkdirSync, writeFileSync } = require('node:fs')
 const { join, sep, parse, relative, dirname } = require('node:path')
 const { writeFile } = require('node:fs/promises')
+const { capitalize } = require('./utils/functions')
 class Typings {
   constructor(rootPath) {
     this.applicationPath = rootPath
@@ -120,19 +121,6 @@ async function generateDts(applicationPath, outputPath) {
     content += '}\n'
     interfaces.push(content)
   }
-  content += '}\n'
-  interfaces.push(content)
-
-  content = `interface Tasks {\n`
-  const entries = await readFilesystem(
-    join(applicationPath, 'tasks'),
-    true,
-    true
-  )
-  for (const [key, value] of Object.entries(entries))
-    content += `'${key}': ${addImport(value)}\n`
-  content += '}\n'
-  interfaces.push(content)
 
   let content = `interface Injections {\n`
   for (const namespace of namespaces) {

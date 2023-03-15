@@ -28,4 +28,8 @@ function compileSchema(schema) {
 
 const isNullish = (val) => typeof val === 'undefined' || val === null
 
-module.exports = { deepMerge, unique, compileSchema, isNullish }
+function capitalize(str) {
+  return str[0].toUpperCase() + str.slice(1)
+}
+
+module.exports = { deepMerge, unique, compileSchema, isNullish, capitalize }

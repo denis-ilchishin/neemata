@@ -176,11 +176,11 @@ declare global {
   }
 
   const application: UserApplication
-  const inject: <T extends keyof Injection>(injection: T) => Injection[T]
-  const dependency: <T extends Array<keyof Injection>>(
-    ...injections: T
-  ) => Promise<{ [K in keyof T]: Injection[T[K]] }>
   const hooks: Hooks
+  const lib: Lib
+  const config: Config
+  const services: Services
+  const db: Db
   const defineProcedure: DefineProcedure
   const defineAuthService: DefineAuthService
   const defineGuard: DefineGuard

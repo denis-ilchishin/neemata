@@ -68,7 +68,7 @@ const defaultConfig = {
       size: 1000,
     },
     auth: {
-      service: 'auth/api',
+      service: 'auth.api',
     },
     schema: 'zod',
   },

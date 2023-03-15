@@ -1,5 +1,5 @@
-const { readFilesystem } = require('./loader')
-const { existsSync, mkdirSync, writeFileSync } = require('node:fs')
+const { readFilesystem, SEPARATOR } = require('./loader')
+const { existsSync, rmSync, mkdirSync, writeFileSync } = require('node:fs')
 const { join, sep, parse, relative, dirname } = require('node:path')
 const { writeFile } = require('node:fs/promises')
 class Typings {
@@ -64,7 +64,7 @@ type Resolve<T> = IsEmpty<T> extends false
   : unknown`
 
 async function generateDts(applicationPath, outputPath) {
-  const namespaces = ['config', 'lib', 'services', 'db']
+  const namespaces = ['config', 'lib', 'services', 'db', 'tasks']
   const interfaces = []
   const imports = {}
 
@@ -78,20 +78,47 @@ async function generateDts(applicationPath, outputPath) {
       .join('_')
       .replaceAll('.', '_')
       .replaceAll('-', '_')
+    const typing = `Resolve<typeof ${alias}>`
+    if (alias in imports) return typing
     imports[alias] = relative(outputPath, path)
-
-    return `Resolve<typeof ${alias}>`
+    return typing
   }
 
-  let content = `interface Injection {\n`
   for (const namespace of namespaces) {
-    const entries = await readFilesystem(
+    const tree = await readFilesystem(
       join(applicationPath, namespace),
       !['db', 'config'].includes(namespace),
-      true
+      namespace === 'tasks'
     )
-    for (const [key, value] of Object.entries(entries))
-      content += `'${namespace}/${key}': ${addImport(value)}\n`
+
+    let content = `interface ${capitalize(namespace)} {\n`
+
+    const concatenate = (tree) => {
+      content = ''
+      const keys = Object.keys(tree)
+      const hasIndex = keys.find((key) => key === 'index')
+      const nested = keys.filter((key) => key !== 'index')
+      if (hasIndex && nested.length) content += `Merge<`
+      if (hasIndex) content += `${addImport(tree.index)}`
+      if (nested.length) {
+        if (hasIndex) content += ', '
+        content += '{\n'
+        for (const key of nested) {
+          content += `'${key}': ${concatenate(tree[key])}\n`
+        }
+        content += '}'
+      }
+      if (hasIndex && nested.length) content += `>`
+      return content
+    }
+
+    for (const [key, value] of Object.entries(tree)) {
+      if (namespace === 'tasks') content += `'${key}': ${addImport(value)}\n`
+      else content += `'${key}': ${concatenate(value)}\n`
+    }
+
+    content += '}\n'
+    interfaces.push(content)
   }
   content += '}\n'
   interfaces.push(content)
@@ -104,6 +131,21 @@ async function generateDts(applicationPath, outputPath) {
   )
   for (const [key, value] of Object.entries(entries))
     content += `'${key}': ${addImport(value)}\n`
+  content += '}\n'
+  interfaces.push(content)
+
+  let content = `interface Injections {\n`
+  for (const namespace of namespaces) {
+    if (namespace === 'tasks') continue
+    const tree = await readFilesystem(
+      join(applicationPath, namespace),
+      !['db', 'config'].includes(namespace),
+      true
+    )
+    for (const [key, value] of Object.entries(tree)) {
+      content += `'${namespace}${SEPARATOR}${key}': ${addImport(value)}\n`
+    }
+  }
   content += '}\n'
   interfaces.push(content)
 

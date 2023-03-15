@@ -2,18 +2,18 @@
 
 const { EventEmitter } = require('node:events')
 const { randomUUID } = require('node:crypto')
-const { Config } = require('./modules/config')
+const { Config } = require('./namespaces/config')
 const { WorkerMessage, WorkerType, WorkerHook } = require('@neemata/common')
 const { Logging } = require('./logging')
-const { Db } = require('./modules/db')
-const { Lib } = require('./modules/lib')
-const { Services } = require('./modules/services')
-const { Tasks } = require('./modules/tasks')
-const { Api } = require('./modules/api')
+const { Db } = require('./namespaces/db')
+const { Lib } = require('./namespaces/lib')
+const { Services } = require('./namespaces/services')
+const { Tasks } = require('./namespaces/tasks')
+const { Api } = require('./namespaces/api')
 const { Server } = require('./protocol/server')
 const { clearVM } = require('./vm')
 const { setTimeout } = require('node:timers/promises')
-const { sep } = require('node:path')
+const { SEPARATOR } = require('./loader')
 const { unique } = require('./utils/functions')
 
 class UserApplication {
@@ -72,7 +72,7 @@ class WorkerApplication extends EventEmitter {
 
     this.logging = new Logging(this.config.log)
 
-    this.modules = {
+    this.namespaces = {
       lib: new Lib(this),
       config: new Config(this),
       db: new Db(this),
@@ -88,42 +88,29 @@ class WorkerApplication extends EventEmitter {
     logger.debug('Creating application sandbox')
     clearVM()
 
-    const checkDependency = (name) => {
-      const [namespaceName, ...parts] = name.split(sep)
-      const moduleName = parts.join(sep)
-      if (!['db', 'config', 'services', 'lib'].includes(namespaceName))
-        throw new Error(
-          `Unabled to inject modules from "${namespaceName}" namespace`
-        )
-      const namespace = this.modules[namespaceName]
-      if (!namespace.entries.has(moduleName))
-        throw new Error(
-          `Module "${moduleName}" in "${namespaceName}" namespace is not found`
-        )
-      return { namespace, moduleName }
-    }
-
     this.sandbox = {
+      lib: this.namespaces.lib.sandbox,
+      config: this.namespaces.config.sandbox,
+      db: this.namespaces.db.sandbox,
+      services: this.namespaces.services.sandbox,
       application: new UserApplication(this),
       dependency: async (...names) => {
-        const dependencies = []
         for (const name of unique(names)) {
-          const { namespace, moduleName } = checkDependency(name)
-          if (namespace.modules.has(moduleName))
-            dependencies.push(namespace.get(moduleName))
+          const [namespaceName, ...parts] = name.split(SEPARATOR)
+          const moduleName = parts.join(SEPARATOR)
+          if (!['db', 'config', 'services', 'lib'].includes(namespaceName))
+            throw new Error(
+              `Unabled to inject modules from "${namespaceName}" namespace`
+            )
+          const namespace = this.namespaces[namespaceName]
+          if (!namespace.entries.has(moduleName))
+            throw new Error(
+              `Module "${moduleName}" in "${namespaceName}" namespace is not found`
+            )
+
           const filePath = namespace.entries.get(moduleName)
           await namespace.loadModule(moduleName, filePath)
-          dependencies.push(namespace.get(moduleName))
         }
-        return dependencies
-      },
-      inject: (name) => {
-        const { namespace, moduleName } = checkDependency(name)
-        if (!namespace.modules.has(moduleName))
-          throw new Error(
-            `Module "${name}" is not loaded yet. Try to add \`await dependency('${name}') before the injection\``
-          )
-        return namespace.get(moduleName)
       },
     }
   }
@@ -136,18 +123,18 @@ class WorkerApplication extends EventEmitter {
     this.createSandbox()
 
     await Promise.all(
-      Object.values(this.modules).map((module) => module.preload())
+      Object.values(this.namespaces).map((module) => module.preload())
     )
 
-    // Load modules in order
+    // Load namespaces in order
     for (const module of ['lib', 'config', 'db', 'services']) {
-      await this.modules[module].load()
+      await this.namespaces[module].load()
     }
 
     await this.runHooks(WorkerHook.Startup)
 
     await Promise.all(
-      ['api', 'tasks'].map((module) => this.modules[module].load())
+      ['api', 'tasks'].map((module) => this.namespaces[module].load())
     )
   }
 
@@ -158,7 +145,7 @@ class WorkerApplication extends EventEmitter {
   async reload() {
     logger.debug('Reloading')
     await this.terminate()
-    for (const module of Object.values(this.modules)) module.clear()
+    for (const module of Object.values(this.namespaces)) module.clear()
     await this.initialize()
   }
 
@@ -193,7 +180,7 @@ class WorkerApplication extends EventEmitter {
 
   async runTask(task, timeout, ...args) {
     try {
-      task = this.modules.tasks.get(task)
+      task = this.namespaces.tasks.get(task)
       if (!task) throw new Error('Task not found')
       const result = timeout
         ? await Promise.race([

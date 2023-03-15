@@ -33,7 +33,17 @@ class Script {
   }
 
   async es() {
-    const context = this.makeContext({ hooks: {} })
+    const hooksProxy = new Proxy(
+      {},
+      {
+        set: (target, prop, value) => {
+          target[prop] = target[prop] ?? new Set()
+          target[prop].add(value)
+          return true
+        },
+      }
+    )
+    const context = this.makeContext({ hooks: hooksProxy })
     const linker = this.makeLinker()
 
     const esmodule = new SourceTextModule(await this.content, {

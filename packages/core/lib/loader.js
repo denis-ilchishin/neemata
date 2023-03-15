@@ -6,6 +6,8 @@ const { join, parse, extname, sep } = require('node:path')
 const { isAsyncFunction } = require('node:util/types')
 const { Script } = require('./vm')
 
+const SEPARATOR = '.'
+
 async function readFilesystem(root, nested = false, flat = false) {
   if (!existsSync(root)) return {}
   if (!(await fsp.stat(root)).isDirectory()) return {}
@@ -63,7 +65,7 @@ async function readFilesystem(root, nested = false, flat = false) {
   const traverseFlat = (tree, path = '') => {
     for (const [key, value] of Object.entries(tree)) {
       if (key === 'index') {
-        flatTree[path] = value
+        flatTree[path.split(sep).join(SEPARATOR)] = value
         continue
       }
       traverseFlat(value, join(path, key))
@@ -78,6 +80,7 @@ class Loader {
   recursive = true
   modules = new Map()
   entries = new Map()
+  sandbox = {}
 
   /**
    * @param {string} path
@@ -102,6 +105,17 @@ class Loader {
     this.entries = new Map(Object.entries(modules))
   }
 
+  clear() {
+    this.entries.clear()
+    this.modules.clear()
+    this.sandbox = {}
+  }
+
+  async preload() {
+    const resolved = await readFilesystem(this.path, this.recursive, true)
+    this.entries = new Map(Object.entries(resolved))
+  }
+
   async load() {
     for (const [name, path] of this.entries) {
       // Skip already loaded dependencies
@@ -119,14 +133,18 @@ class Loader {
 
       if (typeof exports === 'undefined') return
       else if (this.hooks) {
-        for (const [hookname, hook] of Object.entries(hooks)) {
+        for (const [hookname, hookSet] of Object.entries(hooks)) {
           if (Array.isArray(this.hooks) && !this.hooks.includes(hookname))
             continue
           if (this.application.hooks.has(hookname)) {
-            if (isAsyncFunction(hook)) {
-              this.application.hooks.get(hookname).add(hook)
-            } else if (hook) {
-              throw new Error('Hook must be type of async function')
+            for (const hook of hookSet) {
+              if (isAsyncFunction(hook)) {
+                this.application.hooks.get(hookname).add(hook)
+              } else if (hook) {
+                throw new Error(
+                  `Hook ${hookname} must be type of async function`
+                )
+              }
             }
           }
         }
@@ -155,4 +173,5 @@ class Loader {
 module.exports = {
   Loader,
   readFilesystem,
+  SEPARATOR,
 }

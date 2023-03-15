@@ -85,6 +85,7 @@ export interface UserApplication {
 export interface Auth {}
 export interface Injection {}
 export interface Tasks {}
+export interface Injections {}
 
 export interface Hooks {
   [WorkerHook.Startup]?: () => Promise<any>
@@ -183,6 +184,9 @@ declare global {
   const defineProcedure: DefineProcedure
   const defineAuthService: DefineAuthService
   const defineGuard: DefineGuard
+  const dependency: <T extends keyof Injections>(
+    ...dependencies: T[]
+  ) => Promise<void>
   const Typebox: typeof import('@sinclair/typebox') &
     typeof import('@sinclair/typebox/compiler') &
     typeof import('@sinclair/typebox/conditional') &

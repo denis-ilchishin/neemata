@@ -54,9 +54,9 @@ I tried to distinguish some most common aspects of the kind of projects I worked
 
 But also, there some things that I personally as a developer would like to have for better DX (completely subjective):
 
-- I don't really like Typescript, but I like type annotations. So, I'd like to have a way to have typings, but avoid Typescript limitations, and run code without pain, even if Typescript complains on something, which in most of the cases is actually a valid Javascript code. Also, I don't want to have a headache with tsconfig and other stuff like that. Just write and run approach. (Exited about [type annotations proposal](https://github.com/tc39/proposal-type-annotations))
-- I don't like decorators, at least the way they work in TS. That is a pain for me in Nest. Don't know what's gonna happen when native decorators finally land to official js specification
-- I'd like to have some easy way to interact with the API in easy way on client-side
+- I don't really like Typescript, but I like type annotations. So, I'd like to have a way to have typings, but avoid Typescript limitations, and run code without pain, even if Typescript complains on something, which in most of the cases is actually a valid Javascript code. Also, I don't want to have a headache with tsconfig and other stuff like that. Just write and run approach. (excited about [type annotations proposal](https://github.com/tc39/proposal-type-annotations))
+- I don't like decorators, at least the way they work in TS 4. That is a pain for me in Nest. Don't know what's gonna happen when native decorators finally land to official js specification
+- I'd like to have some easy way to interact with the API on client
 - I'd like to be able to run any "version" of javascript (es, cjs, ts) without pain
 - I'd like to write less "meaningless" boilerplate code. Writing 500 lines of code, 10 files and classes, just to create single simple endpoint is too much (hello Nest again)
 

@@ -129,13 +129,17 @@ async function generateDts(applicationPath, outputPath) {
     let last = apiInterface
     for (let i = 0; i < nameParts.length; i++) {
       const isLast = i === nameParts.length - 1
+      const isFirstVer = isLast && version === 1
       const part = nameParts[i]
+      if (isLast && isFirstVer && last.hasProperty(part))
+        last.getProperty(part).type = `ApiCall<${addImport(path)}>`
+
       last = last.hasProperty(part)
         ? last.getProperty(part)
         : last.addProperty(
             new DTSObject(
               part,
-              isLast && version === 1 ? `ApiCall<${addImport(path)}>` : null
+              isLast && isFirstVer ? `ApiCall<${addImport(path)}>` : null
             )
           )
       if (isLast)
@@ -226,13 +230,19 @@ class DTSObject extends DTSProperty {
     }`
   }
 
+  set type(type) {
+    super.type = type
+  }
+
   addProperty(property) {
     this.properties.set(property.name, property)
     return this.properties.get(property.name)
   }
+
   hasProperty(name) {
     return this.properties.has(name)
   }
+
   getProperty(name) {
     return this.properties.get(name)
   }

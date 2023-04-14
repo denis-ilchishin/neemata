@@ -7,12 +7,12 @@ importers:
       eslint: ^8.17.0
       semver: ^7.3.8
       tsup: ^6.5.0
-      typescript: ^4.7.4
+      typescript: ^4.7.0
     devDependencies:
       eslint: 8.28.0
       semver: 7.3.8
-      tsup: 6.5.0_typescript@4.9.3
-      typescript: 4.9.3
+      tsup: 6.5.0_typescript@4.9.5
+      typescript: 4.9.5
 
   packages/cli:
     specifiers:
@@ -38,9 +38,9 @@ importers:
 
   packages/core:
     specifiers:
+      '@neemata/client': workspace:*
       '@neemata/common': workspace:*
       '@sinclair/typebox': 0.25.21
-      '@types/node': ^18.0.0
       '@types/ws': ^8.5.4
       cookie: 0.5.0
       cron-parser: 4.5.0
@@ -48,20 +48,18 @@ importers:
       pino: 8.7.0
       qs: 6.11.0
       source-map-support: ^0.5.21
-      typescript: ^4.7.0
       ws: 8.10.0
       zod: 3.20.2
     dependencies:
+      '@neemata/client': link:../client
       '@neemata/common': link:../common
       '@sinclair/typebox': 0.25.21
-      '@types/node': 18.11.9
       cookie: 0.5.0
       cron-parser: 4.5.0
       esbuild: 0.16.10
       pino: 8.7.0
       qs: 6.11.0
       source-map-support: 0.5.21
-      typescript: 4.9.3
       ws: 8.10.0
       zod: 3.20.2
     devDependencies:
@@ -353,6 +351,7 @@ packages:
 
   /@types/node/18.11.9:
     resolution: {integrity: sha512-CRpX21/kGdzjOpFsZSkcrXMGIBWMGNIHXXBVFSH+ggkftxg+XYP20TESbh+zFvFj3EQOl5byk0HTRn1IL6hbqg==}
+    dev: true
 
   /@types/ws/8.5.4:
     resolution: {integrity: sha512-zdQDHKUgcX/zBc4GrwsE/7dVdAD8JR4EuiAXiiUhhfyIJXXb2+PrGshFyeXWQPMmmZ2XxgaqclgpIC7eTXc1mg==}
@@ -1733,7 +1732,7 @@ packages:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
     dev: true
 
-  /tsup/6.5.0_typescript@4.9.3:
+  /tsup/6.5.0_typescript@4.9.5:
     resolution: {integrity: sha512-36u82r7rYqRHFkD15R20Cd4ercPkbYmuvRkz3Q1LCm5BsiFNUgpo36zbjVhCOgvjyxNBWNKHsaD5Rl8SykfzNA==}
     engines: {node: '>=14'}
     hasBin: true
@@ -1763,7 +1762,7 @@ packages:
       source-map: 0.8.0-beta.0
       sucrase: 3.29.0
       tree-kill: 1.2.2
-      typescript: 4.9.3
+      typescript: 4.9.5
     transitivePeerDependencies:
       - supports-color
       - ts-node
@@ -1781,10 +1780,11 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /typescript/4.9.3:
-    resolution: {integrity: sha512-CIfGzTelbKNEnLpLdGFgdyKhG23CKdKgQPOBc+OUNrkJ2vr+KSzsSV5kq5iWhEQbok+quxgGzrAtGWCyU7tHnA==}
+  /typescript/4.9.5:
+    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
     engines: {node: '>=4.2.0'}
     hasBin: true
+    dev: true
 
   /uri-js/4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}

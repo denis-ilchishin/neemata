@@ -12,11 +12,18 @@ export function randomUUID() {
     )
   }
 }
-
 export class NeemataError extends Error {
   constructor(code: string, message: string, public readonly data?: any) {
     super(message)
     this.name = code
+  }
+
+  toString() {
+    return `${this.name}: ${this.message}\n${JSON.stringify(
+      this.data,
+      null,
+      2
+    )}`
   }
 }
 
@@ -31,4 +38,5 @@ export type NeemataOptions = {
   preferHttp?: boolean
   pingInterval?: number
   pingTimeout?: number
+  scaffold?: boolean
 }

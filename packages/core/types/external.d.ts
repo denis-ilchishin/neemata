@@ -25,18 +25,19 @@ export type ProcedureHandler<
   D extends TSchema | ZodType,
   T extends Transport,
   A extends boolean,
-  R = any
+  R extends any
 > = (options: ProcedureHandlerOptions<D, T, A>) => R
 
 export interface Procedure<
   D extends TSchema | ZodType,
   T extends Transport,
-  A extends boolean
+  A extends boolean,
+  R extends any
 > {
   /**
    * Endpoint's handler
    */
-  handler: ProcedureHandler<D, T, A>
+  handler: ProcedureHandler<D, T, A, R>
   /**
    * Yup schema to validate endpoint's body against
    */
@@ -83,9 +84,13 @@ export interface UserApplication {
 }
 
 export interface Auth {}
-export interface Injection {}
+export interface Lib {}
+export interface Config {}
+export interface Services {}
+export interface Db {}
 export interface Tasks {}
 export interface Injections {}
+export interface Api {}
 
 export interface Hooks {
   [WorkerHook.Startup]?: () => Promise<any>
@@ -124,10 +129,11 @@ export type DefineGuard = (guard: Guard) => Guard
 export type DefineProcedure = <
   D extends TSchema | ZodType,
   T extends Transport,
-  A extends boolean = true
+  A extends boolean = true,
+  R extends any = any
 >(
-  procedure: Procedure<D, T, A>
-) => Procedure<D, T, A>
+  procedure: Procedure<D, T, A, R>
+) => Procedure<D, T, A, R>
 
 export declare type Guard = (options: {
   readonly req: import('node:http').IncomingMessage

@@ -11,10 +11,11 @@
     "config": "readonly",
     "application": "readonly",
     "hooks": "readonly",
+    "dependency": "readonly",
     "ErrorCode": "readonly",
     "ApiException": "readonly",
-    "defineApiModule": "readonly",
+    "defineProcedure": "readonly",
     "defineGuard": "readonly",
-    "defineAuthModule": "readonly"
+    "defineAuthService": "readonly"
   }
 }

@@ -1,5 +1,10 @@
 const { readFilesystem, SEPARATOR } = require('./loader')
-const { existsSync, rmSync, mkdirSync, writeFileSync } = require('node:fs')
+const {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+} = require('node:fs')
 const { join, sep, parse, relative, dirname } = require('node:path')
 const { writeFile } = require('node:fs/promises')
 const { capitalize } = require('./utils/functions')
@@ -15,30 +20,26 @@ class Typings {
       logger.warn(err)
     }
 
+    const compilerOptions = {
+      module: 'Node16',
+      moduleResolution: 'node',
+      target: 'ESNext',
+      allowJs: true,
+      declaration: true,
+      emitDeclarationOnly: true,
+      declarationMap: false,
+      noEmit: false,
+      alwaysStrict: true,
+      baseUrl: dirname(relative(this.outputDir, this.applicationPath)),
+      esModuleInterop: true,
+      strict: true,
+      rootDir: dirname(relative(this.outputDir, this.applicationPath)),
+      noImplicitAny: false,
+    }
+
     writeFileSync(
       join(this.outputDir, 'tsconfig.json'),
-      JSON.stringify(
-        {
-          compilerOptions: {
-            module: 'Node16',
-            moduleResolution: 'node',
-            target: 'ESNext',
-            allowJs: true,
-            declaration: true,
-            emitDeclarationOnly: true,
-            declarationMap: true,
-            noEmit: false,
-            alwaysStrict: true,
-            baseUrl: dirname(relative(this.outputDir, this.applicationPath)),
-            esModuleInterop: true,
-            strict: true,
-            rootDir: dirname(relative(this.outputDir, this.applicationPath)),
-            noImplicitAny: false,
-          },
-        },
-        null,
-        2
-      )
+      JSON.stringify({ compilerOptions }, null, 2)
     )
   }
 
@@ -51,18 +52,10 @@ class Typings {
       )
     } catch (err) {
       logger.warn('Could not generate typings')
-      logger.warn(err)
+      logger.warn(err.stack || err)
     }
   }
 }
-
-const GENERICS = `
-type IsEmpty<T> = keyof T extends never ? true : false
-type Resolve<T> = IsEmpty<T> extends false
-  ? 'default' extends keyof T
-    ? T['default'] & Pick<T, Exclude<keyof T, 'default'>>
-    : T
-  : unknown`
 
 async function generateDts(applicationPath, outputPath) {
   const namespaces = ['config', 'lib', 'services', 'db', 'tasks']
@@ -89,40 +82,71 @@ async function generateDts(applicationPath, outputPath) {
     const tree = await readFilesystem(
       join(applicationPath, namespace),
       !['db', 'config'].includes(namespace),
-      namespace === 'tasks'
+      ['tasks'].includes(namespace)
     )
 
-    let content = `interface ${capitalize(namespace)} {\n`
-
-    const concatenate = (tree) => {
-      content = ''
-      const keys = Object.keys(tree)
-      const hasIndex = keys.find((key) => key === 'index')
+    const interface = new DTSInterface(capitalize(namespace))
+    const nest = (interface, key, value) => {
+      const keys = Object.keys(value)
       const nested = keys.filter((key) => key !== 'index')
-      if (hasIndex && nested.length) content += `Merge<`
-      if (hasIndex) content += `${addImport(tree.index)}`
+      const index = keys.find((key) => key === 'index')
+        ? interface.addProperty(new DTSProperty(key, addImport(value.index)))
+        : null
       if (nested.length) {
-        if (hasIndex) content += ', '
-        content += '{\n'
-        for (const key of nested) {
-          content += `'${key}': ${concatenate(tree[key])}\n`
-        }
-        content += '}'
+        const object = new DTSObject(key)
+        for (const key of nested) nest(object, key, value[key])
+        if (index) index.type = `Merge<${index.type}, ${object.toString(true)}>`
+        else interface.addProperty(object)
       }
-      if (hasIndex && nested.length) content += `>`
-      return content
     }
 
     for (const [key, value] of Object.entries(tree)) {
-      if (namespace === 'tasks') content += `'${key}': ${addImport(value)}\n`
-      else content += `'${key}': ${concatenate(value)}\n`
+      if (namespace === 'tasks')
+        interface.addProperty(new DTSProperty(`'${key}'`, addImport(value)))
+      else nest(interface, key, value)
     }
 
-    content += '}\n'
-    interfaces.push(content)
+    interfaces.push(interface)
   }
 
-  let content = `interface Injections {\n`
+  const apiInterface = new DTSInterface('Api')
+  const apiPath = join(applicationPath, 'api')
+  const apiModules = await readFilesystem(apiPath, true, true)
+
+  for (const path of Object.values(apiModules).sort().reverse()) {
+    const { dir, name: filename } = parse(path.replace(apiPath, '').slice(1))
+    const nameParts = []
+    const versionParts = []
+    const dirpath = (dir ? dir.split(sep) : []).map((part) => part.split('.'))
+    dirpath.push(filename.split('.'))
+    for (const [name, ...versions] of dirpath) {
+      if (name !== 'index') nameParts.push(name)
+      versionParts.push(...versions)
+    }
+    if (versionParts.length > 1) continue
+    const version = versionParts.length ? parseInt(versionParts[0]) : 1
+    if (!Number.isSafeInteger(version) || version <= 0) continue
+    let last = apiInterface
+    for (let i = 0; i < nameParts.length; i++) {
+      const isLast = i === nameParts.length - 1
+      const part = nameParts[i]
+      last = last.hasProperty(part)
+        ? last.getProperty(part)
+        : last.addProperty(
+            new DTSObject(
+              part,
+              isLast && version === 1 ? `ApiCall<${addImport(path)}>` : null
+            )
+          )
+      if (isLast)
+        last.addProperty(
+          new DTSProperty(`v${version}`, `ApiCall<${addImport(path)}>`)
+        )
+    }
+  }
+  interfaces.push(apiInterface)
+
+  const injectionsInterface = new DTSInterface('Injections')
   for (const namespace of namespaces) {
     if (namespace === 'tasks') continue
     const tree = await readFilesystem(
@@ -131,11 +155,12 @@ async function generateDts(applicationPath, outputPath) {
       true
     )
     for (const [key, value] of Object.entries(tree)) {
-      content += `'${namespace}${SEPARATOR}${key}': ${addImport(value)}\n`
+      const name = `'${namespace}${SEPARATOR}${key}'`
+      const property = new DTSProperty(name, addImport(value))
+      injectionsInterface.addProperty(property)
     }
   }
-  content += '}\n'
-  interfaces.push(content)
+  interfaces.push(injectionsInterface)
 
   const importsContent = Object.entries(imports)
     .map(([alias, path]) => {
@@ -147,9 +172,11 @@ async function generateDts(applicationPath, outputPath) {
   const fileContent = [
     '/// <reference types="@neemata/core/types/external" />',
     importsContent,
-    GENERICS,
+    readFileSync(join(__dirname, '..', 'templates', 'utils.d.ts'), {
+      encoding: 'utf-8',
+    }),
     `declare module '@neemata/core/types/external' {
-    ${interfaces.join('')}
+    ${interfaces.join('\n')}
     }`,
   ].join('\n')
 
@@ -158,4 +185,67 @@ async function generateDts(applicationPath, outputPath) {
 
 module.exports = {
   Typings,
+}
+
+class DTSProperty {
+  name
+  optional
+
+  #type
+
+  constructor(name, type, optional = false) {
+    this.name = name
+    this.#type = type
+    this.optional = optional
+  }
+
+  get type() {
+    return this.#type
+  }
+
+  set type(type) {
+    this.#type = type
+  }
+
+  toString(typeOnly = false) {
+    return (
+      (typeOnly ? '' : `${this.name}${this.optional ? '?' : ''}:`) + this.type
+    )
+  }
+}
+
+class DTSObject extends DTSProperty {
+  properties = new Map()
+  constructor(name, type = null, optional = false) {
+    super(name, type, optional)
+  }
+
+  get type() {
+    return `${super.type ? super.type + ' & ' : ''}{
+      ${[...this.properties.values()].join(';\n')}
+    }`
+  }
+
+  addProperty(property) {
+    this.properties.set(property.name, property)
+    return this.properties.get(property.name)
+  }
+  hasProperty(name) {
+    return this.properties.has(name)
+  }
+  getProperty(name) {
+    return this.properties.get(name)
+  }
+}
+
+class DTSInterface extends DTSObject {
+  constructor(name) {
+    super(name, null, false)
+  }
+
+  toString() {
+    return `interface ${this.name} {
+      ${[...this.properties.values()].join(';\n')}
+    }`
+  }
 }

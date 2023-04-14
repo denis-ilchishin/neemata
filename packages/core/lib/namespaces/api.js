@@ -87,6 +87,7 @@ class Procedure {
 
 class Api extends Loader {
   hooks = false
+  sandbox = false
 
   constructor(application) {
     super('api', application)
@@ -103,16 +104,14 @@ class Api extends Loader {
   }
 
   async transform(exports, moduleName, modulePath) {
-    let { dir, name } = parse(modulePath)
+    const { dir, name: filename } = parse(modulePath)
 
     const nameParts = []
     const versionParts = []
-    const namespaces = (dir ? dir.split(sep) : []).map((part) =>
-      part.split('.')
-    )
-    namespaces.push(name.split('.'))
+    const dirpath = (dir ? dir.split(sep) : []).map((part) => part.split('.'))
+    dirpath.push(filename.split('.'))
 
-    for (const [name, ...versions] of namespaces) {
+    for (const [name, ...versions] of dirpath) {
       if (name !== 'index') nameParts.push(name)
       versionParts.push(...versions)
     }

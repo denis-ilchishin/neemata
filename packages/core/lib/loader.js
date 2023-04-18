@@ -2,15 +2,19 @@
 
 const { existsSync } = require('node:fs')
 const fsp = require('node:fs/promises')
-const { join, parse, extname, sep } = require('node:path')
-const { isAsyncFunction } = require('node:util/types')
-const { Script } = require('./vm')
+const { join, parse, extname, sep, basename } = require('node:path')
 
-const SEPARATOR = '.'
+const SEPARATOR = '/'
 
-async function readFilesystem(root, nested = false, flat = false) {
-  if (!existsSync(root)) return {}
-  if (!(await fsp.stat(root)).isDirectory()) return {}
+function camelize(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+}
+
+async function readFilesystem(root, recursive = false, prefix = false) {
+  if (!existsSync(root)) return []
+  if (!(await fsp.stat(root)).isDirectory()) return []
 
   const tree = {}
 
@@ -22,7 +26,7 @@ async function readFilesystem(root, nested = false, flat = false) {
 
   const isSupportedFile = (entryName) => {
     if (entryName.startsWith('.')) return false
-    if (!/\.(js|ts|mjs)/.test(extname(entryName))) return false
+    if (!/\.(js|ts|mjs|cjs)/.test(extname(entryName))) return false
     return true
   }
 
@@ -49,7 +53,7 @@ async function readFilesystem(root, nested = false, flat = false) {
         const entries = await readdir(entryPath)
         const index = entries.find(({ entryName }) => entryName === 'index')
         if (index) add(tree, entryName, index.entryPath, false)
-        if (nested && entries.length) {
+        if (recursive && entries.length) {
           tree[entryName] = tree[entryName] ?? {}
           await traverse(tree[entryName], entries, level + 1)
         }
@@ -59,126 +63,54 @@ async function readFilesystem(root, nested = false, flat = false) {
   }
 
   await traverse(tree, await readdir(root))
-  if (!flat) return tree
 
-  const flatTree = {}
+  const entries = []
   const traverseFlat = (tree, path = '') => {
     for (const [key, value] of Object.entries(tree)) {
       if (key === 'index') {
-        flatTree[path.split(sep).join(SEPARATOR)] = value
-        continue
-      }
-      traverseFlat(value, join(path, key))
+        const alias = [prefix, ...path.split(sep)].join(SEPARATOR)
+        entries.push({
+          path: value,
+          alias,
+          name: camelize(alias),
+        })
+      } else traverseFlat(value, join(path, key))
     }
   }
   traverseFlat(tree)
-  return flatTree
+  return entries
 }
 
 class Loader {
-  hooks = false
-  recursive = true
-  modules = new Map()
-  entries = new Map()
-  sandbox = {}
-
-  /**
-   * @param {string} path
-   * @param {import('./application').WorkerApplication} application
-   */
-  constructor(path, application) {
-    this.application = application
-    this.path = join(application.rootPath, path)
+  constructor(path, { recursive = true, logErrors = false } = {}) {
+    this.path = path
+    this.recursive = recursive
+    this.logErrors = logErrors
   }
 
-  get(name) {
-    return this.modules.get(name)
+  async load(prefix) {
+    const entries = await readFilesystem(this.path, this.recursive, prefix)
+    return Promise.all(
+      entries.map(async (entry) => ({
+        ...entry,
+        exports: await this.loadModule(entry.path),
+      }))
+    ).then((entries) => entries.filter((entry) => entry.exports !== undefined))
   }
 
-  clear() {
-    this.entries.clear()
-    this.modules.clear()
-  }
-
-  async preload() {
-    const modules = await readFilesystem(this.path, this.recursive, true)
-    this.entries = new Map(Object.entries(modules))
-  }
-
-  clear() {
-    this.entries.clear()
-    this.modules.clear()
-    this.sandbox = {}
-  }
-
-  async preload() {
-    const resolved = await readFilesystem(this.path, this.recursive, true)
-    this.entries = new Map(Object.entries(resolved))
-  }
-
-  async load() {
-    for (const [name, path] of this.entries) {
-      // Skip already loaded dependencies
-      if (!this.modules.has(name)) await this.loadModule(name, path)
-    }
-  }
-
-  makeSandbox(exports, moduleName) {
-    let last = this.sandbox
-    const parts = moduleName.split('.')
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const isLast = i === parts.length - 1
-      if (isLast) last[part] = exports
-      else last[part] = last[part] ?? {}
-      last = last[part]
-    }
-  }
-
-  async loadModule(moduleName, filePath) {
+  async loadModule(filePath) {
     try {
-      const script = new Script(filePath, {
-        context: this.application.sandbox,
-        rootPath: this.application.rootPath,
-      })
-      const { exports, hooks } = await script.execute()
-
-      if (typeof exports === 'undefined') return
-      else if (this.hooks) {
-        for (const [hookname, hookSet] of Object.entries(hooks)) {
-          if (Array.isArray(this.hooks) && !this.hooks.includes(hookname))
-            continue
-          if (this.application.hooks.has(hookname)) {
-            for (const hook of hookSet) {
-              if (isAsyncFunction(hook)) {
-                this.application.hooks.get(hookname).add(hook)
-              } else if (hook) {
-                throw new Error(
-                  `Hook ${hookname} must be type of async function`
-                )
-              }
-            }
-          }
-        }
-      }
-
-      const transformed = await this.transform(
-        exports,
-        moduleName,
-        filePath.replace(this.path, '').slice(1)
+      const exports = await import(filePath).then(
+        (module) => module.default.default
       )
-      if (this.sandbox) this.makeSandbox(transformed, moduleName)
-      this.modules.set(moduleName, transformed)
+      if (typeof exports === 'undefined') return
+      return exports
     } catch (error) {
-      if (this.application.workerId === 1) {
+      if (this.logErrors) {
         logger.warn(`Unable to load the module ${filePath}`)
         logger.error(error)
       }
     }
-  }
-
-  async transform(exports) {
-    return exports
   }
 }
 

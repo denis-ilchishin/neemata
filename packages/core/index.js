@@ -1,3 +1,6 @@
+const { UserApplication } = require('./lib/application')
+const { ApiException } = require('./lib/protocol/exceptions')
+
 async function start({
   command,
   args,
@@ -73,4 +76,4 @@ async function start({
   process.on('SIGINT', exit)
 }
 
-module.exports = { start }
+module.exports = { start, UserApplication, ApiException }

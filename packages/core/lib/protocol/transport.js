@@ -4,13 +4,15 @@ const { ApiException } = require('./exceptions')
 const { ErrorCode, WorkerHook } = require('@neemata/common')
 const { unique } = require('../utils/functions')
 const zod = require('zod')
+const { SEPARATOR } = require('../loader')
+const { Scope } = require('../di')
 
 class BaseTransport {
   constructor(server) {
-    const { application } = server
-    const { namespaces, console, config } = application
+    const { workerApp } = server
+    const { namespaces, console, config } = workerApp
     this.server = server
-    this.application = application
+    this.workerApp = workerApp
     this.namespaces = namespaces
     this.config = config
   }
@@ -35,23 +37,51 @@ class BaseTransport {
     return this.makeResponse({ error: { code, message }, data })
   }
 
-  findProcedure(name, type, version) {
-    const procedure = this.server.application.namespaces.api.get(
-      name,
-      type,
-      version
-    )
+  async handleProcedure(container, procedureName, transport, ctx) {
+    const providerName = `api${SEPARATOR}${procedureName}`
+    const procedureProvider = container._registry.get(providerName)
 
-    if (!procedure)
-      throw new ApiException({
-        code: ErrorCode.NotFound,
-        message: 'Procedure not found',
-      })
+    const notFound = new ApiException({
+      code: ErrorCode.NotFound,
+      data: 'a',
+      message: 'Procedure not found',
+    })
+
+    if (!procedureProvider) throw notFound
+
+    for (const middlewareName of Object.entries(procedureProvider.middlewares)
+      .filter((_) => _[1] === true)
+      .map((_) => _[0])) {
+      const middleware = await container.resolve(middlewareName, ctx)
+      const middlewareMixin = await middleware(ctx)
+      if (middlewareMixin && typeof middlewareMixin === 'object')
+        Object.assign(ctx, middlewareMixin)
+    }
+
+    container = container.factory()
+    await container.preload(Scope.Call, ctx)
+    const procedure = await container.resolve(providerName, ctx)
+
+    if (procedure.transport !== null && procedure.transport !== transport)
+      throw notFound
 
     return procedure
   }
 
-  async handle({ procedure, client, data, req }) {
+  async handleAuth({ client, req }) {
+    const dependencyName = this.workerApp.userApp.auth
+    if (dependencyName) {
+      return this.workerApp.container
+        .resolve(dependencyName, {
+          client,
+          req,
+        })
+        .catch(() => null)
+        .then((result) => result ?? null)
+    } else return null
+  }
+
+  async handle(procedureName, container, transport, ctx) {
     try {
       await this.server.queue.enter()
     } catch (err) {
@@ -69,37 +99,37 @@ class BaseTransport {
     }
 
     try {
-      if (procedure.auth !== false && !client.auth) {
+      const { client, req, auth } = ctx
+
+      const procedure = await this.handleProcedure(
+        container,
+        procedureName,
+        transport,
+        ctx
+      )
+
+      if (procedure.auth !== false && auth === null) {
         throw new ApiException({
           code: ErrorCode.Unauthorized,
           message: 'Unauthorized',
         })
       }
 
-      if (procedure.guards) {
-        await this.handleGuards(procedure.guards, { client, data, req })
+      if (procedure.guards)
+        await this.handleGuards(procedure.guards, { client, req, auth })
+
+      if (procedure.input) {
+        ctx.data = await this.handleInput(procedure.input, ctx.data)
       }
 
-      if (procedure.schema) {
-        data = await this.handleValidation(procedure.schema, data)
-      }
-
-      this.application.runHooks(WorkerHook.Call, true, {
-        client,
-        data,
-        req,
-        procedure: { name: procedure.name, version: procedure.version },
-      })
-
-      const result = await this.handleCall(
+      let result = await this.handleCall(
         procedure.handler,
         procedure.timeout,
-        {
-          data,
-          client,
-          req,
-        }
+        ctx
       )
+
+      if (procedure.output)
+        result = await this.handleOutput(procedure.output, result)
 
       return this.makeResponse({ data: result })
     } catch (err) {
@@ -147,7 +177,32 @@ class BaseTransport {
     ])
   }
 
-  async handleValidation(schema, data) {
+  async handleInput(schema, data) {
+    if (this.config.api.schema === 'zod') {
+      const result = await schema.safeParseAsync(data)
+      if (result.success) {
+        return result.data
+      } else {
+        throw new ApiException({
+          code: ErrorCode.ValidationError,
+          message: 'Request body validation error',
+          data: result.error.format(),
+        })
+      }
+    } else {
+      if (schema.Check(data)) {
+        return data // schema.Cast(data)
+      } else {
+        throw new ApiException({
+          code: ErrorCode.ValidationError,
+          message: 'Request body validation error',
+          data: [...schema.Errors(data)],
+        })
+      }
+    }
+  }
+
+  async handleOutput(schema, data) {
     if (this.config.api.schema === 'zod') {
       const result = await schema.safeParseAsync(data)
       if (result.success) {

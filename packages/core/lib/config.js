@@ -72,6 +72,7 @@ const defaultConfig = {
     },
     schema: 'zod',
   },
+  entry: 'app.ts',
   log: { basePath: 'logs', level: 'info' },
   timeouts: {
     hmr: 250,

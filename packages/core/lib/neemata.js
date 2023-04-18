@@ -191,6 +191,8 @@ class Neemata {
       },
       env: process.env,
       execArgv: [
+        '--loader',
+        'esbuild-register/loader',
         '--no-warnings',
         '--experimental-vm-modules',
         ...process.execArgv,

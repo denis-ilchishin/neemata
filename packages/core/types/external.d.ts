@@ -1,215 +1,444 @@
-import { Transport, WorkerHook, WorkerType } from '@neemata/common'
+// import { Transport } from '@neemata/common'
 import { Static, TSchema } from '@sinclair/typebox'
-import { IncomingMessage } from 'node:http'
-import { Readable } from 'node:stream'
 import { TypeOf, ZodType } from 'zod'
+import { Client } from '../lib/protocol/client'
 
-export interface ProcedureHandlerOptions<
-  D extends TSchema | ZodType,
-  T extends Transport,
-  A extends boolean,
-  P = A extends false ? null | Auth : Auth
-> {
-  data: D extends TSchema ? Static<D> : D extends ZodType ? TypeOf<D> : unknown
-  req: Readonly<IncomingMessage>
-  client: Readonly<
-    T extends typeof Transport.Http
-      ? HttpClient<P>
-      : T extends typeof Transport.Ws
-      ? WsClient<P>
-      : Client<P>
+type Transport = 'a'
+// export { Transport, Static, TSchema, TypeOf, ZodType }
+
+export type Schemas = ZodType | TSchema
+export type Scopes = 'call' | 'connection' | 'default'
+export type Providers = keyof Omit<
+  Injectables,
+  `api${string}` | `task${string}`
+>
+export type Services = Exclude<
+  keyof Injectables,
+  keyof Omit<Injectables, `service${string}`>
+>
+export type Dependencies<P extends Providers = Providers> = {
+  [K in P]?: true
+}
+
+export type Contexts = {
+  call: { req: any; client: any; procedure: any; auth: any }
+  connection: { req: any; client: any; auth: any }
+  default: undefined
+}
+
+export type ExtraContextType = Record<string, any>
+
+export type Provider<
+  Scope extends Scopes,
+  Dependency extends Dependencies,
+  ExtraContext extends any,
+  T extends any
+> = {
+  scope: Scopes
+  deps: Dependencies
+  factory: InjectableFactory<Scope, Dependency, ExtraContext, T>
+}
+
+export type InjectableResolvedExports<K extends Extract<Providers, string>> =
+  Injectables[Extract<Providers, K>]['exports']
+
+export type InjectableResolvedFactory<
+  I extends Provider<any, any, any, any> | never
+> = I extends never ? never : Awaited<ReturnType<I['factory']>>
+
+export type InjectableFactory<
+  Scope extends Scopes,
+  Dependency extends Dependencies,
+  ExtraContext extends any,
+  T extends any
+> = (options: {
+  deps: {
+    [K in keyof Dependency as Dependency[K] extends true
+      ? K
+      : never]: InjectableResolvedFactory<
+      Injectables[Extract<Providers, K>]['exports']
+    >
+  }
+  ctx: Contexts[Scope] &
+    (ExtraContext extends ExtraContextType ? ExtraContext : never)
+}) => Promise<T> | T
+
+export type Injectable<
+  Scope extends Scopes,
+  Dependency extends Dependencies,
+  ExtraContext extends any,
+  T extends any
+> =
+  | InjectableFactory<'default', {}, ExtraContext, T>
+  | {
+      scope?: Scope
+      deps?: Dependency
+      factory: InjectableFactory<Scope, Dependency, ExtraContext, T>
+    }
+
+export type MiddlewareLike = () => any
+
+export type OnlySpecificProviders<
+  RequiredProviderLike extends Provider<any, any, any, any>
+> = {
+  [K in Providers as Injectables[Extract<
+    Providers,
+    K
+  >]['exports'] extends RequiredProviderLike
+    ? K
+    : never]?: true
+}
+
+export type UnionToIntersection<U> = (
+  U extends any ? (k: U) => void : never
+) extends (k: infer I) => void
+  ? I
+  : never
+
+export type Values<T> = T[keyof T]
+
+export type AwaitedReturnType<T> = T extends (...any: []) => any
+  ? Awaited<ReturnType<T>>
+  : never
+
+export type ExtractProps<T> = {
+  [K in keyof T]: T[K][keyof T[K]]
+}
+
+export type ExtractMiddlewareExtraContext<Dependency extends Dependencies> =
+  UnionToIntersection<
+    Values<{
+      [K in keyof Dependency]: AwaitedReturnType<
+        InjectableResolvedFactory<Injectables[Extract<Providers, K>]['exports']>
+      >
+    }>
+  >
+
+export type ProcedureHandler<Options extends ProcedureOptions<any, any, any>> =
+  (options: {
+    data: Options['input'] extends ZodType
+      ? TypeOf<Options['input']>
+      : Options['input'] extends TSchema
+      ? Static<Options['input']>
+      : never
+    client: Client
+    auth: Auth
+  }) => any
+
+export type ProcedureOptions<
+  InputOption extends Schemas,
+  AuthOption extends boolean,
+  TransportOption extends Transport
+> = {
+  transport?: TransportOption
+  timeout?: number
+  auth?: AuthOption
+  input?: InputOption
+}
+
+export type DeclareProcedureOptions<
+  Dependency extends Dependencies,
+  Middleware extends Dependencies,
+  InputOption extends Schemas,
+  AuthOption extends boolean,
+  TransportOption extends Transport,
+  Options extends ProcedureOptions<InputOption, AuthOption, TransportOption>
+> = {
+  deps: Dependency
+  middleware: Middleware
+  options: Options
+}
+
+export type Procedure<
+  DeclaredProcedure extends DeclareProcedureOptions<{}, {}, any, any, any, {}>,
+  Dependency extends Dependencies,
+  Middleware extends Dependencies,
+  InputOption extends Schemas,
+  AuthOption extends boolean,
+  TransportOption extends Transport,
+  Options extends DeclaredProcedure['options'] &
+    ProcedureOptions<InputOption, AuthOption, TransportOption>
+> = {
+  deps?: Dependency
+  middleware?: Middleware
+  factory: InjectableFactory<
+    'call',
+    DeclaredProcedure['deps'] & Dependency,
+    ExtractMiddlewareExtraContext<DeclaredProcedure['middleware'] & Middleware>,
+    Options & {
+      handler: ProcedureHandler<Options>
+    }
   >
 }
 
-export type ProcedureHandler<
-  D extends TSchema | ZodType,
-  T extends Transport,
-  A extends boolean,
-  R extends any
-> = (options: ProcedureHandlerOptions<D, T, A>) => R
+export class UserApplication {
+  auth: Services
 
-export interface Procedure<
-  D extends TSchema | ZodType,
-  T extends Transport,
-  A extends boolean,
-  R extends any
-> {
-  /**
-   * Endpoint's handler
-   */
-  handler: ProcedureHandler<D, T, A, R>
-  /**
-   * Yup schema to validate endpoint's body against
-   */
-  schema?: D
-  /**
-   * Whether current endpoint is available only for authenticated users or not
-   * @default true
-   */
-  auth?: A
-  /**
-   * Collection of endpoint guards. Evaluated after authentication
-   */
-  guards?: Guard[]
-  /**
-   * Restrict endpoint to be accessible via only one transport
-   */
-  transport?: T
-  /**
-   * Execution timeout for current endpoint
-   */
-  timeout?: number
-  /**
-   * Whether current endpoint is introspectable from client application or not
-   * @default true
-   */
-  introspectable?: boolean | 'guards' | Guard
+  declareProvider<
+    Dependency extends Dependencies,
+    T extends any,
+    Scope extends Scopes = 'default'
+  >(
+    injectable: Injectable<Scope, Dependency, any, T>
+  ): Provider<Scope, Dependency, any, T>
+
+  declareAuthProvider<Dependency extends Dependencies>(
+    injectable: Injectable<'connection', Dependency, any, Auth | null>
+  ): Provider<'connection', Dependency, any, () => Promise<Auth | null>>
+
+  declareMiddleware<Dependency extends Dependencies, T extends MiddlewareLike>(
+    injectable: Injectable<'call', Dependency, any, T>
+  ): Provider<'call', Dependency, any, T>
+
+  declareProcedure<
+    Dependency extends Dependencies,
+    Middleware extends OnlySpecificProviders<
+      Provider<'call', any, any, MiddlewareLike>
+    >,
+    InputOption extends Schemas,
+    AuthOption extends boolean,
+    TransportOption extends Transport,
+    DeclaredOptions extends DeclareProcedureOptions<
+      Dependency,
+      Middleware,
+      InputOption,
+      AuthOption,
+      TransportOption,
+      Omit<
+        Partial<ProcedureOptions<InputOption, AuthOption, TransportOption>>,
+        'handler'
+      >
+    >
+    // DeclaredProcedure extends DeclareProcedureProvider<DeclaredOptions>,
+    // T extends ProcedureOptions
+  >(
+    options: Partial<DeclaredOptions>
+  ): <
+    DeclaredProcedure extends DeclaredOptions,
+    Dependency extends Dependencies,
+    Middleware extends OnlySpecificProviders<
+      Provider<'call', any, any, MiddlewareLike>
+    >,
+    InputOption extends Schemas,
+    AuthOption extends boolean,
+    TransportOption extends Transport
+  >(
+    options: Procedure<
+      DeclaredProcedure,
+      Dependency,
+      Middleware,
+      InputOption,
+      AuthOption,
+      TransportOption,
+      DeclaredProcedure['options'] &
+        ProcedureOptions<InputOption, AuthOption, TransportOption>
+    >
+  ) => any
 }
 
-export interface UserApplication {
-  clients: Set<WsClient<Auth | null>>
-  createFileLogger: (
-    name: string,
-    level?: import('pino').Level
-  ) => import('pino').BaseLogger
-  worker: {
-    type: WorkerType
-    workerId: number
-    threadId: number
-  }
-  invoke: <K extends keyof Tasks>(
-    task: K | { task: K; timeout: number },
-    ...args: Parameters<Tasks[K]>
-  ) => Promise<Awaited<ReturnType<Tasks[K]>>>
-}
+export interface Injectables {}
 
 export interface Auth {}
-export interface Lib {}
-export interface Config {}
-export interface Services {}
-export interface Db {}
-export interface Tasks {}
-export interface Injections {}
-export interface Api {}
 
-export interface Hooks {
-  [WorkerHook.Startup]?: () => Promise<any>
-  [WorkerHook.Shutdown]?: () => Promise<any>
-  [WorkerHook.Call]?: (
-    options: Readonly<{
-      data?: any
-      client: Client<Auth | null>
-      req: IncomingMessage
-      procedure: { name: string; version: string }
-    }>
-  ) => Promise<any>
-  [WorkerHook.Connect]?: (
-    options: Readonly<{
-      client: WsClient<Auth | null>
-      req: IncomingMessage
-    }>
-  ) => Promise<any>
-  [WorkerHook.Disconnect]?: (
-    options: Readonly<{
-      client: WsClient<Auth | null>
-      req: IncomingMessage
-    }>
-  ) => Promise<any>
-}
+// export interface ProcedureHandlerOptions<
+//   D extends TSchema | ZodType,
+//   T extends Transport,
+//   A extends boolean,
+//   P = A extends false ? null | Auth : Auth
+// > {
+//   data: D extends TSchema ? Static<D> : D extends ZodType ? TypeOf<D> : unknown
+//   req: Readonly<IncomingMessage>
+//   client: Readonly<
+//     T extends typeof Transport.Http
+//       ? HttpClient<P>
+//       : T extends typeof Transport.Ws
+//       ? WsClient<P>
+//       : Client<P>
+//   >
+// }
 
-export type DefineAuthService = <
-  T extends (options: {
-    session: string
-    req: IncomingMessage
-  }) => Promise<Auth | null>
->(
-  service: T
-) => T
-export type DefineGuard = (guard: Guard) => Guard
-export type DefineProcedure = <
-  D extends TSchema | ZodType,
-  T extends Transport,
-  A extends boolean = true,
-  R extends any = any
->(
-  procedure: Procedure<D, T, A, R>
-) => Procedure<D, T, A, R>
+// export type ProcedureHandler<
+//   D extends TSchema | ZodType,
+//   T extends Transport,
+//   A extends boolean,
+//   R extends any
+// > = (options: ProcedureHandlerOptions<D, T, A>) => R
 
-export declare type Guard = (options: {
-  readonly req: import('node:http').IncomingMessage
-  readonly client: Client<Auth | null>
-}) => boolean | Promise<boolean>
+// export interface Procedure<
+//   D extends TSchema | ZodType,
+//   T extends Transport,
+//   A extends boolean,
+//   R extends any
+// > {
+//   /**
+//    * Endpoint's handler
+//    */
+//   handler: ProcedureHandler<D, T, A, R>
+//   /**
+//    * Yup schema to validate endpoint's body against
+//    */
+//   schema?: D
+//   /**
+//    * Whether current endpoint is available only for authenticated users or not
+//    * @default true
+//    */
+//   auth?: A
+//   /**
+//    * Collection of endpoint guards. Evaluated after authentication
+//    */
+//   guards?: Guard[]
+//   /**
+//    * Restrict endpoint to be accessible via only one transport
+//    */
+//   transport?: T
+//   /**
+//    * Execution timeout for current endpoint
+//    */
+//   timeout?: number
+//   /**
+//    * Whether current endpoint is introspectable from client application or not
+//    * @default true
+//    */
+//   introspectable?: boolean | 'guards' | Guard
+// }
 
-export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
-  readonly id: string
-  readonly auth: Auth
-  readonly session: string
-  readonly transport: T
-  readonly clearSession: () => void
-}
+// export interface UserApplication {
+//   clients: Set<WsClient<Auth | null>>
+//   createFileLogger: (
+//     name: string,
+//     level?: import('pino').Level
+//   ) => import('pino').BaseLogger
+//   worker: {
+//     type: WorkerType
+//     workerId: number
+//     threadId: number
+//   }
+//   invoke: <K extends keyof Tasks>(
+//     task: K | { task: K; timeout: number },
+//     ...args: Parameters<Tasks[K]>
+//   ) => Promise<Awaited<ReturnType<Tasks[K]>>>
+// }
 
-export declare interface WsClient<Auth = unknown>
-  extends HttpClient<Auth, typeof Transport.Ws> {
-  readonly send: (event: string, data?: any) => void
-  readonly openedAt: Date
-  readonly closedAt?: Date
-}
+// export interface Auth {}
 
-export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>
+// export interface Tasks {}
+// export interface Injections {}
 
-export type StreamTypeOptions = { maximum?: number }
+// export interface Hooks {
+//   [WorkerHook.Startup]?: () => Promise<any>
+//   [WorkerHook.Shutdown]?: () => Promise<any>
+//   [WorkerHook.Call]?: (
+//     options: Readonly<{
+//       data?: any
+//       client: Client<Auth | null>
+//       req: IncomingMessage
+//       procedure: { name: string; version: string }
+//     }>
+//   ) => Promise<any>
+//   [WorkerHook.Connect]?: (
+//     options: Readonly<{
+//       client: WsClient<Auth | null>
+//       req: IncomingMessage
+//     }>
+//   ) => Promise<any>
+//   [WorkerHook.Disconnect]?: (
+//     options: Readonly<{
+//       client: WsClient<Auth | null>
+//       req: IncomingMessage
+//     }>
+//   ) => Promise<any>
+// }
+
+// export type DefineAuthService = <
+//   T extends (options: {
+//     session: string
+//     req: IncomingMessage
+//   }) => Promise<Auth | null>
+// >(
+//   service: T
+// ) => T
+// export type DefineGuard = (guard: Guard) => Guard
+// export type DefineProcedure = <
+//   D extends TSchema | ZodType,
+//   T extends Transport,
+//   A extends boolean = true,
+//   R extends any = any
+// >(
+//   procedure: Procedure<D, T, A, R>
+// ) => Procedure<D, T, A, R>
+
+// export declare type Guard = (options: {
+//   readonly req: import('node:http').IncomingMessage
+//   readonly client: Client<Auth | null>
+// }) => boolean | Promise<boolean>
+
+// export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
+//   readonly id: string
+//   readonly auth: Auth
+//   readonly session: string
+//   readonly transport: T
+//   readonly clearSession: () => void
+// }
+
+// export declare interface WsClient<Auth = unknown>
+//   extends HttpClient<Auth, typeof Transport.Ws> {
+//   readonly send: (event: string, data?: any) => void
+//   readonly openedAt: Date
+//   readonly closedAt?: Date
+// }
+
+// export declare type Client<Auth = unknown> = HttpClient<Auth> | WsClient<Auth>
+
+// export type StreamTypeOptions = { maximum?: number }
 
 declare global {
-  const ErrorCode: typeof import('@neemata/common').ErrorCode
-  const WorkerType: typeof import('@neemata/common').WorkerType
-
-  class Stream extends Readable {
-    meta: {
-      size: number
-      type: string
-      name?: string
-    }
-    done(): Promise<void>
-    toBuffer(): Promise<Buffer>
-  }
-
-  class ApiException {
-    constructor(options: {
-      code: string | number
-      data?: any
-      message?: string
-    })
-  }
-
-  const application: UserApplication
-  const hooks: Hooks
-  const lib: Lib
-  const config: Config
-  const services: Services
-  const db: Db
-  const defineProcedure: DefineProcedure
-  const defineAuthService: DefineAuthService
-  const defineGuard: DefineGuard
-  const dependency: <T extends keyof Injections>(
-    ...dependencies: T[]
-  ) => Promise<void>
-  const Typebox: typeof import('@sinclair/typebox') &
-    typeof import('@sinclair/typebox/compiler') &
-    typeof import('@sinclair/typebox/conditional') &
-    typeof import('@sinclair/typebox/custom') &
-    typeof import('@sinclair/typebox/errors') &
-    typeof import('@sinclair/typebox/format') &
-    typeof import('@sinclair/typebox/guard') &
-    typeof import('@sinclair/typebox/hash') &
-    typeof import('@sinclair/typebox/system') &
-    typeof import('@sinclair/typebox/value') & {
-      Stream: (
-        options?: Partial<StreamTypeOptions>
-      ) => import('@sinclair/typebox').TUnsafe<Stream>
-    }
-  const zod: typeof import('zod') & {
-    stream: (
-      options?: Partial<StreamTypeOptions>
-    ) => import('zod').ZodType<Stream>
-  }
+  // const ErrorCode: typeof import('@neemata/common').ErrorCode
+  // const WorkerType: typeof import('@neemata/common').WorkerType
+  // class Stream extends Readable {
+  //   meta: {
+  //     size: number
+  //     type: string
+  //     name?: string
+  //   }
+  //   done(): Promise<void>
+  //   toBuffer(): Promise<Buffer>
+  // }
+  // class ApiException {
+  //   constructor(options: {
+  //     code: string | number
+  //     data?: any
+  //     message?: string
+  //   })
+  // }
+  // const application: UserApplication
+  // const hooks: Hooks
+  // const lib: Lib
+  // const config: Config
+  // const services: Services
+  // const db: Db
+  // const defineProcedure: DefineProcedure
+  // const defineAuthService: DefineAuthService
+  // const defineGuard: DefineGuard
+  // const dependency: <T extends keyof Injections>(
+  //   ...dependencies: T[]
+  // ) => Promise<void>
+  // const Typebox: typeof import('@sinclair/typebox') &
+  //   typeof import('@sinclair/typebox/compiler') &
+  //   typeof import('@sinclair/typebox/conditional') &
+  //   typeof import('@sinclair/typebox/custom') &
+  //   typeof import('@sinclair/typebox/errors') &
+  //   typeof import('@sinclair/typebox/format') &
+  //   typeof import('@sinclair/typebox/guard') &
+  //   typeof import('@sinclair/typebox/hash') &
+  //   typeof import('@sinclair/typebox/system') &
+  //   typeof import('@sinclair/typebox/value') & {
+  //     Stream: (
+  //       options?: Partial<StreamTypeOptions>
+  //     ) => import('@sinclair/typebox').TUnsafe<Stream>
+  //   }
+  // const zod: typeof import('zod') & {
+  //   stream: (
+  //     options?: Partial<StreamTypeOptions>
+  //   ) => import('zod').ZodType<Stream>
+  // }
 }

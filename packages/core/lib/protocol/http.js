@@ -22,9 +22,9 @@ const HEADERS = {
 class HttpTransport extends BaseTransport {
   constructor(server) {
     super(server)
-    this.cors = server.application.config.api.cors
-    this.server.httpServer.on('request', this.receiver.bind(this))
+    this.cors = this.config.api.cors
     this.type = Transport.Http
+    this.server.httpServer.on('request', this.receiver.bind(this))
   }
 
   async getData(req) {
@@ -78,10 +78,10 @@ class HttpTransport extends BaseTransport {
     const routeName = `${method}.${url.pathname.slice(1)}`
     if (method !== 'POST' && !this[routeName]) return respondPlain404()
     const routeHandler = this[routeName] ?? this.rpc
-    const session = this.server.handleSession(req)
-    if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
+    // const session = this.server.handleSession(req)
+    // if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
     try {
-      const payload = { req, res, url, session }
+      const payload = { req, res, url }
       const response = await routeHandler.call(this, payload)
       return ['string', 'undefined'].includes(typeof response)
         ? respondPlain(response)
@@ -94,10 +94,10 @@ class HttpTransport extends BaseTransport {
 
   async rpc({ req, url, session, res }) {
     try {
-      const auth = this.server.handleAuth({ session: session.token, req })
+      const auth = this.handleAuth({ session: session.token, req })
       const version = this.handleVersion(req.headers['accept-version'])
       const procedureName = url.pathname.split('/').slice(1).join('.')
-      const procedure = this.findProcedure(
+      const procedure = this.handleProcedure(
         procedureName,
         Transport.Http,
         version
@@ -123,18 +123,18 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async ['GET.neemata/introspect']({ req, session }) {
-    const auth = this.server.handleAuth({ req, session: session.token })
-    const client = createClient({
-      auth: await auth,
-      session: session.token,
-    })
-    return this.server.introspect(req, client)
-  }
+  // async ['GET.neemata/introspect']({ req, session }) {
+  //   const auth = this.server.handleAuth({ req, session: session.token })
+  //   const client = createClient({
+  //     auth: await auth,
+  //     session: session.token,
+  //   })
+  //   return this.server.introspect(req, client)
+  // }
 
-  ['GET.neemata/session/clear']({ res }) {
-    return this.server.clearSession(res)
-  }
+  // ['GET.neemata/session/clear']({ res }) {
+  //   return this.server.clearSession(res)
+  // }
 
   ['GET.neemata/healthy']() {
     return 'OK'

@@ -1,4 +1,4 @@
-const { readFilesystem, SEPARATOR } = require('./loader')
+const { readFilesystem, SEPARATOR, Loader } = require('./loader')
 const {
   existsSync,
   mkdirSync,
@@ -58,8 +58,14 @@ class Typings {
 }
 
 async function generateDts(applicationPath, outputPath) {
-  const namespaces = ['config', 'lib', 'services', 'db', 'tasks']
-  const interfaces = []
+  const namespaces = [
+    ['config', false],
+    ['lib', true],
+    ['service', true],
+    ['db', false],
+    ['api', true],
+  ]
+  const injectables = new DTSInterface('Injectables')
   const imports = {}
 
   const addImport = (path) => {
@@ -78,93 +84,19 @@ async function generateDts(applicationPath, outputPath) {
     return typing
   }
 
-  for (const namespace of namespaces) {
-    const tree = await readFilesystem(
+  for (const [namespace, recursive] of namespaces) {
+    const entries = await readFilesystem(
       join(applicationPath, namespace),
-      !['db', 'config'].includes(namespace),
-      ['tasks'].includes(namespace)
+      recursive,
+      namespace
     )
-
-    const interface = new DTSInterface(capitalize(namespace))
-    const nest = (interface, key, value) => {
-      const keys = Object.keys(value)
-      const nested = keys.filter((key) => key !== 'index')
-      const index = keys.find((key) => key === 'index')
-        ? interface.addProperty(new DTSProperty(key, addImport(value.index)))
-        : null
-      if (nested.length) {
-        const object = new DTSObject(key)
-        for (const key of nested) nest(object, key, value[key])
-        if (index) index.type = `Merge<${index.type}, ${object.toString(true)}>`
-        else interface.addProperty(object)
-      }
-    }
-
-    for (const [key, value] of Object.entries(tree)) {
-      if (namespace === 'tasks')
-        interface.addProperty(new DTSProperty(`'${key}'`, addImport(value)))
-      else nest(interface, key, value)
-    }
-
-    interfaces.push(interface)
-  }
-
-  const apiInterface = new DTSInterface('Api')
-  const apiPath = join(applicationPath, 'api')
-  const apiModules = await readFilesystem(apiPath, true, true)
-
-  for (const path of Object.values(apiModules).sort().reverse()) {
-    const { dir, name: filename } = parse(path.replace(apiPath, '').slice(1))
-    const nameParts = []
-    const versionParts = []
-    const dirpath = (dir ? dir.split(sep) : []).map((part) => part.split('.'))
-    dirpath.push(filename.split('.'))
-    for (const [name, ...versions] of dirpath) {
-      if (name !== 'index') nameParts.push(name)
-      versionParts.push(...versions)
-    }
-    if (versionParts.length > 1) continue
-    const version = versionParts.length ? parseInt(versionParts[0]) : 1
-    if (!Number.isSafeInteger(version) || version <= 0) continue
-    let last = apiInterface
-    for (let i = 0; i < nameParts.length; i++) {
-      const isLast = i === nameParts.length - 1
-      const isFirstVer = isLast && version === 1
-      const part = nameParts[i]
-      if (isLast && isFirstVer && last.hasProperty(part))
-        last.getProperty(part).type = `ApiCall<${addImport(path)}>`
-
-      last = last.hasProperty(part)
-        ? last.getProperty(part)
-        : last.addProperty(
-            new DTSObject(
-              part,
-              isLast && isFirstVer ? `ApiCall<${addImport(path)}>` : null
-            )
-          )
-      if (isLast)
-        last.addProperty(
-          new DTSProperty(`v${version}`, `ApiCall<${addImport(path)}>`)
-        )
+    for (const { name, path, alias } of entries) {
+      const injectable = new DTSObject(name)
+      injectable.addProperty(new DTSProperty('exports', addImport(path)))
+      injectable.addProperty(new DTSProperty('alias', `"${alias}"`))
+      injectables.addProperty(injectable)
     }
   }
-  interfaces.push(apiInterface)
-
-  const injectionsInterface = new DTSInterface('Injections')
-  for (const namespace of namespaces) {
-    if (namespace === 'tasks') continue
-    const tree = await readFilesystem(
-      join(applicationPath, namespace),
-      !['db', 'config'].includes(namespace),
-      true
-    )
-    for (const [key, value] of Object.entries(tree)) {
-      const name = `'${namespace}${SEPARATOR}${key}'`
-      const property = new DTSProperty(name, addImport(value))
-      injectionsInterface.addProperty(property)
-    }
-  }
-  interfaces.push(injectionsInterface)
 
   const importsContent = Object.entries(imports)
     .map(([alias, path]) => {
@@ -180,7 +112,7 @@ async function generateDts(applicationPath, outputPath) {
       encoding: 'utf-8',
     }),
     `declare module '@neemata/core/types/external' {
-    ${interfaces.join('\n')}
+    ${injectables}
     }`,
   ].join('\n')
 
@@ -213,7 +145,7 @@ class DTSProperty {
 
   toString(typeOnly = false) {
     return (
-      (typeOnly ? '' : `${this.name}${this.optional ? '?' : ''}:`) + this.type
+      (typeOnly ? '' : `"${this.name}"${this.optional ? '?' : ''}:`) + this.type
     )
   }
 }

@@ -8,3 +8,6 @@ interface Options {
 }
 
 export const start: (options: Options) => Promise<void>
+
+export { ApiException } from './lib/protocol/exceptions'
+export { UserApplication } from './types/external'

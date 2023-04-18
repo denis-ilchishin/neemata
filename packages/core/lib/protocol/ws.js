@@ -1,12 +1,13 @@
 'use strict'
 
-const { createClient } = require('./client')
+const { createClient, Client } = require('./client')
 const { Type } = require('@sinclair/typebox')
 const { BaseTransport } = require('./transport')
 const { MessageType, Transport, WorkerHook } = require('@neemata/common')
 const { compileSchema } = require('../utils/functions')
 const { Stream } = require('./stream')
 const { parse } = require('node:url')
+const { Scope } = require('../di')
 
 const SESSION_KEY = Symbol()
 const AUTH_KEY = Symbol()
@@ -19,7 +20,6 @@ const messageSchema = compileSchema(
       payload: Type.Object({
         correlationId: Type.Optional(Type.String()),
         procedure: Type.String(),
-        version: Type.Integer({ default: 1, minimum: 1 }),
         data: Type.Optional(Type.Any({ default: undefined })),
       }),
     }),
@@ -44,58 +44,41 @@ class WsTransport extends BaseTransport {
         return connection.destroy()
       }
 
-      try {
-        req[SESSION_KEY] = this.server.handleSession(req)
-        req[AUTH_KEY] = await this.server.handleAuth({
-          req,
-          session: req[SESSION_KEY].token,
-        })
-      } catch (error) {
-        connection.write('HTTP/1.1 401 Unauthorized' + HTTP_SUFFIX)
-        return connection.destroy()
-      }
+      // TODO: add upgrade handler option to user application?
 
       this.server.wsServer.handleUpgrade(
         req,
         connection,
         head,
         (socket, req) => {
-          const client = createClient({
-            socket,
-            session: req[SESSION_KEY].token,
-            auth: req[AUTH_KEY],
-            clearSession: () => client.send('neemata/session/clear'),
-          })
+          const client = new Client({ socket })
+          const _send = socket.send.bind(socket)
+          socket.send = (type, payload) =>
+            _send(this.serialize({ type, payload }))
           this.server.wsServer.emit('connection', socket, req, client)
         }
       )
     })
 
-    this.server.wsServer.on('headers', (headers, req) => {
-      const cookie = req[SESSION_KEY].cookie
-      if (cookie) headers.push(`Set-Cookie: ${cookie}`)
-    })
-
     this.server.wsServer.on('connection', (socket, req, client) => {
       this.server.clients.set(client.id, client)
-      const _send = socket.send.bind(socket)
-      socket.send = (type, payload) => _send(this.serialize({ type, payload }))
+
       socket.on('error', (err) => logger.error(err))
-      const hookArgs = { client, req }
+      // const hookArgs = { client, req }
       client.on('close', async () => {
-        await this.server.application.runHooks(
-          WorkerHook.Disconnect,
-          true,
-          hookArgs
-        )
+        // await this.server.application.runHooks(
+        //   WorkerHook.Disconnect,
+        //   true,
+        //   hookArgs
+        // )
         this.server.clients.delete(client.id)
       })
-      const onConnect = this.server.application.runHooks(
-        WorkerHook.Connect,
-        true,
-        hookArgs
-      )
-      this.receiver(socket, req, client, onConnect)
+      // const onConnect = this.server.application.runHooks(
+      //   WorkerHook.Connect,
+      //   true,
+      //   hookArgs
+      // )
+      this.receiver(socket, req, client)
     })
   }
 
@@ -112,14 +95,30 @@ class WsTransport extends BaseTransport {
   }
 
   receiver(socket, req, client, onConnect) {
+    const container = this.workerApp.container.factory()
+    const resolveAuth = this.handleAuth({ client, req })
+    const resolveDependencies = resolveAuth.then((auth) =>
+      container.preload(Scope.Connection, {
+        client,
+        req,
+        auth,
+      })
+    )
+
     socket.on('message', async (rawMessage) => {
       try {
-        await onConnect
+        await resolveDependencies
         const deserialized = this.deserialize(rawMessage)
         const isValid = messageSchema.Check(deserialized)
         if (!isValid) throw new Error('Invalid message')
         const message = deserialized // messageSchema.Cast(deserialized)
-        const result = await this[message.type](client, req, message.payload)
+        const result = await this[message.type](message.payload, {
+          container,
+          client,
+          req,
+          auth: await resolveAuth,
+        })
+
         if (typeof result !== 'undefined') socket.send(message.type, result)
       } catch (error) {
         console.error(error)
@@ -127,28 +126,19 @@ class WsTransport extends BaseTransport {
       }
     })
 
-    // Handle introspection
-    const introspectHandler = async () => {
-      client.send(
-        'neemata/introspect',
-        await this.server.introspect(req, client)
-      )
-    }
-    client.on('neemata/introspect', introspectHandler)
-    this.server.application.on('reloaded', introspectHandler)
-
     // Handle ping/pong
     client.on('neemata/ping', () => client.send('neemata/pong'))
-    const intervalValue = this.config.intervals.ping
-    const interval = setInterval(async () => {
+    const pingPongIntervalTime = this.config.intervals.ping
+    const pingPongInterval = setInterval(async () => {
       const result = Promise.race([
-        new Promise((r) => setTimeout(() => r(false), intervalValue / 2)),
+        new Promise((r) =>
+          setTimeout(() => r(false), pingPongIntervalTime / 2)
+        ),
         new Promise((r) => client.once('neemata/pong', () => r(true))),
       ])
       client.send('neemata/ping')
-      if (await result) return
-      else socket.close()
-    }, intervalValue)
+      if (!(await result)) socket.close()
+    }, pingPongIntervalTime)
 
     // Handle streams
     client.on('neemata/stream/init', ({ id, size, type, name }) => {
@@ -169,8 +159,8 @@ class WsTransport extends BaseTransport {
 
     client.on('close', () => {
       // Clear memory after close
-      if (interval) clearInterval(interval)
-      this.server.application.off('reloaded', introspectHandler)
+      if (pingPongInterval) clearInterval(pingPongInterval)
+      // this.server.application.off('reloaded', introspectHandler)
       for (const stream of this.server.streams) {
         if (stream.client === client) {
           this.server.streams.delete(stream.id)
@@ -179,24 +169,28 @@ class WsTransport extends BaseTransport {
       }
     })
 
-    introspectHandler()
+    // introspectHandler()
   }
 
-  [MessageType.Event](client, req, { event, data }) {
+  [MessageType.Event]({ event, data }, { client }) {
     client.emit(event, data)
   }
 
   async [MessageType.Call](
-    client,
-    req,
-    { correlationId, procedure, version, data }
+    { correlationId, procedure, data },
+    { client, auth, container, req }
   ) {
     const correlationData = {
       correlationId,
       procedure,
     }
-    procedure = this.findProcedure(procedure, Transport.Ws, version)
-    const response = await this.handle({ procedure, client, data, req })
+
+    const response = await this.handle(procedure, container, Transport.Ws, {
+      client,
+      auth,
+      data,
+      req,
+    })
 
     return {
       ...correlationData,

@@ -38,5 +38,5 @@ export type NeemataOptions = {
   preferHttp?: boolean
   pingInterval?: number
   pingTimeout?: number
-  scaffold?: boolean
+  autoReconnect?: boolean
 }

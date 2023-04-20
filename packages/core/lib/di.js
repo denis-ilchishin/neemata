@@ -50,6 +50,19 @@ class DependencyContainer {
     }
   }
 
+  async unload() {
+    for (const [name, factory] of this._registry) {
+      const dispose = factory.dispose
+      if (dispose) {
+        const cached = this._cache.get(name)
+        if (cached) await dispose(cached)
+      }
+    }
+
+    this._cache.clear()
+    this._registry.clear()
+  }
+
   async resolve(providerName, ctx) {
     const provider = this._registry.get(providerName)
 

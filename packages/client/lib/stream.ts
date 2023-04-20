@@ -9,7 +9,7 @@ export class Stream extends EventEmitter {
   private _initialized = false
 
   constructor(
-    private readonly _neemata: Neemata,
+    private readonly _neemata: Neemata<any>,
     private readonly _data: Blob | File
   ) {
     super()

@@ -51,6 +51,7 @@ class UserApplication {
           scope: injectable.scope ?? Scope.Default,
           deps: injectable.deps ?? {},
           factory: injectable.factory,
+          dispose: injectable.dispose,
         }
   }
 
@@ -59,7 +60,11 @@ class UserApplication {
       scope: Scope.Connection,
       ...(typeof injectable === 'function'
         ? { factory: injectable, deps: {} }
-        : { factory: injectable.factory, deps: injectable.deps ?? {} }),
+        : {
+            factory: injectable.factory,
+            dispose: injectable.dispose,
+            deps: injectable.deps ?? {},
+          }),
     })
   }
 
@@ -68,7 +73,11 @@ class UserApplication {
       scope: Scope.Call,
       ...(typeof injectable === 'function'
         ? { factory: injectable, deps: {} }
-        : { factory: injectable.factory, deps: injectable.deps ?? {} }),
+        : {
+            factory: injectable.factory,
+            dispose: injectable.dispose,
+            deps: injectable.deps ?? {},
+          }),
     })
   }
 }

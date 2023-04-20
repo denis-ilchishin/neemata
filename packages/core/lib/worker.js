@@ -54,7 +54,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   async terminate() {
-    // await this.runHooks(this.entry.hooks[WorkerHook.Shutdown])
+    await this.container.unload()
   }
 
   async loadApp() {
@@ -100,60 +100,6 @@ class WorkerApplication extends EventEmitter {
     if (this.server) await this.server.close()
     await this.terminate()
   }
-
-  // async runHooks(hookType, concurrently = true, ...args) {
-  //   const hooks = this.hooks.get(hookType) ?? new Set()
-  //   if (!concurrently) {
-  //     for (const hook of hooks) await hook(...args)
-  //   } else {
-  //     await Promise.all(Array.from(hooks).map((hook) => hook(...args)))
-  //   }
-  // }
-
-  // async runTask(task, timeout, ...args) {
-  //   try {
-  //     task = this.namespaces.tasks.get(task)
-  //     if (!task) throw new Error('Task not found')
-  //     const result = timeout
-  //       ? await Promise.race([
-  //           task(...args),
-  //           setTimeout(timeout, new Error('Task execution timeout')),
-  //         ])
-  //       : await task(...args)
-  //     if (result instanceof Error) throw result
-  //     return { error: false, data: result }
-  //   } catch (error) {
-  //     return { error: true, data: error.stack || error.message }
-  //   }
-  // }
-
-  // async invoke(taskOrOptions, ...args) {
-  //   const { task, timeout } =
-  //     typeof taskOrOptions === 'string'
-  //       ? { task: taskOrOptions, timeout: this.config.timeouts.task.execution }
-  //       : taskOrOptions
-
-  //   if (this.type !== WorkerType.Api) {
-  //     // Call invoked task on the same thread, if it's called inside task worker
-  //     const result = await this.runTask(task, timeout, ...args)
-  //     if (result.error) return Promise.reject(new Error(result.data))
-  //     else return Promise.resolve(result.data)
-  //   } else {
-  //     const id = randomUUID()
-  //     return new Promise((resolve, reject) => {
-  //       this.once(id, (result) => {
-  //         if (result.error) reject(new Error(result.data))
-  //         else resolve(result.data)
-  //       })
-  //       this.emit(WorkerMessage.Invoke + WorkerMessage.Result, {
-  //         id,
-  //         task,
-  //         timeout,
-  //         args,
-  //       })
-  //     })
-  //   }
-  // }
 }
 
 const logLevel = workerData.config.log.level

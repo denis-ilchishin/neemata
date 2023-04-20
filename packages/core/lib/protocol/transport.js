@@ -49,6 +49,19 @@ class BaseTransport {
 
     if (!procedureProvider) throw notFound
 
+    if (
+      procedureProvider.transport &&
+      procedureProvider.transport !== transport
+    )
+      throw notFound
+
+    if (procedureProvider.auth !== false && ctx.auth === null) {
+      throw new ApiException({
+        code: ErrorCode.Unauthorized,
+        message: 'Unauthorized',
+      })
+    }
+
     for (const middlewareName of Object.entries(procedureProvider.middlewares)
       .filter((_) => _[1] === true)
       .map((_) => _[0])) {
@@ -65,7 +78,7 @@ class BaseTransport {
     if (procedure.transport !== null && procedure.transport !== transport)
       throw notFound
 
-    return procedure
+    return { ...procedure, timeout: procedureProvider.timeout }
   }
 
   async handleAuth({ client, req }) {
@@ -82,6 +95,8 @@ class BaseTransport {
   }
 
   async handle(procedureName, container, transport, ctx) {
+    let data = ctx.data
+    const auth = ctx.auth
     try {
       await this.server.queue.enter()
     } catch (err) {
@@ -99,8 +114,6 @@ class BaseTransport {
     }
 
     try {
-      const { client, req, auth } = ctx
-
       const procedure = await this.handleProcedure(
         container,
         procedureName,
@@ -108,25 +121,14 @@ class BaseTransport {
         ctx
       )
 
-      if (procedure.auth !== false && auth === null) {
-        throw new ApiException({
-          code: ErrorCode.Unauthorized,
-          message: 'Unauthorized',
-        })
-      }
+      data = procedure.input
+        ? await this.handleInput(procedure.input, ctx.data)
+        : undefined
 
-      if (procedure.guards)
-        await this.handleGuards(procedure.guards, { client, req, auth })
-
-      if (procedure.input) {
-        ctx.data = await this.handleInput(procedure.input, ctx.data)
-      }
-
-      let result = await this.handleCall(
-        procedure.handler,
-        procedure.timeout,
-        ctx
-      )
+      let result = await this.handleCall(procedure.handler, procedure.timeout, {
+        data,
+        auth,
+      })
 
       if (procedure.output)
         result = await this.handleOutput(procedure.output, result)
@@ -215,15 +217,7 @@ class BaseTransport {
         })
       }
     } else {
-      if (schema.Check(data)) {
-        return data // schema.Cast(data)
-      } else {
-        throw new ApiException({
-          code: ErrorCode.ValidationError,
-          message: 'Request body validation error',
-          data: [...schema.Errors(data)],
-        })
-      }
+      return Value.Cast(schema, data)
     }
   }
 

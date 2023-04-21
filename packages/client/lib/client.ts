@@ -102,7 +102,14 @@ export class Neemata<
         this._waitHealthy().then(() => {
           const ws = new window.WebSocket(this._getWsUrl())
 
-          ws.addEventListener('open', () => resolve(), { once: true })
+          ws.addEventListener(
+            'open',
+            () => {
+              this.emit('neemata/connect')
+              resolve()
+            },
+            { once: true }
+          )
 
           ws.addEventListener(
             'error',

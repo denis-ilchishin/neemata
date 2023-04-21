@@ -18,7 +18,9 @@ class UserApplication {
       auth = null,
       transport = null,
       timeout = null,
-      factory,
+      input = null,
+      output = null,
+      handler,
     }) => ({
       scope: Scope.Call,
       middlewares: { ...declaredMiddlewares, ...middlewares },
@@ -27,16 +29,19 @@ class UserApplication {
       transport: transport ?? declaredTransport,
       timeout: timeout ?? declaredTimeout,
       factory: async (...args) => {
-        const value = await factory(...args)
-        return typeof value === 'function'
-          ? {
-              handler: value,
-              input: null,
-            }
-          : {
-              handler: value.handler,
-              input: value.input,
-            }
+        const resolve = async (val) => {
+          if (typeof val === 'function') return val(...args)
+          if (typeof val === 'object') return val
+        }
+        const [_input, _output] = await Promise.all([
+          resolve(input),
+          resolve(output),
+        ])
+        return {
+          input: _input,
+          output: _output,
+          handler: (..._args) => handler(...args, ..._args),
+        }
       },
     })
   }

@@ -46,7 +46,6 @@ export type Provider<
   factory: InjectableFactory<Scope, Dependency, ExtraContext, T>
 }
 
-// type NonPromise<T> = T extends Promise<infer U> ? U : T;
 export type Promised<T> = T | Promise<T>
 
 export type InjectableResolvedExports<K extends Extract<Providers, string>> =
@@ -60,7 +59,7 @@ export type InjectableFactory<
   Scope extends Scopes,
   Dependency extends Dependencies,
   ExtraContext extends any,
-  T
+  T extends any = any
 > = (options: {
   deps: {
     [K in keyof Dependency as Dependency[K] extends true
@@ -118,7 +117,7 @@ export type AwaitedReturnType<T> = T extends (...any: []) => any
   : never
 
 export type Merge<T, U> = U &
-  Omit<T, keyof { [K in keyof U as U[K] extends undefined ? never : K]: U[K] }>
+  Omit<T, keyof { [K in keyof U as U[K] extends never ? never : K]: U[K] }>
 
 export type ExtractProps<T> = {
   [K in keyof T]: T[K][keyof T[K]]
@@ -139,19 +138,14 @@ export type ExtractMiddlewareExtraContext<Dependency extends Dependencies> =
     }>
   >
 
+export type MiddlewareDependencies = OnlySpecificDependencies<
+  Provider<'call', any, any, MiddlewareLike>
+>
 export type ResolveSchemaType<Schema> = Schema extends TSchema
   ? Static<Schema>
   : Schema extends ZodType
   ? TypeOf<Schema>
   : unknown
-
-export type ProcedureHandlerOptions<
-  InputOption extends Schemas,
-  AuthOption extends boolean
-> = {
-  data: ResolveSchemaType<InputOption>
-  auth: AuthOption extends false ? Auth | null : Auth
-}
 
 type NonPromise<T> = T extends Promise<infer U> ? U : T
 
@@ -159,110 +153,44 @@ type IgnorePromise<T extends (...args: any[]) => any> = (
   ...args: Parameters<T>
 ) => NonPromise<ReturnType<T>>
 
-export type ProcedureHandler<
-  Response extends any,
-  InputOption extends Schemas,
-  // OutputOption extends Schemas,
-  AuthOption extends boolean
-> = (
-  options: ProcedureHandlerOptions<InputOption, AuthOption>
-) => Promised<Response>
-
-export interface ProcedureOptions<
-  Response extends any,
-  InputOption extends Schemas,
-  OutputOption extends Schemas,
-  AuthOption extends boolean,
-  TransportOption extends Transport
+export interface ProcedureDeclarationOptions<
+  DependenciesOption extends Dependencies = Dependencies,
+  MiddlewareOptions extends OnlySpecificDependencies<
+    Provider<'call', any, any, MiddlewareLike>
+  > = OnlySpecificDependencies<Provider<'call', any, any, MiddlewareLike>>,
+  TransportOption extends Transport = Transport,
+  AuthOption extends boolean = boolean
 > {
-  input?: InputOption
-  // output?: OutputOption
-  handler: ProcedureHandler<Response, InputOption, AuthOption>
+  deps: DependenciesOption
+  middleware: MiddlewareOptions
+  transport: TransportOption
+  timeout: number
+  auth: AuthOption
 }
 
-export interface ProcedureDeclarationOptions<
-  Response extends any,
-  Dependency extends Dependencies,
-  Middleware extends Dependencies,
-  AuthOption extends boolean,
-  TransportOption extends Transport,
+export interface ProcedureOptions<
   InputOption extends Schemas,
-  OutputOption extends Schemas,
-  DeclaredDependency extends Dependencies,
-  DeclaredMiddleware extends Dependencies
+  AuthOption extends boolean
 > {
-  deps?: Dependency
-  middleware?: Middleware
-  transport?: TransportOption
-  timeout?: number
-  auth?: AuthOption
-  factory: InjectableFactory<
-    'call',
-    Merge<DeclaredDependency, Dependency>,
-    ExtractMiddlewareExtraContext<Merge<DeclaredMiddleware, Middleware>>,
-    ProcedureOptions<
-      Response,
-      InputOption,
-      OutputOption,
-      AuthOption,
-      TransportOption
-    >
+  input?: InputOption
+  handler: (options: {
+    data: InputOption
+    auth: AuthOption extends true ? Auth : Auth | null
+  }) => any
+}
+
+export type ResolveDependencies<Deps extends Dependencies> = {
+  [K in keyof Deps as Deps[K] extends true
+    ? K
+    : never]: InjectableResolvedFactory<
+    Injectables[Extract<Providers, K>]['exports']
   >
 }
 
-export interface Procedure<
-  Response extends any,
-  Dependency extends Dependencies,
-  Middleware extends Dependencies,
-  AuthOption extends boolean,
-  TransportOption extends Transport,
-  InputOption extends Schemas,
-  OutputOption extends Schemas,
-  DeclaredDependency extends Dependencies,
-  DeclaredMiddleware extends Dependencies
-> extends ProcedureDeclarationOptions<
-    Response,
-    Dependency,
-    Middleware,
-    AuthOption,
-    TransportOption,
-    InputOption,
-    OutputOption,
-    DeclaredDependency,
-    DeclaredMiddleware
-  > {}
-
-export interface ProcedureDeclaration<
-  Dependency extends Dependencies,
-  Middleware extends Dependencies,
-  AuthOption extends boolean,
-  TransportOption extends Transport
-> extends Omit<
-    ProcedureDeclarationOptions<
-      never,
-      Dependency,
-      Middleware,
-      AuthOption,
-      TransportOption,
-      never,
-      never,
-      {},
-      {}
-    >,
-    'factory'
-  > {}
-
+export type ProcedureHandler<Input> = (options: { data: Input }) => any
 export class UserApplication {
   auth: keyof OnlySpecificDependencies<
-    Provider<
-      'default',
-      any,
-      any,
-      (options: {
-        client: Client
-        req: IncomingMessage
-      }) => Promised<Auth | null>
-    >,
+    Provider<'connection', any, any, () => Promise<Auth | null> | Auth | null>,
     Services
   >
 
@@ -276,74 +204,83 @@ export class UserApplication {
 
   declareAuthProvider<
     Dependency extends Dependencies,
-    T extends (options: {
-      client: Client
-      req: IncomingMessage
-    }) => Promised<Auth | null>
+    T extends () => Promise<Auth | null> | Auth | null
   >(
-    injectable: Injectable<'default', Dependency, any, T>
-  ): Provider<'default', Dependency, any, T>
+    injectable: Injectable<'connection', Dependency, any, T>
+  ): Provider<'connection', Dependency, any, T>
 
   declareMiddleware<Dependency extends Dependencies, T extends MiddlewareLike>(
     injectable: Injectable<'call', Dependency, any, T>
   ): Provider<'call', Dependency, any, T>
 
   declareProcedure<
-    DeclaredTransportOption extends Transport,
-    DeclaredDependency extends Dependencies = Omit<Dependencies, string>,
-    DeclaredMiddleware extends OnlySpecificDependencies<
-      Provider<'call', any, any, MiddlewareLike>
-    > = Omit<Dependencies, string>,
-    DeclaredAuthOption extends boolean = true
+    TDeclaredDependenciesOption extends Dependencies,
+    TDeclaredMiddlewareOption extends MiddlewareDependencies,
+    TDeclaredTransportOption extends Transport,
+    TDeclaredAuthOption extends boolean
   >(
     options: Partial<
-      ProcedureDeclaration<
-        DeclaredDependency,
-        DeclaredMiddleware,
-        DeclaredAuthOption,
-        DeclaredTransportOption
+      ProcedureDeclarationOptions<
+        TDeclaredDependenciesOption,
+        TDeclaredMiddlewareOption,
+        TDeclaredTransportOption,
+        TDeclaredAuthOption
       >
     >
   ): <
+    InputOption extends Schemas,
+    OutputOption extends Schemas,
+    FactoryOptions extends {
+      deps: ResolveDependencies<
+        Merge<TDeclaredDependenciesOption, TDependenciesOption>
+      >
+      ctx: ExtractMiddlewareExtraContext<
+        Merge<TDeclaredDependenciesOption, TDependenciesOption>
+      > &
+        Contexts['call']
+    },
+    Output extends OutputOption extends ZodType
+      ? Promised<OutputOption['_input']>
+      : OutputOption extends TSchema
+      ? Promised<Static<OutputOption>>
+      : Response,
     Response extends any = any,
-    InputOption extends Schemas = never,
-    OutputOption extends Schemas = never,
-    Dependency extends Dependencies = DeclaredDependency | Dependencies,
-    Middleware extends OnlySpecificDependencies<
-      Provider<'call', any, any, MiddlewareLike>
-    > =
-      | DeclaredMiddleware
-      | OnlySpecificDependencies<Provider<'call', any, any, MiddlewareLike>>,
-    AuthOption extends boolean = DeclaredAuthOption,
-    TransportOption extends Transport = DeclaredTransportOption
+    TDependenciesOption extends Dependencies | TDeclaredDependenciesOption = {},
+    TMiddlewareOption extends
+      | MiddlewareDependencies
+      | TDeclaredMiddlewareOption = {},
+    TTransportOption extends Transport = TDeclaredTransportOption,
+    TAuthOption extends boolean = TDeclaredAuthOption
   >(
-    options: Procedure<
-      Response,
-      Dependency,
-      Middleware,
-      AuthOption,
-      TransportOption,
-      InputOption,
-      OutputOption,
-      DeclaredDependency,
-      DeclaredMiddleware
-    >
-  ) => Procedure<
-    Response,
-    Dependency,
-    Middleware,
-    AuthOption,
-    TransportOption,
-    InputOption,
-    OutputOption,
-    DeclaredDependency,
-    DeclaredMiddleware
-  >
+    options: Partial<
+      ProcedureDeclarationOptions<
+        TDependenciesOption,
+        TMiddlewareOption,
+        TTransportOption,
+        TAuthOption
+      >
+    > & {
+      input?: ((options: FactoryOptions) => Promised<InputOption>) | InputOption
+      output?:
+        | ((options: FactoryOptions) => Promised<OutputOption>)
+        | OutputOption
+      handler: (
+        options: FactoryOptions & {
+          data: ResolveSchemaType<InputOption>
+          auth: TAuthOption extends false ? Auth | null : Auth
+        }
+      ) => Promised<Output>
+    }
+  ) => {
+    input: ResolveSchemaType<InputOption>
+    output: Awaited<Output>
+  }
 }
 
 export interface Injectables {}
 
 export interface Auth {}
+
 export type WithoutPrefix<
   T,
   Prefix extends string
@@ -351,20 +288,19 @@ export type WithoutPrefix<
 
 export type TypeIfNotUndefined<T> = T extends undefined ? never : T
 
-export type ResolvedApiFactory<K extends Procedures> = Awaited<
-  ReturnType<Injectables[Extract<Procedures, K>]['exports']['factory']>
->
-
-export type AwaitedReturnType2<T> = T extends (...args: any) => any
-  ? Awaited<ReturnType<T>>
-  : never
+export type ResolvedApi<K extends Procedures> = Injectables[Extract<
+  Procedures,
+  K
+>]['exports']
+export type ResolveInput<K extends Procedures> = ResolvedApi<K>['input']
+export type ResolveOutput<K extends Procedures> = ResolvedApi<K>['output']
 
 export type ClientApi = {
   [K in Procedures as WithoutPrefix<
     Injectables[Extract<Procedures, K>]['alias'],
     'api/'
   >]: {
-    input: ResolveSchemaType<Required<ResolvedApiFactory<K>>['input']>
-    output: Awaited<ReturnType<ResolvedApiFactory<K>['handler']>>
+    input: ResolveInput<K>
+    output: ResolveOutput<K>
   }
 }

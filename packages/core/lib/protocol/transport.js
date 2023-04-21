@@ -71,7 +71,6 @@ class BaseTransport {
         Object.assign(ctx, middlewareMixin)
     }
 
-    container = container.factory()
     await container.preload(Scope.Call, ctx)
     const procedure = await container.resolve(providerName, ctx)
 
@@ -84,11 +83,8 @@ class BaseTransport {
   async handleAuth({ client, req }) {
     const dependencyName = this.workerApp.userApp.auth
     if (dependencyName) {
-      return this.workerApp.container
-        .resolve(dependencyName, {
-          client,
-          req,
-        })
+      const handler = await this.workerApp.container.resolve(dependencyName)
+      return handler({ client, req })
         .catch(() => null)
         .then((result) => result ?? null)
     } else return null

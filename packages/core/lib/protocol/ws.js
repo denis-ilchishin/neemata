@@ -64,20 +64,9 @@ class WsTransport extends BaseTransport {
       this.server.clients.set(client.id, client)
 
       socket.on('error', (err) => logger.error(err))
-      // const hookArgs = { client, req }
       client.on('close', async () => {
-        // await this.server.application.runHooks(
-        //   WorkerHook.Disconnect,
-        //   true,
-        //   hookArgs
-        // )
         this.server.clients.delete(client.id)
       })
-      // const onConnect = this.server.application.runHooks(
-      //   WorkerHook.Connect,
-      //   true,
-      //   hookArgs
-      // )
       this.receiver(socket, req, client)
     })
   }
@@ -95,19 +84,19 @@ class WsTransport extends BaseTransport {
   }
 
   receiver(socket, req, client, onConnect) {
-    const container = this.workerApp.container.factory()
-    const resolveAuth = this.handleAuth({ client, req })
-    const resolveDependencies = resolveAuth.then((auth) =>
-      container.preload(Scope.Connection, {
+    const resolveDependencies = (async () => {
+      const auth = await this.handleAuth({ container, req, client })
+      const container = await this.workerApp.container.factory('connection', {
         client,
         req,
         auth,
       })
-    )
+      return { auth, container }
+    })()
 
     socket.on('message', async (rawMessage) => {
       try {
-        await resolveDependencies
+        const { container, auth } = await resolveDependencies
         const deserialized = this.deserialize(rawMessage)
         const isValid = messageSchema.Check(deserialized)
         if (!isValid) throw new Error('Invalid message')
@@ -116,7 +105,7 @@ class WsTransport extends BaseTransport {
           container,
           client,
           req,
-          auth: await resolveAuth,
+          auth,
         })
 
         if (typeof result !== 'undefined') socket.send(message.type, result)
@@ -185,12 +174,17 @@ class WsTransport extends BaseTransport {
       procedure,
     }
 
-    const response = await this.handle(procedure, container, Transport.Ws, {
-      client,
-      auth,
-      data,
-      req,
-    })
+    const response = await this.handle(
+      procedure,
+      container.factory(ctx),
+      Transport.Ws,
+      {
+        client,
+        auth,
+        data,
+        req,
+      }
+    )
 
     return {
       ...correlationData,

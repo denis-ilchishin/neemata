@@ -34,10 +34,11 @@ class DependencyContainer {
     this._cache = new Map()
   }
 
-  factory() {
+  async factory(scope, ctx) {
     const container = new DependencyContainer(this._workerApp)
     container._registry = this._registry
     container._cache = new Map(this._cache)
+    await container.preload(scope, ctx)
     return container
   }
 
@@ -78,6 +79,13 @@ class DependencyContainer {
     return this._cache
       .set(providerName, await provider.factory({ deps, ctx }))
       .get(providerName)
+  }
+
+  async preload(scope = Scope.Default, ctx = undefined) {
+    for (const [name, provider] of this._registry) {
+      if (_scopeStrictness[provider.scope] <= _scopeStrictness[scope])
+        await this.resolve(name, ctx)
+    }
   }
 
   async _preload() {
@@ -159,13 +167,6 @@ class DependencyContainer {
 
     for (const provider of Object.values(this._registry)) {
       provider.scope = findStrictestScope(provider)
-    }
-  }
-
-  async preload(scope = Scope.Default, ctx = undefined) {
-    for (const [name, provider] of this._registry) {
-      if (_scopeStrictness[provider.scope] <= _scopeStrictness[scope])
-        await this.resolve(name, ctx)
     }
   }
 }

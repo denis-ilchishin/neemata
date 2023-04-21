@@ -23,20 +23,17 @@ class UserApplication {
       scope: Scope.Call,
       middlewares: { ...declaredMiddlewares, ...middlewares },
       deps: { ...declaredDeps, ...deps },
+      auth: auth ?? declaredAuth,
+      transport: transport ?? declaredTransport,
+      timeout: timeout ?? declaredTimeout,
       factory: async (...args) => {
         const value = await factory(...args)
         return typeof value === 'function'
           ? {
-              auth: declaredAuth,
-              transport: declaredTransport,
-              timeout: declaredTimeout,
               handler: value,
               input: null,
             }
           : {
-              auth: auth ?? declaredAuth,
-              transport: transport ?? declaredTransport,
-              timeout: timeout ?? declaredTimeout,
               handler: value.handler,
               input: value.input,
             }

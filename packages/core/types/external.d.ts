@@ -254,7 +254,15 @@ export interface ProcedureDeclaration<
 
 export class UserApplication {
   auth: keyof OnlySpecificDependencies<
-    Provider<'connection', any, any, () => Promise<Auth | null> | Auth | null>,
+    Provider<
+      'default',
+      any,
+      any,
+      (options: {
+        client: Client
+        req: IncomingMessage
+      }) => Promised<Auth | null>
+    >,
     Services
   >
 
@@ -268,10 +276,13 @@ export class UserApplication {
 
   declareAuthProvider<
     Dependency extends Dependencies,
-    T extends () => Promise<Auth | null> | Auth | null
+    T extends (options: {
+      client: Client
+      req: IncomingMessage
+    }) => Promised<Auth | null>
   >(
-    injectable: Injectable<'connection', Dependency, any, T>
-  ): Provider<'connection', Dependency, any, T>
+    injectable: Injectable<'default', Dependency, any, T>
+  ): Provider<'default', Dependency, any, T>
 
   declareMiddleware<Dependency extends Dependencies, T extends MiddlewareLike>(
     injectable: Injectable<'call', Dependency, any, T>

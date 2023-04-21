@@ -43,7 +43,6 @@ class BaseTransport {
 
     const notFound = new ApiException({
       code: ErrorCode.NotFound,
-      data: 'a',
       message: 'Procedure not found',
     })
 
@@ -73,9 +72,6 @@ class BaseTransport {
 
     await container.preload(Scope.Call, ctx)
     const procedure = await container.resolve(providerName, ctx)
-
-    if (procedure.transport !== null && procedure.transport !== transport)
-      throw notFound
 
     return { ...procedure, timeout: procedureProvider.timeout }
   }

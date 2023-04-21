@@ -176,7 +176,7 @@ class WsTransport extends BaseTransport {
 
     const response = await this.handle(
       procedure,
-      container.factory(ctx),
+      await container.factory('call', { client, auth, procedure, req }),
       Transport.Ws,
       {
         client,

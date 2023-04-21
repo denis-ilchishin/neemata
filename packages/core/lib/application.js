@@ -8,14 +8,18 @@ class UserApplication {
   declareProcedure({
     deps: declaredDeps = {},
     middlewares: declaredMiddlewares = {},
-    options: {
-      auth: declaredAuth = null,
-      transport: declaredTransport = null,
-      input: declaredInput = null,
-      timeout: declaredTimeout = null,
-    } = {},
+    auth: declaredAuth = null,
+    transport: declaredTransport = null,
+    timeout: declaredTimeout = null,
   } = {}) {
-    return ({ deps = {}, middlewares = {}, factory }) => ({
+    return ({
+      deps = {},
+      middlewares = {},
+      auth = null,
+      transport = null,
+      timeout = null,
+      factory,
+    }) => ({
       scope: Scope.Call,
       middlewares: { ...declaredMiddlewares, ...middlewares },
       deps: { ...declaredDeps, ...deps },
@@ -23,18 +27,18 @@ class UserApplication {
         const value = await factory(...args)
         return typeof value === 'function'
           ? {
-              handler: value,
               auth: declaredAuth,
               transport: declaredTransport,
-              input: declaredInput,
               timeout: declaredTimeout,
+              handler: value,
+              input: null,
             }
           : {
+              auth: auth ?? declaredAuth,
+              transport: transport ?? declaredTransport,
+              timeout: timeout ?? declaredTimeout,
               handler: value.handler,
-              auth: value.auth ?? declaredAuth,
-              transport: value.transport ?? declaredTransport,
-              input: value.input ?? declaredInput,
-              timeout: value.timeout ?? declaredTimeout,
+              input: value.input,
             }
       },
     })

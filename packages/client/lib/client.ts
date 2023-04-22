@@ -2,18 +2,23 @@ import type { ValueOf } from '@neemata/common'
 import { ErrorCode, MessageType, Transport } from '@neemata/common'
 import { EventEmitter } from 'events'
 import { Stream } from './stream'
-import type { ApiConstructOptions, NeemataOptions } from './utils'
+import type { NeemataOptions } from './utils'
 import { NeemataError } from './utils'
 
 let pingInterval
 
 type Resolve = (value: unknown) => any
 type Reject = (reason: Error) => any
-
-type GetOrUnknown<T, K extends keyof T> = T extends never ? unknown : T[K]
+type ApiLike = Record<string, { input: any; output: any }>
+type CallArgs<
+  Api extends ApiLike,
+  Procedure extends keyof Api,
+  Input = GetOrUnknown<Api[Procedure], 'input'>
+> = Input extends never ? [Procedure] : [Procedure, Input]
+type GetOrUnknown<T, K extends keyof T> = T[K] extends never ? never : T[K]
 
 export class Neemata<
-  Api extends Record<string, { input: any; output: any }> = never,
+  Api extends ApiLike = never,
   Procedures extends keyof Api = keyof Api
 > extends EventEmitter {
   private _connecting: Promise<void> | null = null
@@ -168,11 +173,11 @@ export class Neemata<
     return this._connecting
   }
 
-  async call<P extends Procedures>(
-    procedure: P,
-    data: GetOrUnknown<Api[P], 'input'>,
-    { transport, version = 1 }: ApiConstructOptions = {}
-  ) {
+  call<
+    Response extends GetOrUnknown<Api[P], 'output'>,
+    P extends Procedures = Procedures
+  >(...args: CallArgs<Api, P>): Promise<Response>
+  async call(procedure: string, data?: any) {
     await this._connecting
 
     const streams: Promise<any>[] = []
@@ -190,7 +195,7 @@ export class Neemata<
       return result
     }
 
-    if (transport === Transport.Http) {
+    if (this._prefer === Transport.Http) {
       if (streams.length)
         throw new Error('Streams are not supported in HTTP transport')
 
@@ -198,7 +203,6 @@ export class Neemata<
         method: 'POST',
         body: await serialize(data),
         headers: {
-          'accept-version': version.toString(),
           'content-type': 'application/json',
         },
       }
@@ -230,17 +234,15 @@ export class Neemata<
             : Promise.resolve(data)
         })
     } else {
-      const call = new Promise<GetOrUnknown<Api[P], 'output'>>(
-        (resolve, reject) => {
-          const correlationId = (++this._correlationId).toString()
-          serialize({
-            type: MessageType.Call,
-            payload: { correlationId, procedure, data, version },
-          }).then((serialized) => this._ws?.send(serialized))
-          // @ts-ignore
-          this._calls.set(correlationId, { resolve, reject })
-        }
-      )
+      const call = new Promise((resolve, reject) => {
+        const correlationId = (++this._correlationId).toString()
+        serialize({
+          type: MessageType.Call,
+          payload: { correlationId, procedure, data },
+        }).then((serialized) => this._ws?.send(serialized))
+        // @ts-ignore
+        this._calls.set(correlationId, { resolve, reject })
+      })
       return call
     }
   }

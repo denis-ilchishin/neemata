@@ -85,7 +85,7 @@ class WsTransport extends BaseTransport {
 
   receiver(socket, req, client, onConnect) {
     const resolveDependencies = (async () => {
-      const auth = await this.handleAuth({ container, req, client })
+      const auth = await this.handleAuth({ req, client })
       const container = await this.workerApp.container.factory('connection', {
         client,
         req,

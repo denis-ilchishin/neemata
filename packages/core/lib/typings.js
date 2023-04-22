@@ -1,16 +1,11 @@
-const { readFilesystem, SEPARATOR, Loader } = require('./loader')
-const {
-  existsSync,
-  mkdirSync,
-  writeFileSync,
-  readFileSync,
-} = require('node:fs')
-const { join, sep, parse, relative, dirname } = require('node:path')
+const { readFilesystem } = require('./loader')
+const { existsSync, mkdirSync, writeFileSync } = require('node:fs')
+const { join, sep, parse, relative, dirname, basename } = require('node:path')
 const { writeFile } = require('node:fs/promises')
-const { capitalize } = require('./utils/functions')
 class Typings {
-  constructor(rootPath) {
+  constructor(rootPath, entryName) {
     this.applicationPath = rootPath
+    this.entryName = entryName
     this.outputDir = join(process.cwd(), '.neemata')
 
     try {
@@ -35,6 +30,9 @@ class Typings {
       strict: true,
       rootDir: dirname(relative(this.outputDir, this.applicationPath)),
       noImplicitAny: false,
+      paths: {
+        '@app': [join('.', basename(this.applicationPath), this.entryName)],
+      },
     }
 
     writeFileSync(
@@ -108,12 +106,10 @@ async function generateDts(applicationPath, outputPath) {
   const fileContent = [
     '/// <reference types="@neemata/core/types/external" />',
     importsContent,
-    readFileSync(join(__dirname, '..', 'templates', 'utils.d.ts'), {
-      encoding: 'utf-8',
-    }),
     `declare module '@neemata/core/types/external' {
     ${injectables}
     }`,
+    `export { ClientApi } from '@neemata/core/types/external'`,
   ].join('\n')
 
   return fileContent

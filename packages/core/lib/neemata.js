@@ -39,7 +39,7 @@ class Neemata {
       timeout: this.config.resolved.timeouts.hmr,
     })
     this.scheduler = new Scheduler(this.config.resolved.scheduler)
-    this.typings = new Typings(this.rootPath)
+    this.typings = new Typings(this.rootPath, this.config.resolved.entry)
   }
 
   async startup() {

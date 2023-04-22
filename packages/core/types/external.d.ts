@@ -122,7 +122,12 @@ export type Merge<T, U> = U &
 export type ExtractProps<T> = {
   [K in keyof T]: T[K][keyof T[K]]
 }
-
+export type IsEmpty<T> = keyof T extends never ? true : false
+export type Resolve<T> = IsEmpty<T> extends false
+  ? 'default' extends keyof T
+    ? T['default']
+    : never
+  : never
 export type ExtractMiddlewareExtraContext<Dependency extends Dependencies> =
   UnionToIntersection<
     Values<{
@@ -147,11 +152,22 @@ export type ResolveSchemaType<Schema> = Schema extends TSchema
   ? TypeOf<Schema>
   : unknown
 
-type NonPromise<T> = T extends Promise<infer U> ? U : T
+export type NonPromise<T> = T extends Promise<infer U> ? U : T
 
-type IgnorePromise<T extends (...args: any[]) => any> = (
+export type IgnorePromise<T extends (...args: any[]) => any> = (
   ...args: Parameters<T>
 ) => NonPromise<ReturnType<T>>
+
+export type WithoutPrefix<
+  T,
+  Prefix extends string
+> = T extends `${Prefix}${infer P}` ? P : never
+export type ResolvedApi<K extends Procedures> = Injectables[Extract<
+  Procedures,
+  K
+>]['exports']
+export type ResolveInput<K extends Procedures> = ResolvedApi<K>['input']
+export type ResolveOutput<K extends Procedures> = ResolvedApi<K>['output']
 
 export interface ProcedureDeclarationOptions<
   DependenciesOption extends Dependencies = Dependencies,
@@ -187,10 +203,26 @@ export type ResolveDependencies<Deps extends Dependencies> = {
   >
 }
 
+export type AuthProviderType = (options: {
+  req: IncomingMessage
+  client: Client
+}) => Promised<Auth | null>
 export type ProcedureHandler<Input> = (options: { data: Input }) => any
+
+export interface Injectables {}
+export interface Auth {}
+export type ClientApi = {
+  [K in Procedures as WithoutPrefix<
+    Injectables[Extract<Procedures, K>]['alias'],
+    'api/'
+  >]: {
+    input: ResolveInput<K>
+    output: ResolveOutput<K>
+  }
+}
 export class UserApplication {
   auth: keyof OnlySpecificDependencies<
-    Provider<'connection', any, any, () => Promise<Auth | null> | Auth | null>,
+    Provider<'default', any, any, AuthProviderType>,
     Services
   >
 
@@ -204,10 +236,10 @@ export class UserApplication {
 
   declareAuthProvider<
     Dependency extends Dependencies,
-    T extends () => Promise<Auth | null> | Auth | null
+    T extends AuthProviderType
   >(
-    injectable: Injectable<'connection', Dependency, any, T>
-  ): Provider<'connection', Dependency, any, T>
+    injectable: Injectable<'default', Dependency, any, T>
+  ): Provider<'default', Dependency, any, T>
 
   declareMiddleware<Dependency extends Dependencies, T extends MiddlewareLike>(
     injectable: Injectable<'call', Dependency, any, T>
@@ -274,33 +306,5 @@ export class UserApplication {
   ) => {
     input: ResolveSchemaType<InputOption>
     output: Awaited<Output>
-  }
-}
-
-export interface Injectables {}
-
-export interface Auth {}
-
-export type WithoutPrefix<
-  T,
-  Prefix extends string
-> = T extends `${Prefix}${infer P}` ? P : never
-
-export type TypeIfNotUndefined<T> = T extends undefined ? never : T
-
-export type ResolvedApi<K extends Procedures> = Injectables[Extract<
-  Procedures,
-  K
->]['exports']
-export type ResolveInput<K extends Procedures> = ResolvedApi<K>['input']
-export type ResolveOutput<K extends Procedures> = ResolvedApi<K>['output']
-
-export type ClientApi = {
-  [K in Procedures as WithoutPrefix<
-    Injectables[Extract<Procedures, K>]['alias'],
-    'api/'
-  >]: {
-    input: ResolveInput<K>
-    output: ResolveOutput<K>
   }
 }

@@ -3,13 +3,12 @@
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0",
-    "pnpm": ">=7.3.0 <8"
+    "pnpm": ">=7.3.0 <9"
   },
   "os": [
     "darwin",
     "linux"
   ],
-  "packageManager": "pnpm@7.3.0",
   "devDependencies": {
     "eslint": "^8.17.0",
     "semver": "^7.3.8",
@@ -23,5 +22,5 @@
     "watch": "pnpm -r --parallel run watch",
     "publish": "pnpm -r build && pnpm -r publish --no-git-checks --access public"
   },
-  "version": "0.6.1"
+  "version": "0.6.2"
 }

@@ -84,10 +84,8 @@ class HttpTransport extends BaseTransport {
   }
 
   async receiver(req, res) {
-    const { respond, respondPlain, respondPlain404 } = this.createRespond(
-      req,
-      res
-    )
+    const { respond, respondPlain, respondPlain404, respondBinary } =
+      this.createRespond(req, res)
     const { method } = req
     if (method === 'OPTIONS') return res.end()
     const url = parse(req.url, true)

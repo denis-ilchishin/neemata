@@ -181,6 +181,14 @@ declare global {
     })
   }
 
+  class BinaryHttpResponse {
+    constructor(options: {
+      data: Buffer | ReadableStream
+      encoding?: string
+      contentType?: string
+    })
+  }
+
   const application: UserApplication
   const hooks: Hooks
   const lib: Lib

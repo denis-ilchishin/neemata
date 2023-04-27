@@ -13,6 +13,7 @@ const { createRequire } = require('node:module')
 const { pathToFileURL } = require('node:url')
 const { ErrorCode, WorkerType } = require('@neemata/common')
 const { ApiException } = require('./protocol/exceptions')
+const { BinaryHttpResponse } = require('./protocol/http')
 const { Stream } = require('./protocol/stream')
 const esbuld = require('esbuild')
 const zod = require('zod')
@@ -261,6 +262,7 @@ const COMMON_CONTEXT = Object.freeze({
   zod,
   Stream,
   Error,
+  BinaryHttpResponse,
   // Typing helpers
   ...Object.fromEntries(
     typingHelpers.map((name) => [name, ((value) => value).bind(undefined)])

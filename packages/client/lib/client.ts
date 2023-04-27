@@ -46,7 +46,7 @@ export class Neemata<T = any> extends EventEmitter {
       this._streams.get(id)?.emit('pull')
     )
     this.on('neemata/session/clear', async () => {
-      await fetch(this._getUrl('neemata/session/clear'), {
+      await fetch(this.getUrl('neemata/session/clear'), {
         credentials: 'include',
       })
       setTimeout(() => this._ws?.close(), 0)
@@ -178,7 +178,7 @@ export class Neemata<T = any> extends EventEmitter {
       })
     } else {
       this._connecting = this._waitHealthy().then(async () => {
-        const data = await fetch(this._getUrl('neemata/introspect'), {
+        const data = await fetch(this.getUrl('neemata/introspect'), {
           credentials: 'include',
         }).then((res) => res.json())
         this._scaffold(data)
@@ -200,8 +200,9 @@ export class Neemata<T = any> extends EventEmitter {
     )
   }
 
-  private _getUrl(path?: string, query?: Record<string, string>) {
-    const url = new URL(path ?? '', this._url)
+  getUrl(path?: string, query?: Record<string, string>) {
+    const url = new URL(this._url)
+    if (path) url.pathname = path
     if (query) {
       for (const [name, value] of Object.entries(query)) {
         url.searchParams.set(name, value)
@@ -211,7 +212,7 @@ export class Neemata<T = any> extends EventEmitter {
   }
 
   private _getWsUrl() {
-    const url = this._getUrl()
+    const url = this.getUrl()
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     return url
   }
@@ -304,7 +305,7 @@ export class Neemata<T = any> extends EventEmitter {
       }
 
       return fetch(
-        this._getUrl(procedure.split('.').join('/'), {
+        this.getUrl(procedure.split('.').join('/'), {
           credentials: 'include',
         }),
         options
@@ -346,7 +347,7 @@ export class Neemata<T = any> extends EventEmitter {
     let healhy = false
 
     while (!healhy) {
-      healhy = await fetch(this._getUrl('neemata/healthy'), {
+      healhy = await fetch(this.getUrl('neemata/healthy'), {
         method: 'GET',
         credentials: 'include',
       })

@@ -64,7 +64,23 @@ class HttpTransport extends BaseTransport {
       respondPlain('Not found', 404)
     }
 
-    return { respond, respondPlain, respondPlain404 }
+    const respondBinary = ({ data, contentType, encoding }) => {
+      if (data instanceof ReadableStream) {
+        res.statusCode = 200
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Content-Encoding', encoding)
+        res.setHeader('Transfer-Encoding', 'chunked')
+        data.pipe(res)
+      } else {
+        res.statusCode = 200
+        res.setHeader('Content-Length', data.length)
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Content-Encoding', encoding)
+        res.end(data)
+      }
+    }
+
+    return { respond, respondPlain, respondPlain404, respondBinary }
   }
 
   async receiver(req, res) {
@@ -83,9 +99,11 @@ class HttpTransport extends BaseTransport {
     try {
       const payload = { req, res, url, session }
       const response = await routeHandler.call(this, payload)
-      return ['string', 'undefined'].includes(typeof response)
-        ? respondPlain(response)
-        : respond(response)
+      if (['string', 'undefined'].includes(typeof response))
+        return respondPlain(response)
+      else if (response instanceof BinaryHttpResponse)
+        return respondBinary(response)
+      else return respond(response)
     } catch (error) {
       console.error(error)
       return respondPlain(error.message, 400)
@@ -111,7 +129,9 @@ class HttpTransport extends BaseTransport {
         session: session.token,
         clearSession: () => this.server.clearSession(res),
       })
-      return this.handle({ procedure, client, data, req })
+      const response = await this.handle({ procedure, client, data, req })
+      if (response.data instanceof BinaryHttpResponse) return response.data
+      return response
     } catch (error) {
       if (error instanceof ApiException) return this.makeError(error)
       else {
@@ -154,4 +174,16 @@ class HttpTransport extends BaseTransport {
   }
 }
 
-module.exports = { HttpTransport }
+class BinaryHttpResponse {
+  constructor({
+    data,
+    encoding = 'utf-8',
+    contentType = 'application/octet-stream',
+  }) {
+    this.data = data
+    this.contentType = contentType
+    this.encoding = encoding
+  }
+}
+
+module.exports = { HttpTransport, BinaryHttpResponse }

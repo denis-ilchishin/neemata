@@ -182,6 +182,7 @@ async function generateDts(applicationPath, outputPath) {
     `declare module '@neemata/core/types/external' {
     ${interfaces.join('\n')}
     }`,
+    `export { Api as ClientApi } from '@neemata/core/types/external'`,
   ].join('\n')
 
   return fileContent

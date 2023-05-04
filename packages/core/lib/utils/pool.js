@@ -45,7 +45,7 @@ class Pool {
       if (this.free.has(trying)) item = trying
       if (this.current >= items.length - 1) this.current = 0
       else this.current++
-    } while (!item)
+    } while (isNullish(item))
 
     return item
   }

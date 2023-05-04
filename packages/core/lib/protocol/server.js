@@ -4,15 +4,11 @@ const { createServer } = require('node:http')
 const { WebSocketServer } = require('ws')
 const { HttpTransport } = require('./http')
 const { WsTransport } = require('./ws')
-const { parse, serialize } = require('cookie')
-const { createHash, randomBytes } = require('node:crypto')
 const { Semaphore } = require('../utils/semaphore')
 const { unique } = require('../utils/functions')
 const { setTimeout } = require('node:timers/promises')
 
 const AUTH_DEFAULT = () => null
-const SESSION_COOKIE = '__NSID'
-const SESSION_DELETED_TOKEN = '__DELETED'
 
 class Server {
   constructor(port, application) {
@@ -38,8 +34,8 @@ class Server {
     return namespaces.services.get(config.api.auth.service) ?? AUTH_DEFAULT
   }
 
-  async handleAuth({ session, req }) {
-    return this.authService({ session, req })
+  async handleAuth({ req }) {
+    return this.authService({ req })
   }
 
   async introspect(req, client) {
@@ -89,47 +85,6 @@ class Server {
     )
 
     return introspected
-  }
-
-  handleSession(req) {
-    let token = this.getSessionToken(req)
-    let cookie
-
-    if (!token || token === SESSION_DELETED_TOKEN) {
-      token = this.createSessionToken(req)
-      cookie = this.getSessionCookie(token)
-    }
-
-    return { token, cookie }
-  }
-
-  clearSession(res) {
-    res.setHeader('Set-Cookie', this.getSessionCookie(SESSION_DELETED_TOKEN))
-  }
-
-  getSessionToken(req) {
-    return parse(req.headers.cookie || '')[SESSION_COOKIE]
-  }
-
-  createSessionToken() {
-    const data = Buffer.concat([
-      randomBytes(64),
-      Buffer.from(Date.now().toString()),
-    ])
-    const token = createHash('sha512').update(data).digest('base64url')
-    return token
-  }
-
-  getSessionCookie(token) {
-    // TODO: configurable cookie options?
-    const expires = new Date()
-    expires.setFullYear(expires.getFullYear() + 1)
-    return serialize(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure: !this.application.isDev,
-      path: '/',
-      expires,
-    })
   }
 
   listen() {

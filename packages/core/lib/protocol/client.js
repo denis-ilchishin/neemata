@@ -5,13 +5,11 @@ const { MessageType, Transport } = require('@neemata/common')
 const { randomUUID } = require('node:crypto')
 
 module.exports = {
-  createClient({ socket, session, auth = null, clearSession = () => {} }) {
+  createClient({ socket, auth = null }) {
     const client = Object.assign(new EventEmitter(), {
       id: randomUUID(),
       auth,
-      session,
       transport: socket ? Transport.Ws : Transport.Http,
-      clearSession,
     })
 
     if (socket) {

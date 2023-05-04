@@ -17,6 +17,7 @@ class Procedure {
       timeout = null,
       auth = true,
       introspectable = true,
+      allowGetMethod = false,
     } = exports
 
     this.handler = handler
@@ -60,6 +61,12 @@ class Procedure {
       )
     }
 
+    if (typeof this.allowGetMethod !== 'boolean') {
+      throw new Error(
+        "Procedure's 'allowGetMethod' is invalid, should be a boolean value"
+      )
+    }
+
     if (
       this.introspectable !== 'guards' &&
       typeof this.introspectable !== 'function' &&
@@ -93,11 +100,10 @@ class Api extends Loader {
     super('api', application)
   }
 
-  get(name, transport, version = 1) {
+  get(name, transport) {
     const procedure = Array.from(this.modules.values()).find(
       (procedure) =>
         procedure.name === name &&
-        version === procedure.version &&
         (!procedure.transport || procedure.transport === transport)
     )
     return procedure
@@ -105,28 +111,8 @@ class Api extends Loader {
 
   async transform(exports, moduleName, modulePath) {
     const { dir, name: filename } = parse(modulePath)
-
-    const nameParts = []
-    const versionParts = []
-    const dirpath = (dir ? dir.split(sep) : []).map((part) => part.split('.'))
-    dirpath.push(filename.split('.'))
-
-    for (const [name, ...versions] of dirpath) {
-      if (name !== 'index') nameParts.push(name)
-      versionParts.push(...versions)
-    }
-
     const procedure = new Procedure(exports, this.application.config.api.schema)
-
-    if (versionParts.length > 1)
-      throw new Error('Should not be not more than one version specified')
-
-    procedure.name = nameParts.join('.')
-    procedure.version = versionParts.length ? parseInt(versionParts[0]) : 1
-
-    if (!Number.isSafeInteger(procedure.version) || procedure.version <= 0)
-      throw new Error('Version should be a positive integer')
-
+    procedure.name = [...(dir ? dir.split(sep) : []), filename].join('.')
     return procedure
   }
 }

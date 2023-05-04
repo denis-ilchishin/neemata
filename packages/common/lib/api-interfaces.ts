@@ -15,7 +15,6 @@ export interface WSTransportCallInterface<Type extends MessageType> {
     ? {
         procedure: string
         correlationId: string
-        version: number
         data?: any
       }
     : { event: string; data?: any }
@@ -33,7 +32,6 @@ export interface WSTransportCallResponse<Type extends MessageType> {
 
 interface ApiIntrospectProcedure {
   name: string
-  version: number
   transport?: Transport
 }
 

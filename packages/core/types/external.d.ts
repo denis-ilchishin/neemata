@@ -39,7 +39,7 @@ export interface Procedure<
    */
   handler: ProcedureHandler<D, T, A, R>
   /**
-   * Yup schema to validate endpoint's body against
+   * Zod or Typebox schema to validate endpoint's input data against
    */
   schema?: D
   /**
@@ -52,7 +52,7 @@ export interface Procedure<
    */
   guards?: Guard[]
   /**
-   * Restrict endpoint to be accessible via only one transport
+   * Restrict endpoint to be accessible via only specific transport
    */
   transport?: T
   /**
@@ -64,6 +64,11 @@ export interface Procedure<
    * @default true
    */
   introspectable?: boolean | 'guards' | Guard
+  /**
+   * Allow access via http GET method. Useful for serving binary data via URL
+   * @default false
+   */
+  allowGetMethod?: boolean
 }
 
 export interface UserApplication {
@@ -100,7 +105,7 @@ export interface Hooks {
       data?: any
       client: Client<Auth | null>
       req: IncomingMessage
-      procedure: { name: string; version: string }
+      procedure: { name: string }
     }>
   ) => Promise<any>
   [WorkerHook.Connect]?: (
@@ -143,9 +148,7 @@ export declare type Guard = (options: {
 export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
   readonly id: string
   readonly auth: Auth
-  readonly session: string
   readonly transport: T
-  readonly clearSession: () => void
 }
 
 export declare interface WsClient<Auth = unknown>

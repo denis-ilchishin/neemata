@@ -19,7 +19,6 @@ const messageSchema = compileSchema(
       payload: Type.Object({
         correlationId: Type.Optional(Type.String()),
         procedure: Type.String(),
-        version: Type.Integer({ default: 1, minimum: 1 }),
         data: Type.Optional(Type.Any({ default: undefined })),
       }),
     }),
@@ -45,10 +44,8 @@ class WsTransport extends BaseTransport {
       }
 
       try {
-        req[SESSION_KEY] = this.server.handleSession(req)
         req[AUTH_KEY] = await this.server.handleAuth({
           req,
-          session: req[SESSION_KEY].token,
         })
       } catch (error) {
         connection.write('HTTP/1.1 401 Unauthorized' + HTTP_SUFFIX)
@@ -62,18 +59,11 @@ class WsTransport extends BaseTransport {
         (socket, req) => {
           const client = createClient({
             socket,
-            session: req[SESSION_KEY].token,
             auth: req[AUTH_KEY],
-            clearSession: () => client.send('neemata/session/clear'),
           })
           this.server.wsServer.emit('connection', socket, req, client)
         }
       )
-    })
-
-    this.server.wsServer.on('headers', (headers, req) => {
-      const cookie = req[SESSION_KEY].cookie
-      if (cookie) headers.push(`Set-Cookie: ${cookie}`)
     })
 
     this.server.wsServer.on('connection', (socket, req, client) => {
@@ -168,7 +158,6 @@ class WsTransport extends BaseTransport {
     })
 
     client.on('close', () => {
-      // Clear memory after close
       if (interval) clearInterval(interval)
       this.server.application.off('reloaded', introspectHandler)
       for (const stream of this.server.streams) {
@@ -186,16 +175,12 @@ class WsTransport extends BaseTransport {
     client.emit(event, data)
   }
 
-  async [MessageType.Call](
-    client,
-    req,
-    { correlationId, procedure, version, data }
-  ) {
+  async [MessageType.Call](client, req, { correlationId, procedure, data }) {
     const correlationData = {
       correlationId,
       procedure,
     }
-    procedure = this.findProcedure(procedure, Transport.Ws, version)
+    procedure = this.findProcedure(procedure, Transport.Ws)
     const response = await this.handle({ procedure, client, data, req })
 
     return {

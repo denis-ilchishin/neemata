@@ -8,7 +8,7 @@ const zod = require('zod')
 class BaseTransport {
   constructor(server) {
     const { application } = server
-    const { namespaces, console, config } = application
+    const { namespaces, config } = application
     this.server = server
     this.application = application
     this.namespaces = namespaces
@@ -35,12 +35,8 @@ class BaseTransport {
     return this.makeResponse({ error: { code, message }, data })
   }
 
-  findProcedure(name, type, version) {
-    const procedure = this.server.application.namespaces.api.get(
-      name,
-      type,
-      version
-    )
+  findProcedure(name, type) {
+    const procedure = this.server.application.namespaces.api.get(name, type)
 
     if (!procedure)
       throw new ApiException({
@@ -88,7 +84,7 @@ class BaseTransport {
         client,
         data,
         req,
-        procedure: { name: procedure.name, version: procedure.version },
+        procedure: { name: procedure.name },
       })
 
       const result = await this.handleCall(
@@ -161,7 +157,7 @@ class BaseTransport {
       }
     } else {
       if (schema.Check(data)) {
-        return data // schema.Cast(data)
+        return data // schema.Cast(data) TODO: schema.Cast also trims Stream object
       } else {
         throw new ApiException({
           code: ErrorCode.ValidationError,
@@ -170,16 +166,6 @@ class BaseTransport {
         })
       }
     }
-  }
-
-  handleVersion(version) {
-    const parsed = parseInt(version || 1)
-    if (!Number.isSafeInteger(parsed) || parsed <= 0)
-      throw new ApiException({
-        code: ErrorCode.BadRequest,
-        message: 'Invalid version',
-      })
-    return parsed
   }
 }
 

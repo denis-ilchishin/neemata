@@ -5,8 +5,6 @@ import { Stream } from './stream'
 import type { ApiConstructOptions, NeemataOptions } from './utils'
 import { NeemataError } from './utils'
 
-let pingInterval
-
 type Resolve = (value: unknown) => any
 type Reject = (reason: Error) => any
 
@@ -20,7 +18,7 @@ export class Neemata<T = any> extends EventEmitter {
   private _calls: Map<string, { resolve: Resolve; reject: Reject }>
   private _correlationId = 0
   private _options: Required<NeemataOptions>
-
+  private _pingInterval
   private _ws?: WebSocket
 
   constructor({
@@ -88,8 +86,8 @@ export class Neemata<T = any> extends EventEmitter {
 
   connect() {
     if (this._prefer === Transport.Ws) {
-      if (pingInterval) clearInterval(pingInterval)
-      pingInterval = setInterval(async () => {
+      if (this._pingInterval) clearInterval(this._pingInterval)
+      this._pingInterval = setInterval(async () => {
         if (!this.isActive) return
         const resultPromise = Promise.race([
           new Promise((r) =>
@@ -217,50 +215,26 @@ export class Neemata<T = any> extends EventEmitter {
     return url
   }
 
-  private async _scaffold(data: ApiIntrospectResponse) {
-    const procedures = new Set<string>(data.map(({ name }) => name))
+  private async _scaffold(procedures: ApiIntrospectResponse) {
     // @ts-expect-error
     this.api = {}
-
-    for (const procedureName of procedures) {
-      const versions = data.filter(({ name }) => name === procedureName)
-
-      const parts = procedureName.split('.')
+    for (const procedure of procedures) {
+      const parts = procedure.name.split('.')
       let last: any = this.api
-
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i]
         last[part] = last[part] ?? {}
-
         if (i === parts.length - 1) {
           const _prev = last[part]
-
-          for (const procedure of versions) {
-            const value = (
-              data: any,
-              { transport: _transport, ...options }: ApiConstructOptions = {}
-            ) =>
-              this.call(procedureName, data, {
-                ...options,
-                transport: procedure.transport ?? _transport ?? this._prefer,
-                version: procedure.version,
-              })
-
-            if (procedure.version === 1) {
-              // alias for convenience
-              Object.defineProperty(last, part, {
-                configurable: false,
-                enumerable: true,
-                value: _prev ? Object.assign(value, _prev) : value,
-              })
-            }
-
-            Object.defineProperty(last[part], `v${procedure.version}`, {
-              configurable: false,
-              enumerable: true,
-              value,
+          const value = (data: any, { transport }: ApiConstructOptions = {}) =>
+            this.call(procedure.name, data, {
+              transport: procedure.transport ?? transport ?? this._prefer,
             })
-          }
+          Object.defineProperty(last, part, {
+            configurable: false,
+            enumerable: true,
+            value: _prev ? Object.assign(value, _prev) : value,
+          })
         } else {
           last = last[part]
         }
@@ -272,7 +246,7 @@ export class Neemata<T = any> extends EventEmitter {
   async call(
     procedure: string,
     data: any,
-    { transport, version = 1 }: ApiConstructOptions = {}
+    { transport }: ApiConstructOptions = {}
   ) {
     await this._connecting
 
@@ -293,13 +267,12 @@ export class Neemata<T = any> extends EventEmitter {
 
     if (transport === Transport.Http) {
       if (streams.length)
-        throw new Error('Streams are not supported in HTTP transport')
+        throw new Error('Streams are not supported with HTTP transport')
 
       const options: RequestInit = {
         method: 'POST',
         body: await serialize(data),
         headers: {
-          'accept-version': version.toString(),
           'content-type': 'application/json',
         },
       }
@@ -335,7 +308,7 @@ export class Neemata<T = any> extends EventEmitter {
         const correlationId = (++this._correlationId).toString()
         serialize({
           type: MessageType.Call,
-          payload: { correlationId, procedure, data, version },
+          payload: { correlationId, procedure, data },
         }).then((serialized) => this._ws?.send(serialized))
         this._calls.set(correlationId, { resolve, reject })
       })

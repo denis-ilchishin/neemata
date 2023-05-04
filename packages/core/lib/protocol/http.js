@@ -90,10 +90,9 @@ class HttpTransport extends BaseTransport {
     if (method === 'OPTIONS') return res.end()
     const url = parse(req.url, true)
     const routeName = `${method}.${url.pathname.slice(1)}`
-    if (method !== 'POST' && !this[routeName]) return respondPlain404()
+    if (!['POST', 'GET'].includes(method) && !this[routeName])
+      return respondPlain404()
     const routeHandler = this[routeName] ?? this.rpc
-    const session = this.server.handleSession(req)
-    if (session.cookie) res.setHeader('Set-Cookie', session.cookie)
     try {
       const payload = { req, res, url, session }
       const response = await routeHandler.call(this, payload)
@@ -108,24 +107,24 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async rpc({ req, url, session, res }) {
+  async rpc({ req, url }) {
     try {
+      const { method } = req
       const auth = this.server.handleAuth({ session: session.token, req })
-      const version = this.handleVersion(req.headers['accept-version'])
       const procedureName = url.pathname.split('/').slice(1).join('.')
-      const procedure = this.findProcedure(
-        procedureName,
-        Transport.Http,
-        version
-      )
+      const procedure = this.findProcedure(procedureName, Transport.Http)
+      if (method === 'GET' && !procedure.allowGetMethod) {
+        throw new ApiException({
+          code: ErrorCode.NotFound,
+          message: 'Procedure not found',
+        })
+      }
       const rawData = await this.getData(req)
       const data = rawData.length
         ? this.deserialize(rawData.toString('utf8'))
         : undefined
       const client = createClient({
         auth: await auth,
-        session: session.token,
-        clearSession: () => this.server.clearSession(res),
       })
       const response = await this.handle({ procedure, client, data, req })
       if (response.data instanceof BinaryHttpResponse) return response.data
@@ -148,10 +147,6 @@ class HttpTransport extends BaseTransport {
       session: session.token,
     })
     return this.server.introspect(req, client)
-  }
-
-  ['GET.neemata/session/clear']({ res }) {
-    return this.server.clearSession(res)
   }
 
   ['GET.neemata/healthy']() {

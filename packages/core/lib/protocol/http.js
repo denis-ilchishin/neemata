@@ -94,7 +94,7 @@ class HttpTransport extends BaseTransport {
       return respondPlain404()
     const routeHandler = this[routeName] ?? this.rpc
     try {
-      const payload = { req, res, url, session }
+      const payload = { req, res, url }
       const response = await routeHandler.call(this, payload)
       if (['string', 'undefined'].includes(typeof response))
         return respondPlain(response)
@@ -110,7 +110,7 @@ class HttpTransport extends BaseTransport {
   async rpc({ req, url }) {
     try {
       const { method } = req
-      const auth = this.server.handleAuth({ session: session.token, req })
+      const auth = this.server.handleAuth({ req })
       const procedureName = url.pathname.split('/').slice(1).join('.')
       const procedure = this.findProcedure(procedureName, Transport.Http)
       if (method === 'GET' && !procedure.allowGetMethod) {
@@ -140,12 +140,9 @@ class HttpTransport extends BaseTransport {
     }
   }
 
-  async ['GET.neemata/introspect']({ req, session }) {
-    const auth = this.server.handleAuth({ req, session: session.token })
-    const client = createClient({
-      auth: await auth,
-      session: session.token,
-    })
+  async ['GET.neemata/introspect']({ req }) {
+    const auth = await this.server.handleAuth({ req })
+    const client = createClient({ auth })
     return this.server.introspect(req, client)
   }
 

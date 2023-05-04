@@ -27,6 +27,7 @@ class Procedure {
     this.transport = transport
     this.timeout = timeout
     this.introspectable = introspectable
+    this.allowGetMethod = allowGetMethod
 
     if (typeof this.handler !== 'function') {
       throw new Error("Procedure's 'handler' is invalid, should be a function")

@@ -19,7 +19,7 @@ class Pool {
     return this.free.size
   }
 
-  async next(timeout = null) {
+  async next(timeout = null, capture = false) {
     timeout = timeout ?? this.timeout
     if (this.size === 0)
       throw new Error('Unable to allocate an item in empty pool')
@@ -46,7 +46,7 @@ class Pool {
       if (this.current >= items.length - 1) this.current = 0
       else this.current++
     } while (isNullish(item))
-
+    this.free.delete(item)
     return item
   }
 
@@ -67,11 +67,8 @@ class Pool {
     } else throw new Error('Unable to remove not existing item')
   }
 
-  async capture() {
-    const item = await this.next()
-    if (isNullish(item)) throw new Error('Unable to capture an item')
-    this.free.delete(item)
-    return item
+  capture(timeout = null) {
+    return this.next(timeout, true)
   }
 
   release(item) {

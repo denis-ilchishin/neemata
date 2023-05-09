@@ -110,10 +110,9 @@ class Api extends Loader {
     return procedure
   }
 
-  async transform(exports, moduleName, modulePath) {
-    const { dir, name: filename } = parse(modulePath)
+  async transform(exports, moduleName) {
     const procedure = new Procedure(exports, this.application.config.api.schema)
-    procedure.name = [...(dir ? dir.split(sep) : []), filename].join('.')
+    procedure.name = moduleName
     return procedure
   }
 }

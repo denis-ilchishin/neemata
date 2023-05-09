@@ -241,6 +241,7 @@ zod.stream = (options) =>
   )
 
 const COMMON_CONTEXT = Object.freeze({
+  AbortController,
   Buffer,
   URL,
   URLSearchParams,

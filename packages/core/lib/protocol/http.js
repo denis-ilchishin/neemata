@@ -4,6 +4,7 @@ const { ErrorCode, Transport } = require('@neemata/common')
 const { ApiException } = require('./exceptions')
 const { BaseTransport } = require('./transport')
 const { parse } = require('node:url')
+const qs = require('qs')
 const { createClient } = require('./client')
 
 const JSON_CONTENT_TYPE_HEADER = [
@@ -33,21 +34,21 @@ class HttpTransport extends BaseTransport {
     return Buffer.concat(chunks)
   }
 
-  setHeaders(res, extra = {}) {
-    for (const [k, v] of Object.entries({ ...HEADERS, ...extra })) {
+  setHeaders(res, headers = {}) {
+    for (const [k, v] of Object.entries(headers)) {
       res.setHeader(k, v)
     }
   }
 
   createRespond(req, res) {
     res.statusCode = 200
-    this.setHeaders(
-      res,
-      req.headers.origin && {
+    this.setHeaders(res, HEADERS)
+    if (req.headers.origin) {
+      this.setHeaders(res, {
         'Access-Control-Allow-Origin':
           this.cors.origin === '*' ? req.headers.origin : this.cors.origin,
-      }
-    )
+      })
+    }
 
     const respond = (data) => {
       res.setHeader(...JSON_CONTENT_TYPE_HEADER)
@@ -64,31 +65,17 @@ class HttpTransport extends BaseTransport {
       respondPlain('Not found', 404)
     }
 
-    const respondBinary = ({ data, contentType, encoding }) => {
-      if (data instanceof ReadableStream) {
-        res.statusCode = 200
-        res.setHeader('Content-Type', contentType)
-        res.setHeader('Content-Encoding', encoding)
-        res.setHeader('Transfer-Encoding', 'chunked')
-        data.pipe(res)
-      } else {
-        res.statusCode = 200
-        res.setHeader('Content-Length', data.length)
-        res.setHeader('Content-Type', contentType)
-        res.setHeader('Content-Encoding', encoding)
-        res.end(data)
-      }
-    }
-
-    return { respond, respondPlain, respondPlain404, respondBinary }
+    return { respond, respondPlain, respondPlain404 }
   }
 
   async receiver(req, res) {
-    const { respond, respondPlain, respondPlain404, respondBinary } =
-      this.createRespond(req, res)
+    const { respond, respondPlain, respondPlain404 } = this.createRespond(
+      req,
+      res
+    )
     const { method } = req
     if (method === 'OPTIONS') return res.end()
-    const url = parse(req.url, true)
+    const url = parse(req.url)
     const routeName = `${method}.${url.pathname.slice(1)}`
     if (!['POST', 'GET'].includes(method) && !this[routeName])
       return respondPlain404()
@@ -96,18 +83,17 @@ class HttpTransport extends BaseTransport {
     try {
       const payload = { req, res, url }
       const response = await routeHandler.call(this, payload)
-      if (['string', 'undefined'].includes(typeof response))
-        return respondPlain(response)
-      else if (response instanceof BinaryHttpResponse)
-        return respondBinary(response)
-      else return respond(response)
+      if (res.headersSent) return
+      const isPlain = ['string', 'undefined'].includes(typeof response)
+      if (isPlain) respondPlain(response)
+      else respond(response)
     } catch (error) {
       console.error(error)
       return respondPlain(error.message, 400)
     }
   }
 
-  async rpc({ req, url }) {
+  async rpc({ req, res, url }) {
     try {
       const { method } = req
       const auth = this.server.handleAuth({ req })
@@ -119,16 +105,20 @@ class HttpTransport extends BaseTransport {
           message: 'Procedure not found',
         })
       }
-      const rawData = await this.getData(req)
-      const data = rawData.length
-        ? this.deserialize(rawData.toString('utf8'))
-        : undefined
+      let data
+
+      if (method === 'GET') {
+        data = qs.parse(url.query)
+      } else {
+        const rawData = await this.getData(req)
+        if (rawData.length)
+          data = this.deserialize(rawData.toString('utf8'))
+      }
+
       const client = createClient({
         auth: await auth,
       })
-      const response = await this.handle({ procedure, client, data, req })
-      if (response.data instanceof BinaryHttpResponse) return response.data
-      return response
+      return await this.handle({ procedure, client, data, req, res })
     } catch (error) {
       if (error instanceof ApiException) return this.makeError(error)
       else {
@@ -164,16 +154,4 @@ class HttpTransport extends BaseTransport {
   }
 }
 
-class BinaryHttpResponse {
-  constructor({
-    data,
-    encoding = 'utf-8',
-    contentType = 'application/octet-stream',
-  }) {
-    this.data = data
-    this.contentType = contentType
-    this.encoding = encoding
-  }
-}
-
-module.exports = { HttpTransport, BinaryHttpResponse }
+module.exports = { HttpTransport }

@@ -16,6 +16,7 @@ module.exports = {
       Object.assign(client, {
         socket,
         send: (event, data) => socket.send(MessageType.Event, { event, data }),
+        close: (...args) => socket.close(...args),
         openedAt: new Date(),
         closedAt: null,
       })

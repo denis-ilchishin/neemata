@@ -78,6 +78,17 @@ function getLevels(level) {
     .map((l) => l[0])
 }
 
+function dumpErrorToString(err) {
+  let str = ''
+  if (err instanceof Error) {
+    str = err.stack ?? err
+    if (err.cause instanceof Error) {
+      str += '\n[Caused by]: ' + dumpErrorToString(err.cause)
+    }
+  }
+  return str
+}
+
 class ConsoleLogger {
   constructor(level, group) {
     this.levels = getLevels(level)
@@ -90,7 +101,7 @@ class ConsoleLogger {
         process.stderr,
         'error',
         group,
-        typeof err.stack !== 'undefined' ? err.stack ?? err : err
+        err instanceof Error ? dumpErrorToString(err) : err
       )
   }
 

@@ -15,7 +15,7 @@ class Server {
     this.application = application
     this.port = port
 
-    this.clients = new Map()
+    this.wsClients = new Map()
     this.streams = new Map()
 
     this.httpServer = createServer()
@@ -103,32 +103,15 @@ class Server {
     if (!address) return null
     if (typeof address === 'string') return address
     const { address: hostname, port, family } = address
-    return `${family === 'IPv6' ? '[' : ''}${hostname}${
-      family === 'IPv6' ? ']' : ''
-    }:${port}`
+    return `${family === 'IPv6' ? '[' : ''}${hostname}${family === 'IPv6' ? ']' : ''
+      }:${port}`
   }
 
-  close() {
-    return new Promise((resolve) => {
-      logger.debug(`Shutting http server...`)
-      const closing = Promise.allSettled([
-        new Promise((r) => this.httpServer.once('close', r)),
-        new Promise((r) => this.wsServer.once('close', r)),
-      ])
-
-      this.httpServer.close()
-      this.wsServer.close()
-
-      this.wsServer.clients.forEach((client) => client.close())
-
-      Promise.race([
-        closing,
-        setTimeout(this.application.config.timeouts.shutdown / 2),
-      ]).then(() => {
-        this.httpServer.closeAllConnections()
-        resolve()
-      })
-    })
+  async close() {
+    logger.debug('Shutting http server...')
+    this.httpServer.close()
+    this.wsClients.forEach((client) => client.close())
+    while (this.wsClients.size > 0) await setTimeout(50)
   }
 }
 

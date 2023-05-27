@@ -98,16 +98,6 @@ class Loader {
   clear() {
     this.entries.clear()
     this.modules.clear()
-  }
-
-  async preload() {
-    const modules = await readFilesystem(this.path, this.recursive, true)
-    this.entries = new Map(Object.entries(modules))
-  }
-
-  clear() {
-    this.entries.clear()
-    this.modules.clear()
     this.sandbox = {}
   }
 
@@ -169,10 +159,11 @@ class Loader {
       )
       if (this.sandbox) this.makeSandbox(transformed, moduleName)
       this.modules.set(moduleName, transformed)
-    } catch (error) {
+    } catch (cause) {
       if (this.application.workerId === 1) {
-        logger.warn(`Unable to load the module ${filePath}`)
-        logger.error(error)
+        logger.error(
+          new Error(`Unable to load the module ${filePath}`, { cause })
+        )
       }
     }
   }

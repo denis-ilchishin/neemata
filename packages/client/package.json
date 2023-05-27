@@ -1,6 +1,6 @@
 {
   "name": "@neemata/client",
-  "version": "0.6.7",
+  "version": "0.8.0",
   "description": "Neemata client package",
   "author": "Denis Ilchyshyn",
   "license": "MIT",
@@ -14,7 +14,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.mjs"
+      "browser": "./dist/index.mjs"
     }
   },
   "dependencies": {

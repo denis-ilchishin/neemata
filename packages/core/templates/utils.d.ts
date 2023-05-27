@@ -6,6 +6,7 @@ type Replace<T, From, To> = T extends (...args: any[]) => any
         : Replace<T[K], From, To>
     }
 
+//TODO: Doesn't work
 type ApiCall<
   T extends import('@neemata/core/types/external').Procedure<any, any, any, any>
 > = (

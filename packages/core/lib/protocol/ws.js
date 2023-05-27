@@ -1,36 +1,33 @@
 'use strict'
 
 const { createClient } = require('./client')
-const { Type } = require('@sinclair/typebox')
 const { BaseTransport } = require('./transport')
 const { MessageType, Transport, WorkerHook } = require('@neemata/common')
-const { compileSchema } = require('../utils/functions')
 const { Stream } = require('./stream')
 const { parse } = require('node:url')
+const Zod = require('zod');
 
-const SESSION_KEY = Symbol()
 const AUTH_KEY = Symbol()
-const HTTP_SUFFIX = `\r\n\r\n`
+const HTTP_SUFFIX = '\r\n\r\n'
 
-const messageSchema = compileSchema(
-  Type.Union([
-    Type.Object({
-      type: Type.Literal(MessageType.Call),
-      payload: Type.Object({
-        correlationId: Type.Optional(Type.String()),
-        procedure: Type.String(),
-        data: Type.Optional(Type.Any({ default: undefined })),
-      }),
+
+const messageSchema = Zod.discriminatedUnion('type', [
+  Zod.object({
+    type: Zod.literal(MessageType.Call),
+    payload: Zod.object({
+      correlationId: Zod.string().optional(),
+      procedure: Zod.string(),
+      data: Zod.any().optional().default(undefined),
     }),
-    Type.Object({
-      type: Type.Literal(MessageType.Event),
-      payload: Type.Object({
-        event: Type.String(),
-        data: Type.Optional(Type.Any({ default: undefined })),
-      }),
+  }),
+  Zod.object({
+    type: Zod.literal(MessageType.Event),
+    payload: Zod.object({
+      event: Zod.string(),
+      data: Zod.any().optional().default(undefined),
     }),
-  ])
-)
+  }),
+]);
 
 class WsTransport extends BaseTransport {
   constructor(server) {
@@ -67,7 +64,7 @@ class WsTransport extends BaseTransport {
     })
 
     this.server.wsServer.on('connection', (socket, req, client) => {
-      this.server.clients.set(client.id, client)
+      this.server.wsClients.set(client.id, client)
       const _send = socket.send.bind(socket)
       socket.send = (type, payload) => _send(this.serialize({ type, payload }))
       socket.on('error', (err) => logger.error(err))
@@ -78,7 +75,7 @@ class WsTransport extends BaseTransport {
           true,
           hookArgs
         )
-        this.server.clients.delete(client.id)
+        this.server.wsClients.delete(client.id)
       })
       const onConnect = this.server.application.runHooks(
         WorkerHook.Connect,
@@ -106,14 +103,14 @@ class WsTransport extends BaseTransport {
       try {
         await onConnect
         const deserialized = this.deserialize(rawMessage)
-        const isValid = messageSchema.Check(deserialized)
-        if (!isValid) throw new Error('Invalid message')
-        const message = deserialized // messageSchema.Cast(deserialized)
+        const parsed = await messageSchema.safeParseAsync(deserialized)
+        if (!parsed.success) throw new Error('Invalid message')
+        const message = parsed.data
         const result = await this[message.type](client, req, message.payload)
         if (typeof result !== 'undefined') socket.send(message.type, result)
-      } catch (error) {
-        console.error(error)
-        if (error.message === 'Invalid message') socket.terminate()
+      } catch (cause) {
+        logger.error(new Error('Error during handling message', { cause }))
+        if (cause.message === 'Invalid message') socket.terminate()
       }
     })
 

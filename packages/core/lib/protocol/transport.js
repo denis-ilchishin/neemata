@@ -3,7 +3,6 @@
 const { ApiException } = require('./exceptions')
 const { ErrorCode, WorkerHook } = require('@neemata/common')
 const { unique } = require('../utils/functions')
-const zod = require('zod')
 
 class BaseTransport {
   constructor(server) {
@@ -47,7 +46,7 @@ class BaseTransport {
     return procedure
   }
 
-  async handle({ procedure, client, data, req }) {
+  async handle({ procedure, client, data, req, res }) {
     try {
       await this.server.queue.enter()
     } catch (err) {
@@ -84,6 +83,7 @@ class BaseTransport {
         client,
         data,
         req,
+        res,
         procedure: { name: procedure.name },
       })
 
@@ -94,6 +94,7 @@ class BaseTransport {
           data,
           client,
           req,
+          res,
         }
       )
 
@@ -144,27 +145,19 @@ class BaseTransport {
   }
 
   async handleValidation(schema, data) {
-    if (this.config.api.schema === 'zod') {
-      const result = await schema.safeParseAsync(data)
-      if (result.success) {
-        return result.data
-      } else {
-        throw new ApiException({
-          code: ErrorCode.ValidationError,
-          message: 'Request body validation error',
-          data: result.error.format(),
-        })
-      }
+    const result = await schema.safeParseAsync(data)
+    if (result.success) {
+      return result.data
     } else {
-      if (schema.Check(data)) {
-        return data // schema.Cast(data) TODO: schema.Cast also trims Stream object
-      } else {
-        throw new ApiException({
-          code: ErrorCode.ValidationError,
-          message: 'Request body validation error',
-          data: [...schema.Errors(data)],
-        })
-      }
+      throw new ApiException({
+        code: ErrorCode.ValidationError,
+        message: 'Request body validation error',
+        data: {
+          zod: () => result.error.issues,
+          'zod-format': () => result.error.format(),
+          'zod-flatten': () => result.error.flatten(),
+        }[this.config.api.schema](),
+      })
     }
   }
 }

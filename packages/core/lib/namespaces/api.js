@@ -1,7 +1,5 @@
 'use strict'
 
-const { TypeGuard } = require('@sinclair/typebox/guard')
-const { parse, sep } = require('node:path')
 const { Loader } = require('../loader')
 const { Transport } = require('@neemata/common')
 const { compileSchema } = require('../utils/functions')
@@ -34,20 +32,10 @@ class Procedure {
     }
 
     if (this.schema) {
-      if (schemaType === 'typebox' && !TypeGuard.TSchema(this.schema)) {
-        throw new Error(
-          "Procedure's 'schema' is invalid, should be a Typebox schema"
-        )
-      }
-
       if (schemaType === 'zod' && !(this.schema instanceof zod.ZodSchema)) {
         throw new Error(
           "Procedure's 'schema' is invalid, should be a Zod schema"
         )
-      }
-
-      if (schemaType === 'typebox') {
-        this.schema = compileSchema(this.schema)
       }
     }
 
@@ -74,7 +62,7 @@ class Procedure {
       typeof this.introspectable !== 'boolean'
     ) {
       throw new Error(
-        `Procedure's 'introspeclable' is invalid, should be a boolean value, "guards" or custom guard-like function`
+        "Procedure's 'introspeclable' is invalid, should be a boolean value, \"guards\" or custom guard-like function"
       )
     }
 

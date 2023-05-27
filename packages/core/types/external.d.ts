@@ -1,17 +1,21 @@
 import { Transport, WorkerHook, WorkerType } from '@neemata/common'
-import { Static, TSchema } from '@sinclair/typebox'
-import { IncomingMessage } from 'node:http'
+import { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import { TypeOf, ZodType } from 'zod'
 
 export interface ProcedureHandlerOptions<
-  D extends TSchema | ZodType,
+  D extends  ZodType,
   T extends Transport,
   A extends boolean,
   P = A extends false ? null | Auth : Auth
 > {
-  data: D extends TSchema ? Static<D> : D extends ZodType ? TypeOf<D> : unknown
+  data: D extends ZodType ? TypeOf<D> : unknown
   req: Readonly<IncomingMessage>
+  res: T extends typeof Transport.Http
+    ? ServerResponse
+    : T extends typeof Transport.Ws
+    ? undefined
+    : ServerResponse | undefined
   client: Readonly<
     T extends typeof Transport.Http
       ? HttpClient<P>
@@ -22,14 +26,14 @@ export interface ProcedureHandlerOptions<
 }
 
 export type ProcedureHandler<
-  D extends TSchema | ZodType,
+  D extends  ZodType,
   T extends Transport,
   A extends boolean,
   R extends any
 > = (options: ProcedureHandlerOptions<D, T, A>) => R
 
 export interface Procedure<
-  D extends TSchema | ZodType,
+  D extends  ZodType,
   T extends Transport,
   A extends boolean,
   R extends any
@@ -39,7 +43,7 @@ export interface Procedure<
    */
   handler: ProcedureHandler<D, T, A, R>
   /**
-   * Zod or Typebox schema to validate endpoint's input data against
+   * Zod schema to validate endpoint's input data against
    */
   schema?: D
   /**
@@ -132,7 +136,7 @@ export type DefineAuthService = <
 ) => T
 export type DefineGuard = (guard: Guard) => Guard
 export type DefineProcedure = <
-  D extends TSchema | ZodType,
+  D extends  ZodType,
   T extends Transport,
   A extends boolean = true,
   R extends any = any
@@ -154,6 +158,7 @@ export declare interface HttpClient<Auth = unknown, T = typeof Transport.Http> {
 export declare interface WsClient<Auth = unknown>
   extends HttpClient<Auth, typeof Transport.Ws> {
   readonly send: (event: string, data?: any) => void
+  readonly close: WebSocket['close']
   readonly openedAt: Date
   readonly closedAt?: Date
 }
@@ -184,14 +189,6 @@ declare global {
     })
   }
 
-  class BinaryHttpResponse {
-    constructor(options: {
-      data: Buffer | ReadableStream
-      encoding?: string
-      contentType?: string
-    })
-  }
-
   const application: UserApplication
   const hooks: Hooks
   const lib: Lib
@@ -204,20 +201,6 @@ declare global {
   const dependency: <T extends keyof Injections>(
     ...dependencies: T[]
   ) => Promise<void>
-  const Typebox: typeof import('@sinclair/typebox') &
-    typeof import('@sinclair/typebox/compiler') &
-    typeof import('@sinclair/typebox/conditional') &
-    typeof import('@sinclair/typebox/custom') &
-    typeof import('@sinclair/typebox/errors') &
-    typeof import('@sinclair/typebox/format') &
-    typeof import('@sinclair/typebox/guard') &
-    typeof import('@sinclair/typebox/hash') &
-    typeof import('@sinclair/typebox/system') &
-    typeof import('@sinclair/typebox/value') & {
-      Stream: (
-        options?: Partial<StreamTypeOptions>
-      ) => import('@sinclair/typebox').TUnsafe<Stream>
-    }
   const zod: typeof import('zod') & {
     stream: (
       options?: Partial<StreamTypeOptions>

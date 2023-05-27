@@ -33,8 +33,10 @@ export type ApiConstructOptions = {
 
 export type NeemataOptions = {
   host: string
+  urlParams?: (params: URLSearchParams) => void
   preferHttp?: boolean
   pingInterval?: number
   pingTimeout?: number
   scaffold?: boolean
+  debug?: boolean
 }

@@ -45,5 +45,9 @@ parentPort.on('message', ({ message, ...data }) => {
   app.emit(message, data)
 })
 
-process.on('uncaughtException', (err) => logger.error(err))
-process.on('unhandledRejection', (err) => logger.error(err))
+process.on('uncaughtException', (err) =>
+  logger.error(new Error('Uncaught exception', { cause: err }))
+)
+process.on('unhandledRejection', (err) =>
+  logger.error(new Error('Unhandled rejection', { cause: err }))
+)

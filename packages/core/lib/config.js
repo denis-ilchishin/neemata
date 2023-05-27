@@ -1,57 +1,52 @@
 'use strict'
 
-const { Type } = require('@sinclair/typebox')
-const { Value } = require('@sinclair/typebox/value')
 const { deepMerge } = require('./utils/functions')
 const { Watcher } = require('./utils/watcher')
+const Zod = require('zod')
 
-const schema = Type.Object({
-  workers: Type.Number({ minimum: 1 }),
-  ports: Type.Array(Type.Number({ minimum: 1, maximum: 65535 }), {
-    minItems: 1,
-  }),
-  api: Type.Object({
-    hostname: Type.String(),
-    cors: Type.Optional(Type.Object({ origin: Type.String() })),
-    queue: Type.Object({
-      concurrency: Type.Integer(),
-      size: Type.Integer(),
+const schema = Zod.object({
+  workers: Zod.number().min(1),
+  ports: Zod.array(Zod.number().min(1).max(65535)).min(1),
+  api: Zod.object({
+    hostname: Zod.string(),
+    cors: Zod.object({ origin: Zod.string() }).optional(),
+    queue: Zod.object({
+      concurrency: Zod.number().int(),
+      size: Zod.number().int(),
     }),
-    auth: Type.Object({
-      service: Type.String(),
+    auth: Zod.object({
+      service: Zod.string(),
     }),
-    schema: Type.Union(['zod', 'typebox'].map((v) => Type.Literal(v))),
+    schema: Zod.union([Zod.literal('zod'), Zod.literal('zod-format'), Zod.literal('zod-flatten')]),
   }),
-  log: Type.Object({
-    basePath: Type.String(),
-    level: Type.Union(
-      ['debug', 'info', 'warn', 'error'].map((v) => Type.Literal(v))
-    ),
+  log: Zod.object({
+    basePath: Zod.string(),
+    level: Zod.enum(['debug', 'info', 'warn', 'error']),
   }),
-  timeouts: Type.Object({
-    startup: Type.Integer({ minimum: 0 }),
-    shutdown: Type.Integer({ minimum: 0 }),
-    hmr: Type.Integer({ minimum: 0 }),
-    task: Type.Object({
-      execution: Type.Integer({ minimum: 0 }),
-      allocation: Type.Integer({ minimum: 0 }),
+  timeouts: Zod.object({
+    startup: Zod.number().min(0),
+    shutdown: Zod.number().min(0),
+    hmr: Zod.number().min(0),
+    task: Zod.object({
+      execution: Zod.number().min(0),
+      allocation: Zod.number().min(0),
     }),
-    rpc: Type.Object({
-      execution: Type.Integer({ minimum: 0 }),
-      queue: Type.Integer({ minimum: 0 }),
+    rpc: Zod.object({
+      execution: Zod.number().min(0),
+      queue: Zod.number().min(0),
     }),
   }),
-  intervals: Type.Object({
-    ping: Type.Integer({ minimum: 0 }),
+  intervals: Zod.object({
+    ping: Zod.number().min(0),
   }),
-  scheduler: Type.Object({
-    tasks: Type.Array(
-      Type.Object({
-        name: Type.String(),
-        task: Type.String(),
-        cron: Type.String(),
-        timeout: Type.Integer({ minimum: 0 }),
-        args: Type.Array(Type.Any(), { default: [] }),
+  scheduler: Zod.object({
+    tasks: Zod.array(
+      Zod.object({
+        name: Zod.string(),
+        task: Zod.string(),
+        cron: Zod.string(),
+        timeout: Zod.number().min(0),
+        args: Zod.array(Zod.any()).default([]),
       })
     ),
   }),
@@ -113,11 +108,9 @@ class Config extends Watcher {
       // Clear require cache before re-import
       delete require.cache[this.path]
       const merged = deepMerge(defaultConfig, require(this.path))
-      const errors = [...Value.Errors(schema, merged)]
-      if (!errors.length) this.resolved = merged
-      else throw errors
+      this.resolved = schema.parse(merged)
     } catch (error) {
-      console.error(error)
+      logger.error(error)
     }
   }
 }

@@ -1,6 +1,3 @@
-const { TypeCompiler } = require('@sinclair/typebox/compiler')
-const { Value } = require('@sinclair/typebox/value')
-
 function deepMerge(...objs) {
   const [first, ...other] = objs
   const final = { ...first }
@@ -20,16 +17,10 @@ function deepMerge(...objs) {
 
 const unique = (arr) => [...new Set(arr)]
 
-function compileSchema(schema) {
-  const compiled = TypeCompiler.Compile(schema)
-  compiled.Cast = (data) => Value.Cast(schema, data)
-  return compiled
-}
-
 const isNullish = (val) => typeof val === 'undefined' || val === null
 
 function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1)
 }
 
-module.exports = { deepMerge, unique, compileSchema, isNullish, capitalize }
+module.exports = { deepMerge, unique, isNullish, capitalize }

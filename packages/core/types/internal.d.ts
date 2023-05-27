@@ -39,7 +39,7 @@ export declare interface NeemataConfig {
     /**
      * @default 'zod'
      */
-    schema: 'zod' | 'typebox'
+    schema: 'zod' | 'zod-format' | 'zod-flatten'
   }
   log: {
     basePath: string

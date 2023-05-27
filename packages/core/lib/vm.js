@@ -8,7 +8,6 @@ const {
 } = require('node:vm')
 const { dirname, parse, extname, resolve } = require('node:path')
 const { readFile } = require('node:fs/promises')
-const { readFileSync } = require('node:fs')
 const { createRequire } = require('node:module')
 const { pathToFileURL } = require('node:url')
 const { ErrorCode, WorkerType } = require('@neemata/common')
@@ -197,25 +196,6 @@ class Script {
 
 const typingHelpers = ['defineProcedure', 'defineAuthService', 'defineGuard']
 
-const typeBoxExports = JSON.parse(
-  readFileSync(
-    resolve(dirname(require.resolve('@sinclair/typebox')), 'package.json')
-  ).toString()
-).exports
-
-let Typebox = {}
-
-for (const key of Object.keys(typeBoxExports)) {
-  const importName = key.replace('.', '')
-
-  if (importName !== '')
-    Typebox = {
-      ...Typebox,
-      ...require('@sinclair/typebox' + importName),
-    }
-  else Typebox = { ...Typebox, ...require('@sinclair/typebox') }
-}
-
 zod.stream = (options) =>
   zod.any().superRefine(
     (value, ctx) => {
@@ -259,8 +239,8 @@ const COMMON_CONTEXT = Object.freeze({
   ErrorCode,
   WorkerType,
   ApiException,
-  Typebox,
   zod,
+  Zod: zod,
   Stream,
   Error,
   BinaryHttpResponse,
@@ -291,13 +271,6 @@ sourceMapSupport.install({
 
 function clearVM() {
   SOUCRE_MAPS.clear()
-  Typebox.Custom.Clear()
-  Typebox.Stream = Typebox.TypeSystem.CreateType('Stream', (options, value) => {
-    if (!(value instanceof Stream)) return false
-    if (options.maximum !== undefined && value.meta.size > options.maximum)
-      return false
-    return true
-  })
 }
 
 module.exports = {

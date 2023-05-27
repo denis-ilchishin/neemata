@@ -20,7 +20,7 @@ Lightweight application server for nodejs, that uses `node:worker_threads` and `
 ### Core dependencies
 
 - [WS](https://github.com/websockets/ws) - websocket protocol
-- [Typebox](https://github.com/sinclairzx81/typebox)/[Zod](https://github.com/colinhacks/zod) - input data validation
+- [Zod](https://github.com/colinhacks/zod) - input data validation
 
 ### [Roadmap](https://github.com/denis-ilchishin/neemata/issues?q=label%3Aroadmap)
 

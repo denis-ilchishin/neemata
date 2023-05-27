@@ -23,14 +23,24 @@ export class Neemata<T = any> extends EventEmitter {
 
   constructor({
     host,
+    urlParams = () => {},
     preferHttp = false,
     pingInterval = 15000,
     pingTimeout = 10000,
     scaffold = false,
+    debug = false,
   }: NeemataOptions) {
     super()
 
-    this._options = { host, preferHttp, pingInterval, pingTimeout, scaffold }
+    this._options = {
+      host,
+      preferHttp,
+      pingInterval,
+      pingTimeout,
+      scaffold,
+      debug,
+      urlParams,
+    }
     this._url = new URL(host)
     this._prefer = preferHttp ? Transport.Http : Transport.Ws
     this._streams = new Map()
@@ -43,13 +53,6 @@ export class Neemata<T = any> extends EventEmitter {
     this.on('neemata/stream/pull', ({ id }) =>
       this._streams.get(id)?.emit('pull')
     )
-    this.on('neemata/session/clear', async () => {
-      await fetch(this.getUrl('neemata/session/clear'), {
-        credentials: 'include',
-      })
-      setTimeout(() => this._ws?.close(), 0)
-    })
-
     if (scaffold) {
       this.on('neemata/introspect', (data) => this._scaffold(data))
     } else {
@@ -89,15 +92,15 @@ export class Neemata<T = any> extends EventEmitter {
       if (this._pingInterval) clearInterval(this._pingInterval)
       this._pingInterval = setInterval(async () => {
         if (!this.isActive) return
-        const resultPromise = Promise.race([
+        const pingResult = Promise.race([
           new Promise((r) =>
             setTimeout(() => r(false), this._options.pingTimeout)
           ),
           new Promise((r) => this.once('neemata/pong', () => r(true))),
         ])
         this.send(MessageType.Event, { event: 'neemata/ping' })
-        const result = await resultPromise
-        if (!result) this._ws?.close()
+        const ok = await pingResult
+        if (!ok) this._ws?.close()
       }, this._options.pingInterval)
 
       this._connecting = new Promise((resolve) => {
@@ -117,7 +120,7 @@ export class Neemata<T = any> extends EventEmitter {
             (err) => {
               console.error(err)
               this.emit('neemata/error', err)
-              ws.close()
+              ws?.close()
             },
             { once: true }
           )
@@ -177,9 +180,9 @@ export class Neemata<T = any> extends EventEmitter {
     } else {
       this._connecting = this._waitHealthy().then(async () => {
         const data = await fetch(this.getUrl('neemata/introspect'), {
-          credentials: 'include',
-        }).then((res) => res.json())
-        this._scaffold(data)
+          credentials: 'include'
+        })
+        this._scaffold(await data.json())
       })
     }
 
@@ -206,6 +209,7 @@ export class Neemata<T = any> extends EventEmitter {
         url.searchParams.set(name, value)
       }
     }
+    this._options.urlParams?.(url.searchParams)
     return url
   }
 
@@ -248,6 +252,7 @@ export class Neemata<T = any> extends EventEmitter {
     data: any,
     { transport }: ApiConstructOptions = {}
   ) {
+    let _call
     await this._connecting
 
     const streams: Promise<any>[] = []
@@ -272,15 +277,14 @@ export class Neemata<T = any> extends EventEmitter {
       const options: RequestInit = {
         method: 'POST',
         body: await serialize(data),
+        credentials: 'include',
         headers: {
           'content-type': 'application/json',
         },
       }
 
-      return fetch(
-        this.getUrl(procedure.split('.').join('/'), {
-          credentials: 'include',
-        }),
+      _call = fetch(
+        this.getUrl(procedure.split('.').join('/')),
         options
       )
         .catch((err) => {
@@ -304,7 +308,7 @@ export class Neemata<T = any> extends EventEmitter {
             : Promise.resolve(data)
         })
     } else {
-      const call = new Promise((resolve, reject) => {
+      _call = new Promise((resolve, reject) => {
         const correlationId = (++this._correlationId).toString()
         serialize({
           type: MessageType.Call,
@@ -312,8 +316,22 @@ export class Neemata<T = any> extends EventEmitter {
         }).then((serialized) => this._ws?.send(serialized))
         this._calls.set(correlationId, { resolve, reject })
       })
-      return call
     }
+
+    if (this._options.debug) {
+      console.log(`[Neemata] "${procedure}" CALL ->`, data)
+      _call
+        .then((data) => {
+          console.log(`[Neemata] "${procedure}" SUCCESS ->`, data)
+          return data
+        })
+        .catch((err) => {
+          console.log(`[Neemata] "${procedure}" FAILURE ->`, { ...err })
+          throw err
+        })
+    }
+
+    return _call
   }
 
   private async _waitHealthy() {

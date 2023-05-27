@@ -131,7 +131,7 @@ class WorkerApplication extends EventEmitter {
       await this.namespaces[module].load()
     }
 
-    await this.runHooks(WorkerHook.Startup)
+    await this.runHooks(WorkerHook.Startup, false)
 
     await Promise.all(
       ['api', 'tasks'].map((module) => this.namespaces[module].load())
@@ -139,7 +139,7 @@ class WorkerApplication extends EventEmitter {
   }
 
   async terminate() {
-    await this.runHooks(WorkerHook.Shutdown)
+    await this.runHooks(WorkerHook.Shutdown, false)
   }
 
   async reload() {
@@ -170,11 +170,12 @@ class WorkerApplication extends EventEmitter {
   }
 
   async runHooks(hookType, concurrently = true, ...args) {
-    const hooks = this.hooks.get(hookType) ?? new Set()
+    const hooks = Array.from(this.hooks.get(hookType) ?? new Set())
+    if (hookType === WorkerHook.Shutdown) hooks.reverse()
     if (!concurrently) {
       for (const hook of hooks) await hook(...args)
     } else {
-      await Promise.all(Array.from(hooks).map((hook) => hook(...args)))
+      await Promise.all(hooks.map((hook) => hook(...args)))
     }
   }
 

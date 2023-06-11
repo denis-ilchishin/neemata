@@ -10,11 +10,12 @@ type Replace<T, From, To> = T extends (...args: any[]) => any
 type ApiCall<
   T extends import('@neemata/core/types/external').Procedure<any, any, any, any>
 > = (
-  data?: Replace<
-    Parameters<T['handler']>[0]['data'],
-    Stream,
-    import('@neemata/client').Stream
-  >
+  data?: Parameters<T['handler']>[0]['data']
+  // data?: Replace<
+  //   Parameters<T['handler']>[0]['data'],
+  //   Stream,
+  //   import('@neemata/client').Stream
+  // >
 ) => Promise<Awaited<ReturnType<T['handler']>>>
 
 type Merge<T, T2> = {

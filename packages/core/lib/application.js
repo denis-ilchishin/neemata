@@ -32,7 +32,7 @@ class UserApplication {
   }
 
   get clients() {
-    return this.#app.server?.wsClients
+    return this.#app.server?.clients
   }
 
   get worker() {
@@ -185,9 +185,9 @@ class WorkerApplication extends EventEmitter {
       if (!task) throw new Error('Task not found')
       const result = timeout
         ? await Promise.race([
-          task(...args),
-          setTimeout(timeout, new Error('Task execution timeout')),
-        ])
+            task(...args),
+            setTimeout(timeout, new Error('Task execution timeout')),
+          ])
         : await task(...args)
       if (result instanceof Error) throw result
       return { error: false, data: result }

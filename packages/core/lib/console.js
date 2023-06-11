@@ -62,10 +62,12 @@ const wId = isMainThread ? '' : `W${workerId}-`
 
 function writeToStream(stream, level, group, content) {
   const { text, bg } = levels[level] ?? levels.log
-  const _level = `${bg} ${level.toUpperCase()} ${level.length < 5 ? ' ' : ''}${styles.reset
-    }`
-  const _prefix = `${text}[${new Date().toISOString()}] ${_level} ${wId}${wType}${styles.reset
-    }`
+  const _level = `${bg} ${level.toUpperCase()} ${level.length < 5 ? ' ' : ''}${
+    styles.reset
+  }`
+  const _prefix = `${text}[${new Date().toISOString()}] ${_level} ${wId}${wType}${
+    styles.reset
+  }`
   const _content = `${text}${content}${styles.reset}`
   stream.write(`${_prefix}${group ? ` [${group}]` : ''} ${_content}\n`)
 }

@@ -1,13 +1,13 @@
-import { createApi } from './api.js'
-import { createConfig } from './config.js'
-import { createContainer } from './container.js'
-import { createServer } from './server.js'
+import { createApi } from './lib/api.js'
+import { createConfig } from './lib/config.js'
+import { createContainer } from './lib/container.js'
+import { createServer } from './lib/server.js'
 export {
   defineApplication,
   defineContext,
   defineProcedure,
   defineProvider,
-} from './utils.js'
+} from './lib/utils.js'
 
 /** @typedef {Awaited<ReturnType<typeof createApp>>} App */
 

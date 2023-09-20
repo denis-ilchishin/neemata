@@ -1,13 +1,16 @@
 {
   "name": "@neemata/client",
-  "module": "index.ts",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
   "type": "module",
   "scripts": {
-    "build": "bun build ./index.ts --outdir ./ "
+    "build": "tsc --project tsconfig.build.json",
+    "watch": "tsc --watch --project tsconfig.build.json"
   },
   "exports": {
     ".": {
-      "import": "./index.js",
+      "import": "./dist/index.js",
       "types": "./index.ts"
     }
   },

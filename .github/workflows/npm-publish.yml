@@ -39,5 +39,6 @@ jobs:
           else
             TAG=""
           fi
+          pnpm run build
           pnpm version ${{ github.event.release.tag_name }} -ws --no-commit-hooks --no-git-tag-version --silent --include-workspace-root  || true
           pnpm run publish --filter "*" --access public --no-git-checks ${TAG}

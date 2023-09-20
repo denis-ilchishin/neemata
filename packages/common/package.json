@@ -4,9 +4,10 @@
   "license": "MIT",
   "description": "Nodejs application server",
   "type": "module",
+  "files": [],
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
-    "watch": "tsc --watch --project tsconfig.build.json"
+    "watch": "npm run build -- --watch",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json"
   },
   "exports": {
     ".": {

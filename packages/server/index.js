@@ -2,17 +2,13 @@ import { createApi } from './lib/api.js'
 import { createConfig } from './lib/config.js'
 import { createContainer } from './lib/container.js'
 import { createServer } from './lib/server.js'
-export {
-  defineApplication,
-  defineContext,
-  defineProcedure,
-  defineProvider,
-} from './lib/utils.js'
+
+export { defineContext, defineProcedure, defineProvider } from './lib/utils.js'
 
 /** @typedef {Awaited<ReturnType<typeof createApp>>} App */
 
 /**
- * @param {ReturnType<DefineApplication>} userApp
+ * @param {ApplicationDeclaration} userApp
  */
 export const createApp = async (userApp) => {
   const config = createConfig(userApp.config)

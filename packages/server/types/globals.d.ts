@@ -66,16 +66,12 @@ declare type DefineContext = <
 
 declare type ErrorHandler = [ErrorConstructor, (error: Error) => any]
 
-declare type DefineApplication = <
-  T extends {
-    config: ApplicationConfig
-    procedures: string | Record<string, Procedure<any, any, any>>
-    contexts?: Context<any, any, any>[]
-    errorHandlers?: ErrorHandler[]
-  }
->(
-  options: T
-) => T
+declare type ApplicationDeclaration = {
+  config: ApplicationConfig
+  procedures: string | Record<string, Procedure<any, any, any>>
+  contexts?: Context<any, any, any>[]
+  errorHandlers?: ErrorHandler[]
+}
 
 declare type ApplicationConfig = {
   port: number

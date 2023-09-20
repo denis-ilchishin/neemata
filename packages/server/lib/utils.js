@@ -90,6 +90,3 @@ export const defineProvider = (value) => markAs(value, PROVIDER_SYMBOL)
 
 /** @type {DefineContext} */
 export const defineContext = (value) => markAs(value, CONTEXT_SYMBOL)
-
-/** @type {DefineApplication} */
-export const defineApplication = (value) => markAs(value, CONTEXT_SYMBOL)

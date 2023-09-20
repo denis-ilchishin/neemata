@@ -9,8 +9,8 @@ export type ViewConstructor =
   | Float32ArrayConstructor
   | Float64ArrayConstructor
 
-const textEncoder = new TextEncoder()
-const textDecoder = new TextDecoder()
+const textEncoder = new global.TextEncoder()
+const textDecoder = new global.TextDecoder()
 
 export function concat(...buffers: ArrayBuffer[]) {
   const totalLength = buffers

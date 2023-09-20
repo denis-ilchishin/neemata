@@ -4,11 +4,20 @@
   "license": "MIT",
   "description": "Nodejs application server",
   "type": "module",
+  "scripts": {
+    "watch": "npm run build -- --watch",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json"
+  },
   "exports": {
     ".": {
-      "import": "./index.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "engines": {
     "node": ">=18.0.0 <19"
   },

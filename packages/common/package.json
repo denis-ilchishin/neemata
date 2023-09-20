@@ -1,0 +1,17 @@
+{
+  "name": "@neemata/common",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./index.ts --outdir ./ "
+  },
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./index.ts"
+    }
+  },
+  "peerDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

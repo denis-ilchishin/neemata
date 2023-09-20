@@ -1,0 +1,21 @@
+{
+  "name": "neemata",
+  "private": true,
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "watch": "pnpm run --parallel --filter \"*\" build --watch",
+    "build": "pnpm run --filter \"*\" build",
+    "prepublish": "pnpm run build",
+    "publish": "pnpm run --filter \"*\" build"
+  },
+  "author": "",
+  "license": "ISC",
+  "workspaces": [
+    "./packages/*"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.6.0",
+    "typescript": "^5.2.2"
+  }
+}

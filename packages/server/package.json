@@ -1,0 +1,21 @@
+{
+  "name": "@neemata/server",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./lib/application.js"
+    }
+  },
+  "dependencies": {
+    "@esbuild-kit/esm-loader": "^2.6.3",
+    "@neemata/common": "workspace:*",
+    "qs": "^6.11.2",
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.31.0"
+  },
+  "devDependencies": {
+    "@types/qs": "^6.9.8"
+  },
+  "peerDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

@@ -3,17 +3,11 @@
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
-  "type": "module",
   "scripts": {
     "watch": "npm run build -- --watch",
     "build": "rm -rf dist && tsc --project tsconfig.build.json"
   },
-  "exports": {
-    ".": {
-      "import": "./index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
+  "main": "./dist/index.js",
   "os": [
     "darwin",
     "linux"

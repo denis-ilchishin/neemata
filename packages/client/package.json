@@ -16,8 +16,5 @@
   },
   "dependencies": {
     "@neemata/common": "workspace:*"
-  },
-  "peerDependencies": {
-    "typescript": "^5.2.2"
   }
 }

@@ -3,7 +3,6 @@
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
-  "type": "module",
   "scripts": {
     "watch": "npm run build -- --watch",
     "build": "rm -rf dist && tsc --project tsconfig.esm.json && tsc --project tsconfig.cjs.json"

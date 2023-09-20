@@ -1,8 +1,8 @@
-declare type DefineProcedure = <Input, Response, Output>(
+export type DefineProcedure = <Input, Response, Output>(
   cb: Procedure<Input, Response, Output>
 ) => Procedure<Input, Response, Output>
 
-declare type Procedure<Input, Response, Output> = (
+export type Procedure<Input, Response, Output> = (
   inject: Inject,
   params: any
 ) => Asyncable<{
@@ -11,21 +11,21 @@ declare type Procedure<Input, Response, Output> = (
   output?: (response: Awaited<Response>) => Output
 }>
 
-declare type ProviderFactory = (inject: Inject) => any
-declare type DefineProvider = <Factory extends ProviderFactory>(
+export type ProviderFactory = (inject: Inject) => any
+export type DefineProvider = <Factory extends ProviderFactory>(
   provider: Provider<Factory>
 ) => Provider<Factory>
 
-declare type ExcludeFunction<T> = T extends (...args: any[]) => any ? never : T
-declare type AcceptAnythingExceptFunction =
+export type ExcludeFunction<T> = T extends (...args: any[]) => any ? never : T
+export type AcceptAnythingExceptFunction =
   | Promise<ExcludeFunction<any>>
   | ExcludeFunction<any>
 
-declare type Provider<Factory extends (inject: Inject) => any> = Factory
+export type Provider<Factory extends (inject: Inject) => any> = Factory
 
-declare type Injection<T> = T | Promise<{ default: T }>
+export type Injection<T> = T | Promise<{ default: T }>
 
-declare type Inject = {
+export type Inject = {
   provider: <Factory extends ProviderFactory, T extends Provider<Factory>>(
     injection: T
   ) => Promise<Awaited<ReturnType<T>>>
@@ -34,9 +34,9 @@ declare type Inject = {
   ) => Promise<Awaited<C['type']>>
 }
 
-declare type Asyncable<T> = T | Promise<T>
+export type Asyncable<T> = T | Promise<T>
 
-declare type Context<
+export type Context<
   DefaultType = undefined,
   ConnectionType = DefaultType,
   CallType = ConnectionType
@@ -54,7 +54,7 @@ declare type Context<
   ) => any
 }
 
-declare type DefineContext = <
+export type DefineContext = <
   DefaultType = undefined,
   ConnectionType = DefaultType,
   CallType = ConnectionType
@@ -64,16 +64,16 @@ declare type DefineContext = <
   type: DefaultType | ConnectionType | CallType
 }
 
-declare type ErrorHandler = [ErrorConstructor, (error: Error) => any]
+export type ErrorHandler = [ErrorConstructor, (error: Error) => any]
 
-declare type ApplicationDeclaration = {
+export type ApplicationDeclaration = {
   config: ApplicationConfig
   procedures: string | Record<string, Procedure<any, any, any>>
   contexts?: Context<any, any, any>[]
   errorHandlers?: ErrorHandler[]
 }
 
-declare type ApplicationConfig = {
+export type ApplicationConfig = {
   port: number
   hostname?: string
   https?: boolean

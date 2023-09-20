@@ -8,7 +8,7 @@ export { defineContext, defineProcedure, defineProvider } from './lib/utils.js'
 /** @typedef {Awaited<ReturnType<typeof createApp>>} App */
 
 /**
- * @param {ApplicationDeclaration} userApp
+ * @param {import('./types/globals').ApplicationDeclaration} userApp
  */
 export const createApp = async (userApp) => {
   const config = createConfig(userApp.config)

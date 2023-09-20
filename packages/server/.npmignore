@@ -1,6 +1,7 @@
 
 /index.js
-/lib/**/*.js
+/types
+/lib
 
 .DS_Store
 

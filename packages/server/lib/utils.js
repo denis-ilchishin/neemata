@@ -82,11 +82,11 @@ export const PROVIDER_SYMBOL = Symbol('provider')
 export const CONTEXT_SYMBOL = Symbol('context')
 export const APPLICATION_SYMBOL = Symbol('app')
 
-/** @type {DefineProcedure} */
+/** @type {import('../types/globals').DefineProcedure} */
 export const defineProcedure = (value) => markAs(value, PROCEDURE_SYMBOL)
 
-/** @type {DefineProvider} */
+/** @type {import('../types/globals').DefineProvider} */
 export const defineProvider = (value) => markAs(value, PROVIDER_SYMBOL)
 
-/** @type {DefineContext} */
+/** @type {import('../types/globals').DefineContext} */
 export const defineContext = (value) => markAs(value, CONTEXT_SYMBOL)

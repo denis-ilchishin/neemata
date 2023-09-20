@@ -5,7 +5,8 @@
     "declaration": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist"
+    "outDir": "dist",
+    "removeComments": true
   },
-  "include": ["index.js", "lib/**/*.js", "types/**/*.d.ts"]
+  "include": ["index.js", "lib/**/*.js", "types/**/*.ts"]
 }

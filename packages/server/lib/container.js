@@ -9,7 +9,7 @@ export const Scope = {
 
 /**
  * @param {import("./config").Config} config
- * @param {Context<any, any, any>[]} preload
+ * @param {import("../types/globals").Context<any, any, any>[]} preload
  */
 export const createContainer = (
   config,

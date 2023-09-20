@@ -1,7 +1,7 @@
 /** @typedef {ReturnType<typeof createConfig>} Config */
 
 /**
- * @param {ApplicationConfig} appConf
+ * @param {import("../types/globals").ApplicationConfig} appConf
  */
 export const createConfig = (appConf) => {
   const port = appConf.port

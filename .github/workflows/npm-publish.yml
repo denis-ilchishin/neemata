@@ -3,9 +3,11 @@ on:
     types: [published]
 
 jobs:
-  cache-and-install:
+  build-and-publish:
     runs-on: ubuntu-latest
-
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_USERNAME: ${{ secrets.NPM_USERNAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3

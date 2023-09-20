@@ -8,12 +8,7 @@
     "watch": "npm run build -- --watch",
     "build": "rm -rf dist && tsc --project tsconfig.build.json"
   },
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./index.ts"
-    }
-  },
+  "main": "./dist/index.js",
   "dependencies": {
     "@neemata/common": "workspace:*"
   }

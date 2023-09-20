@@ -3,8 +3,9 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
-    "emitDeclarationOnly": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
     "outDir": "dist"
   },
-  "include": ["index.js", "lib/**/*", "types/**/*"]
+  "include": ["index.js", "lib/**/*.js", "types/**/*.d.ts"]
 }

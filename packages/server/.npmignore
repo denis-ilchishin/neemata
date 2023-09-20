@@ -1,3 +1,7 @@
+
+/index.js
+/lib/**/*.js
+
 .DS_Store
 
 # Logs

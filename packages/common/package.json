@@ -6,12 +6,12 @@
   "type": "module",
   "scripts": {
     "watch": "npm run build -- --watch",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json"
+    "build": "rm -rf dist && tsc --project tsconfig.esm.json && tsc --project tsconfig.cjs.json"
   },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./index.ts"
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
     }
   }
 }

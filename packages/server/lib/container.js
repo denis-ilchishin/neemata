@@ -1,24 +1,24 @@
 /** @typedef {ReturnType<typeof createContainer>} Container */
-/** @typedef {(typeof Scope)[keyof typeof Scope]} Scope */
 
-export const Scope = {
-  Default: 'default',
-  Connection: 'connection',
-  Call: 'call',
-}
+import { Scope } from '@neemata/common'
+import { logger } from './logger'
 
 /**
  * @param {import("./config").Config} config
- * @param {import("../types/globals").Context<any, any, any>[]} preload
+ * @param {any} server
+ * @param {import("../types").Context<any, any, any>[]} preload
  */
 export const createContainer = (
   config,
+  server,
   preload = [],
   scope = Scope.Default,
   params = {},
   parentProviders = new Map(),
   parentContexts = new Map()
 ) => {
+  logger.debug('Initialize [%s] scope context...', scope)
+
   const providers = new Map(parentProviders)
   const contexts = new Map()
 
@@ -39,6 +39,7 @@ export const createContainer = (
   }
 
   const dispose = async () => {
+    logger.debug('Disposing [%s] scope context...', scope)
     for (const value of contexts.values()) {
       const dispose = value?.dispose
       if (dispose) await dispose(inject, value, params)
@@ -48,17 +49,19 @@ export const createContainer = (
   }
 
   const load = async () => {
+    logger.debug('Preload [%s] scope context...', scope)
     for (const context of preload) {
       if (context[scope]) {
         const value = await resolveContext(context)
         contexts.set(context, value)
       }
     }
+
+    return self
   }
 
-  const resolveProvider = async (providerFactory) => {
-    const exports = await providerFactory(inject)
-    return exports
+  const resolveProvider = (providerFactory) => {
+    return providerFactory(inject)
   }
 
   const resolveContext = async (context) => {
@@ -72,10 +75,15 @@ export const createContainer = (
   const inject = {
     provider: injectProvider,
     context: injectContext,
+    app: {
+      logger,
+    },
   }
 
   const copy = (scope, params) =>
-    createContainer(config, [], scope, params, providers, contexts)
+    createContainer(config, server, [], scope, params, providers, contexts)
 
-  return { copy, load, dispose, inject, params }
+  const self = { copy, load, dispose, inject, params }
+
+  return self
 }

@@ -3,17 +3,21 @@ import {
   ErrorCode,
   MessageType,
   STREAM_ID_PREFIX,
+  Scope,
   StreamsPayloadView,
+  Transport,
   concat,
+  decodeText,
   encodeBigNumber,
   encodeNumber,
   encodeText,
 } from '@neemata/common'
+import { randomUUID } from 'node:crypto'
 import EventEmitter from 'node:events'
-import { PassThrough } from 'node:stream'
+import { PassThrough, Readable } from 'node:stream'
 import qs from 'qs'
 import uws from 'uWebSockets.js'
-import { Scope } from './container.js'
+import { logger } from './logger.js'
 import { SemaphoreError, createSemaphore } from './semaphore.js'
 
 /** @typedef {ReturnType<typeof createServer>} Server */
@@ -38,21 +42,23 @@ const InternalError = new ApiError(
 )
 
 const NotFoundError = new ApiError(ErrorCode.NotFound, 'Not Found')
+
 /**
  * @param {import('./config').Config} config
  * @param {import('./api').Api} api
- * * @param {import('./container.js').Container} container
  */
-export const createServer = (config, api, container) => {
+export const createServer = (config, api) => {
   /** @type {uws.us_listen_socket | undefined} */
   let socket
+
+  /** @type {import('./container').Container} */
+  let container
+
   const basePath = (...parts) => [config.basePath, ...parts].join('/')
-  const server = config.https ? uws.SSLApp({}) : uws.App()
+  const server = config.https ? uws.SSLApp(config.https) : uws.App()
 
   const websockets = new Map()
-
-  const serialize = (data, receiver) => JSON.stringify(data, receiver)
-  const deserialize = (data, receiver) => JSON.parse(data, receiver)
+  const rooms = new Map()
 
   const semaphore = config.rpc
     ? createSemaphore(
@@ -71,16 +77,19 @@ export const createServer = (config, api, container) => {
     if (origin) res.writeHeader('Access-Control-Allow-Origin', origin)
   }
 
-  const throttle = async (cb) => {
+  const throttle = async (cb, name) => {
     if (!semaphore) return cb()
     try {
+      logger.trace('Trying to enter rpc queue for [%s] procedure...', name)
       await semaphore.enter()
+      logger.trace('Entered rpc queue for [%s] procedure', name)
       return await cb()
     } catch (error) {
       if (error instanceof SemaphoreError)
         throw new ApiError(ErrorCode.ServiceUnavailable, 'Server is too busy')
       else throw error
     } finally {
+      logger.trace('Leaving rpc queue for [%s] procedure...', name)
       await semaphore.leave()
     }
   }
@@ -90,29 +99,86 @@ export const createServer = (config, api, container) => {
    * @param {import('./container.js').Container} container
    * @param {any} payload
    */
-  const handleRPC = async (name, container, payload) => {
+  const handleRPC = async (name, container, payload, params = {}) => {
+    logger.info('Handling [%s] procedure...', name)
     try {
       return await throttle(async () => {
+        logger.trace('Resolving [%s] procedure...', name)
         const { handle, input, output } = await api.get(container, name)
+
+        logger.trace("Handling [%s] procedure's input...", name)
         const data = input ? await input(payload) : payload
-        const response = await handle(data)
+
+        logger.trace("Firing [%s] procedure's handler...", name)
+        const response = await handle(data, params)
+
+        logger.trace("Handling [%s] procedure's output...", name)
         return output ? await output(response) : response
-      })
+      }, name)
     } catch (error) {
       throw api.handleError(error)
     }
   }
 
-  const bodyHandler = (req, res, method, query) => {
-    if (method === 'post')
-      return createBody(req, res).toJSON().then(deserialize)
-    else return query
+  /**
+   * @param {Req} req
+   * @param {Res} res
+   * @param {string} method
+   * @param {any} query
+   */
+  const bodyHandler = async (req, res, method, query) => {
+    if (method === 'post') {
+      if (!req.getHeader('content-type').startsWith(JSON_CONTENT_TYPE_MIME))
+        throw new ApiError(ErrorCode.NotAcceptable, 'Unsupported body type')
+      return deserialize(await createBody(req, res).toJSON())
+    } else {
+      return query
+    }
   }
 
-  const responseHandler = (req, res, headers, data) => {
+  const httpResponseHandler = (req, res, headers, data) => {
     setDefaultHeaders(res)
     setCors(res, headers)
     res.end(serialize(data))
+  }
+
+  /**
+   * @param {Req} req
+   * @param {Res} res
+   * @param {any} headers
+   * @param {Readable} stream
+   */
+  const httpStreamResponseHandler = (req, res, headers, stream) => {
+    let isAborted = false
+    const tryRespond = (cb) => {
+      if (!isAborted) res.cork(cb)
+    }
+    stream.on('error', () => tryRespond(() => res.close()))
+    res.onAborted(() => {
+      isAborted = true
+      stream.destroy(new Error('Aborted by client'))
+    })
+    stream.on('end', () => tryRespond(() => res.end()))
+    stream.on('data', (chunk) => {
+      const arrayBuffer = chunk.buffer.slice(
+        chunk.byteOffset,
+        chunk.byteOffset + chunk.byteLength
+      )
+      let ok = false
+      tryRespond(() => (ok = res.write(arrayBuffer)))
+      const lastOffset = res.getWriteOffset()
+      if (!ok) {
+        stream.pause()
+        res.onWritable((offset) => {
+          let ok = false
+          tryRespond(
+            () => (ok = res.write(arrayBuffer.slice(offset - lastOffset)))
+          )
+          if (ok) stream.resume()
+          return ok
+        })
+      }
+    })
   }
 
   /**
@@ -130,17 +196,15 @@ export const createServer = (config, api, container) => {
     }
 
     const method = req.getMethod()
+    const url = getRequestUrl(req)
     const query = qs.parse(req.getQuery(), config.qsOptions)
     const headers = getRequestHeaders(req)
-    const proxyRemoteAddress = Buffer.from(
-      res.getProxiedRemoteAddressAsText()
-    ).toString()
-    const remoteAddress = Buffer.from(res.getRemoteAddressAsText()).toString()
-    const url = getRequestUrl(req)
+    const proxyRemoteAddress = decodeText(res.getProxiedRemoteAddressAsText())
+    const remoteAddress = decodeText(res.getRemoteAddressAsText())
 
     try {
       const procedure = url.pathname.substring(basePath('api').length + 1)
-      const body = await bodyHandler(res, req, method, query)
+      const body = await bodyHandler(req, res, method, query)
 
       let params = {
         headers,
@@ -148,43 +212,55 @@ export const createServer = (config, api, container) => {
         proxyRemoteAddress,
         remoteAddress,
       }
-      const scopeContainer = container.copy(Scope.Connection, params)
-      await scopeContainer.load()
+      const scopeContainer = await container
+        .copy(Scope.Connection, params)
+        .load()
 
       params = {
         ...params,
         procedure,
+        transport: Transport.Http,
+        method,
       }
-      const callContainer = scopeContainer.copy(Scope.Call, params)
-      await callContainer.load()
 
-      const respose = await handleRPC(procedure, callContainer, body)
-      tryRespond(() => responseHandler(req, res, headers, respose))
+      const callContainer = await scopeContainer.copy(Scope.Call, params).load()
+
+      const responseHeaders = new Map()
+      const setResponseHeader = (name, value) =>
+        responseHeaders.set(name, value)
+      const response = await handleRPC(procedure, callContainer, body, {
+        setHeader: setResponseHeader,
+      })
+      const responseHandler =
+        response instanceof Readable
+          ? httpStreamResponseHandler
+          : httpResponseHandler
+
+      tryRespond(() => {
+        for (const [name, value] of responseHeaders)
+          res.writeHeader(name, value)
+        responseHandler(
+          req,
+          res,
+          headers,
+          response instanceof Readable ? response : { response }
+        )
+      })
 
       await scopeContainer.dispose()
       await callContainer.dispose()
-    } catch (cause) {
+    } catch (error) {
       tryRespond(() => {
-        if (cause instanceof ApiError) {
-          res.writeStatus('400 Bad Request')
-          responseHandler(req, res, headers, cause)
+        if (error instanceof ApiError) {
+          httpResponseHandler(req, res, headers, { error })
         } else {
-          console.error('Unexpected error', { cause })
+          logger.error({ error }, 'Unexpected error')
           res.writeStatus('500 Internal Server Error')
-          responseHandler(req, res, headers, InternalError)
+          httpResponseHandler(req, res, headers, { error: InternalError })
         }
       })
     }
   }
-
-  server.options(basePath('*'), (res, req) => {
-    if (!socket) return void res.close()
-    const headers = getRequestHeaders(req)
-    setDefaultHeaders(res)
-    setCors(res, headers)
-    res.writeStatus('204 No Content')
-    res.endWithoutBody()
-  })
 
   server.post(basePath('api', '*'), handleHTTP)
   server.get(basePath('api', '*'), handleHTTP)
@@ -195,19 +271,23 @@ export const createServer = (config, api, container) => {
     setCors(res, headers)
     res.end('OK')
   })
-
+  server.options(basePath('*'), (res, req) => {
+    if (!socket) return void res.close()
+    const headers = getRequestHeaders(req)
+    setDefaultHeaders(res)
+    setCors(res, headers)
+    if (req.getUrl().startsWith(basePath('api')))
+      res.writeHeader('Accept', JSON_CONTENT_TYPE_MIME)
+    res.writeStatus('204 No Content')
+    res.endWithoutBody()
+  })
   server.any('/*', (res, req) => {
     if (!socket) return void res.close()
     const headers = getRequestHeaders(req)
     setDefaultHeaders(res)
     setCors(res, headers)
     res.writeStatus('404 Not Found')
-    const acceptContentTypes = req.getHeader('accept').split(',')
-    if (acceptContentTypes.includes(JSON_CONTENT_TYPE_MIME)) {
-      res.end(serialize())
-    } else {
-      res.end('Not Found')
-    }
+    res.end('Not Found')
   })
 
   /**
@@ -215,6 +295,8 @@ export const createServer = (config, api, container) => {
    * @param {Buffer} payloadBuf
    */
   const handleWSRPC = async (ws, payloadBuf) => {
+    //TODO: refactor this mess
+
     const { streams } = ws.getUserData()
     const streamsPayloadLength = payloadBuf
       .subarray(0, StreamsPayloadView.BYTES_PER_ELEMENT)
@@ -232,33 +314,71 @@ export const createServer = (config, api, container) => {
       streams.set(id.toString(), createStream(ws, id, meta))
     }
 
+    const streamsReplacer = (key, value) => {
+      if (typeof value === 'string' && value.startsWith(STREAM_ID_PREFIX)) {
+        return streams.get(value.slice(STREAM_ID_PREFIX.length))
+      }
+      return value
+    }
+
     const rpcPayload = deserialize(
       payloadBuf.subarray(Uint32Array.BYTES_PER_ELEMENT + streamsPayloadLength),
-      (key, value) => {
-        if (typeof value === 'string' && value.startsWith(STREAM_ID_PREFIX)) {
-          return streams.get(value.slice(STREAM_ID_PREFIX.length))
-        }
-        return value
-      }
+      streamsReplacer
     )
 
-    const type = encodeNumber(MessageType.RPC, Uint8Array)
+    const type = encodeNumber(MessageType.Rpc, Uint8Array)
 
-    let { container, params } = ws.getUserData()
+    let { id, container, params, events } = ws.getUserData()
     const { procedure, payload, callId } = rpcPayload
 
-    const scopeContainer = container.copy(Scope.Call, { ...params, procedure })
+    const wsInterface = {
+      send: (event, data) => ws.send(createWsEvent(event, data)),
+      rooms: () => new Set(ws.getTopics()),
+      join: (roomName) => ws.subscribe(roomName),
+      leave: (roomName) => ws.unsubscribe(roomName),
+      publish: (roomName, event, data, includeSelf = false) => {
+        const room = rooms.get(roomName)
+        if (room) {
+          for (const ws of room) {
+            if (ws.id !== id || includeSelf) {
+              ws.send(createWsEvent(event, data), true)
+            }
+          }
+        }
+        return !!room
+      },
+    }
+
+    params = {
+      ...params,
+      transport: Transport.Http,
+      procedure,
+      websocket: wsInterface,
+    }
+    const scopeContainer = container.copy(Scope.Call, params)
 
     try {
       await scopeContainer.load()
       const response = await handleRPC(procedure, scopeContainer, payload)
-      ws.send(concat(type, encodeText(serialize({ callId, response }))), true)
+      ws.send(
+        concat(type, encodeText(serialize({ callId, payload: { response } }))),
+        true
+      )
     } catch (error) {
       if (error instanceof ApiError) {
-        ws.send(concat(type, encodeText(serialize({ callId, error }))), true)
+        ws.send(
+          concat(type, encodeText(serialize({ callId, payload: { error } }))),
+          true
+        )
       } else {
-        console.error('Unexpected error', { cause: error })
-        ws.send(concat(type, encodeText(serialize(InternalError))), true)
+        logger.error({ error }, 'Unexpected error')
+        ws.send(
+          concat(
+            type,
+            encodeText(serialize({ callId, payload: { error: InternalError } }))
+          ),
+          true
+        )
       }
     } finally {
       await scopeContainer.dispose()
@@ -267,16 +387,15 @@ export const createServer = (config, api, container) => {
 
   server.ws(basePath('api'), {
     maxPayloadLength: 16 * 1024 * 1024,
+    sendPingsAutomatically: true,
     upgrade: async (res, req, socket) => {
       if (!socket) return void res.close()
       let isAborted = false
       res.onAborted(() => (isAborted = true))
 
       const headers = getRequestHeaders(req)
-      const proxyRemoteAddress = Buffer.from(
-        res.getProxiedRemoteAddressAsText()
-      ).toString()
-      const remoteAddress = Buffer.from(res.getRemoteAddressAsText()).toString()
+      const proxyRemoteAddress = decodeText(res.getProxiedRemoteAddressAsText())
+      const remoteAddress = decodeText(res.getRemoteAddressAsText())
       const query = qs.parse(req.getQuery(), config.qsOptions)
 
       const secKey = headers['sec-websocket-key']
@@ -293,7 +412,13 @@ export const createServer = (config, api, container) => {
         if (isAborted) throw new Error('Aborted')
         res.cork(() => {
           res.upgrade(
-            { streams, container: scopeContainer, params, events },
+            {
+              id: randomUUID(),
+              streams,
+              container: scopeContainer,
+              params,
+              events,
+            },
             secKey,
             secProtocol,
             secExtensions,
@@ -302,23 +427,26 @@ export const createServer = (config, api, container) => {
         })
       } catch (error) {
         res.close()
+        // Dispone the container if the connection is aborted before upgrading to ws
         if (error.message === 'Aborted') await scopeContainer.dispose()
       }
     },
     open: (ws) => {
-      const { events } = ws.getUserData()
-      events.on(MessageType.RPC, handleWSRPC)
-      events.on(MessageType.STREAM_PUSH, (ws, buffer) => {
+      const { id, events } = ws.getUserData()
+      logger.trace('Open new websocket [%s]', id)
+
+      websockets.set(id, ws)
+      events.on(MessageType.Rpc, handleWSRPC)
+      events.on(MessageType.StreamPush, (ws, buffer) => {
         const { streams } = ws.getUserData()
         const id = buffer.readUint32LE()
         const stream = streams.get(id.toString())
         if (!stream) ws.close()
         const chunk = buffer.subarray(Uint32Array.BYTES_PER_ELEMENT)
-        console.log(chunk.byteLength)
         stream.push(chunk)
         stream.emit('received', chunk.byteLength)
       })
-      events.on(MessageType.STREAM_END, (ws, buffer) => {
+      events.on(MessageType.StreamEnd, (ws, buffer) => {
         const { streams } = ws.getUserData()
         const id = buffer.readUint32LE().toString()
         const stream = streams.get(id)
@@ -326,7 +454,7 @@ export const createServer = (config, api, container) => {
         stream.end()
         streams.delete(id)
       })
-      events.on(MessageType.STREAM_TERMINATE, (ws, buffer) => {
+      events.on(MessageType.StreamTerminate, (ws, buffer) => {
         const { streams } = ws.getUserData()
         const id = buffer.readUint32LE().toString()
         const stream = streams.get(id)
@@ -334,23 +462,52 @@ export const createServer = (config, api, container) => {
         stream.destroy(new Error('Termiated by client'))
         streams.delete(id)
       })
+      events.on(MessageType.Event, (event, data) => {
+        ws.send(createWsEvent(event, data), true)
+      })
     },
     message: (ws, message, isBinary) => {
+      if (!isBinary) return void ws.close()
+      const { id, events } = ws.getUserData()
+      logger.trace('Receive websocket [%s] message', id)
       try {
-        if (!isBinary) ws.close()
-        const { events } = ws.getUserData()
         const buf = Buffer.from(message)
         const type = buf.subarray(0, Uint8Array.BYTES_PER_ELEMENT).readUint8()
         const buffer = buf.subarray(Uint8Array.BYTES_PER_ELEMENT)
-        console.debug({ type })
         events.emit(type, ws, buffer)
       } catch (error) {
-        console.error(error)
+        logger.error(error)
+      }
+    },
+    subscription: (ws, roomNameBuff, newCount, oldCount) => {
+      const { id } = ws.getUserData()
+      const roomName = decodeText(roomNameBuff)
+      const unsubscribed = newCount < oldCount
+
+      logger.debug(
+        '%s websocket [%s] %s room [%s]',
+        unsubscribed ? 'Unsubscribe' : 'Subscribe',
+        id,
+        unsubscribed ? 'from' : 'to',
+        roomName
+      )
+
+      const room = rooms.get(roomName) ?? new Set()
+      if (newCount === 0) {
+        room.clear()
+        rooms.delete(roomName)
+      } else {
+        if (unsubscribed) room.delete(ws)
+        else room.add(ws)
+
+        if (!rooms.has(roomName)) rooms.set(roomName, room)
       }
     },
     close: async (ws, code, message) => {
-      console.error([code, Buffer.from(message).toString()])
-      const { container, streams } = ws.getUserData()
+      const { id, container, streams, events } = ws.getUserData()
+      logger.trace('Close websocket [%s]', id)
+      websockets.delete(id)
+      events.removeAllListeners()
       for (const stream of streams.values()) stream.destroy()
       streams.clear()
       await container.dispose()
@@ -358,11 +515,16 @@ export const createServer = (config, api, container) => {
   })
 
   const start = async () => {
-    const _socket = await new Promise((r) =>
-      server.listen(config.hostname, config.port, r)
-    )
+    const { hostname, port, basePath } = config
+    const _socket = await new Promise((r) => server.listen(hostname, port, r))
     socket = _socket
-    console.log(`Listening on ${config.hostname}:${config.port}`)
+    logger.info(
+      'Listening on %s://%s:%s%s',
+      config.https ? 'https' : 'http',
+      hostname,
+      port,
+      basePath
+    )
   }
 
   const stop = async () => {
@@ -371,7 +533,18 @@ export const createServer = (config, api, container) => {
     socket = undefined
   }
 
-  return { start, stop }
+  const setGlobalContainer = (globalContainer) => (container = globalContainer)
+
+  return { start, stop, setGlobalContainer, websockets, rooms }
+}
+
+const serialize = (data, receiver) => JSON.stringify(data, receiver)
+const deserialize = (data, receiver) => JSON.parse(data, receiver)
+
+const createWsEvent = (event, data) => {
+  const type = encodeNumber(MessageType.Event, Uint8Array)
+  const payload = encodeText(serialize({ event, data }))
+  return concat(type, payload)
 }
 
 /**
@@ -448,7 +621,7 @@ const createStream = (ws, id, meta) => {
   const pull = () => {
     ws.send(
       concat(
-        encodeNumber(MessageType.STREAM_PULL, Uint8Array),
+        encodeNumber(MessageType.StreamPull, Uint8Array),
         encodeNumber(id, Uint32Array),
         encodeBigNumber(bytesReceived, BigUint64Array)
       ),

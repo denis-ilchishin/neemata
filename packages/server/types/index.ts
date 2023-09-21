@@ -4,10 +4,13 @@ export type DefineProcedure = <Input, Response, Output>(
 
 export type Procedure<Input, Response, Output> = (
   inject: Inject,
-  params: any
+  params: CallScopeParams
 ) => Asyncable<{
   input?: (data: any) => Input
-  handle: (data: Awaited<Input>) => Response
+  handle: (
+    data: Awaited<Input>,
+    extra: { setHeader?: (name: string, value: string) => void }
+  ) => Response
   output?: (response: Awaited<Response>) => Output
 }>
 
@@ -25,6 +28,15 @@ export type Provider<Factory extends (inject: Inject) => any> = Factory
 
 export type Injection<T> = T | Promise<{ default: T }>
 
+export type WebSocketInterface = {
+  id: string
+  join: (room: string) => boolean
+  leave: (room: string) => boolean
+  publish: (room: string, event: string, data: any) => boolean
+  send: (event: string, data: any) => void
+  rooms: () => string[]
+}
+
 export type Inject = {
   provider: <Factory extends ProviderFactory, T extends Provider<Factory>>(
     injection: T
@@ -32,6 +44,10 @@ export type Inject = {
   context: <C extends ReturnType<DefineContext>>(
     context: C
   ) => Promise<Awaited<C['type']>>
+  app: {
+    websockets: Map<string, WebSocketInterface>
+    logger: import('pino').BaseLogger
+  }
 }
 
 export type Asyncable<T> = T | Promise<T>
@@ -41,11 +57,15 @@ export type Context<
   ConnectionType = DefaultType,
   CallType = ConnectionType
 > = {
-  call?: (inject: Inject, value: ConnectionType, ctx: {}) => Asyncable<CallType>
+  call?: (
+    inject: Inject,
+    value: ConnectionType,
+    params: CallScopeParams
+  ) => Asyncable<CallType>
   connection?: (
     inject: Inject,
     value: DefaultType,
-    ctx: {}
+    params: ConnectionScopeParams
   ) => Asyncable<ConnectionType>
   default?: (inject: Inject) => Asyncable<DefaultType>
   dispose?: (
@@ -76,12 +96,67 @@ export type ApplicationDeclaration = {
 export type ApplicationConfig = {
   port: number
   hostname?: string
-  https?: boolean
+  https?: import('uWebSockets.js').AppOptions
   basePath?: string
   qsOptions?: import('qs').IParseOptions
   rpc?: {
-    concurrency?: number
-    queueSize?: number
-    queueTimeout?: number
+    /**
+     * Maximum number of concurrent calls execution
+     */
+    concurrency: number
+    /**
+     * Maximum number of calls in queue
+     */
+    size: number
+    /**
+     * Queue timeout in milliseconds
+     */
+    timeout: number
   }
+  logging?: {
+    level?: import('pino').Level
+  }
+}
+
+export type DefaultScopeParams = undefined
+
+export type ConnectionScopeParams = {
+  /**
+   * HTTP headers
+   */
+  headers: Record<string, string>
+
+  /**
+   * Parsed HTTP url query
+   */
+  query: any
+
+  /**
+   * Resolved proxy remote address (empty string if none)
+   */
+  proxyRemoteAddress: string
+
+  /**
+   * Resolved remote address (empty string if none)
+   */
+  remoteAddress: string
+}
+
+export type CallScopeParams = ConnectionScopeParams & {
+  transport: import('@neemata/common').Transport
+
+  /**
+   * WebSocket interface (Ws transport only)
+   */
+  websocket?: WebSocketInterface
+
+  /**
+   * HTTP method (Http transport only)
+   */
+  method?: string
+
+  /**
+   * Set response HTTP header (Http transport only)
+   */
+  setHeader?: (name: string, value: string) => void
 }

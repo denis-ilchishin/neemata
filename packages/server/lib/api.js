@@ -1,18 +1,23 @@
 /** @typedef {Awaited<ReturnType<typeof createApi>>} Api */
 
-import { ApiError } from '@neemata/common'
-import { resolve } from 'node:path'
+import { ApiError, ErrorCode } from '@neemata/common'
+import { relative, resolve } from 'node:path'
 import { createLoader } from './loader'
+import { logger } from './logger'
 
 /**
  * @param {import('./config').Config} config
- * @param {any} userApp
+ * @param {import('../types').ApplicationDeclaration} userApp
  */
 export const createApi = async (config, userApp) => {
   const procedures = new Map()
   const errorHandlers = new Map(userApp.errorHandlers ?? [])
 
   if (typeof userApp.procedures === 'string') {
+    logger.debug(
+      'Loading procedures from %s ...',
+      relative(process.cwd(), userApp.procedures)
+    )
     const loader = createLoader(resolve(userApp.procedures))
     await loader.reload()
     for (const [key, path] of loader.modules) {
@@ -30,6 +35,8 @@ export const createApi = async (config, userApp) => {
    */
   const findProcedure = async (container, name) => {
     const procedure = procedures.get(name)
+    if (!procedure)
+      throw new ApiError(ErrorCode.NotFound, `Procedure "${name}" not found`)
     const resolved = await procedure(container.inject, container.params)
     return resolved
   }

@@ -5,11 +5,12 @@
   "description": "Nodejs application server",
   "type": "module",
   "scripts": {
-    "watch": "npm run build -- --watch",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json"
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
   },
   "main": "./dist/index.js",
   "dependencies": {
-    "@neemata/common": "workspace:*"
+    "@neemata/common": "workspace:*",
+    "events": "^3.3.0"
   }
 }

@@ -5,11 +5,12 @@
   "description": "Nodejs application server",
   "private": true,
   "scripts": {
-    "watch": "pnpm run --parallel --filter \"*\" build --watch",
-    "build": "pnpm run --filter \"*\" build"
+    "watch": "pnpm run --parallel --filter \"*\" watch",
+    "build": "pnpm run --filter common build && pnpm run --filter !common build"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
+    "tsup": "^7.2.0",
     "typescript": "^5.2.2"
   },
   "workspaces": [

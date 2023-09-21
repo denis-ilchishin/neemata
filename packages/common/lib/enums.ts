@@ -5,6 +5,7 @@ export const ErrorCode = Object.freeze({
   Forbidden: 'FORBIDDEN',
   Unauthorized: 'UNAUTHORIZED',
   InternalServerError: 'INTERNAL_SERVER_ERROR',
+  NotAcceptable: 'NOT_ACCEPTABLE',
   RequestTimeout: 'REQUEST_TIMEOUT',
   GatewayTimeout: 'GATEWAY_TIMEOUT',
   ServiceUnavailable: 'SERVICE_UNAVAILABLE',
@@ -16,10 +17,24 @@ export const ErrorCode = Object.freeze({
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
 
 export const MessageType = Object.freeze({
-  RPC: 1,
-  STREAM_TERMINATE: 2,
-  STREAM_PUSH: 3,
-  STREAM_PULL: 4,
-  STREAM_END: 5,
+  Rpc: 1,
+  StreamTerminate: 2,
+  StreamPush: 3,
+  StreamPull: 4,
+  StreamEnd: 5,
+  Event: 6,
 })
 export type MessageType = (typeof MessageType)[keyof typeof MessageType]
+
+export const Transport = Object.freeze({
+  Ws: 'Ws',
+  Http: 'Http',
+})
+export type Transport = (typeof Transport)[keyof typeof Transport]
+
+export const Scope = Object.freeze({
+  Default: 'default',
+  Connection: 'connection',
+  Call: 'call',
+})
+export type Scope = (typeof Scope)[keyof typeof Scope]

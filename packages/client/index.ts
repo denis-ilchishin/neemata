@@ -23,7 +23,7 @@ type Options = {
   autoreconnect?: boolean
 }
 
-type Send = (type: MessageType, payload: ArrayBuffer) => any
+type SendWithWs = (type: MessageType, payload: ArrayBuffer) => any
 
 let nextStreamId = 1
 let nextCallId = 1
@@ -33,11 +33,12 @@ const calls = new Map()
 const streams = new Map<number, any>()
 
 const internalEvents = {
-  [MessageType.RPC]: Symbol(),
-  [MessageType.STREAM_PULL]: Symbol(),
-  [MessageType.STREAM_END]: Symbol(),
-  [MessageType.STREAM_PUSH]: Symbol(),
-  [MessageType.STREAM_TERMINATE]: Symbol(),
+  [MessageType.Rpc]: Symbol(),
+  [MessageType.StreamPull]: Symbol(),
+  [MessageType.StreamEnd]: Symbol(),
+  [MessageType.StreamPull]: Symbol(),
+  [MessageType.StreamTerminate]: Symbol(),
+  [MessageType.Event]: Symbol(),
 }
 
 export const createClient = (options: Options) => {
@@ -72,11 +73,8 @@ export const createClient = (options: Options) => {
 
   const connect = async () => {
     autoreconnect = options.autoreconnect ?? true
-
     await healthCheck()
-
     ws = new WebSocket(wsUrl + 'api')
-
     ws.binaryType = 'arraybuffer'
 
     ws.onmessage = (event) => {
@@ -88,13 +86,11 @@ export const createClient = (options: Options) => {
         buffer.slice(Uint8Array.BYTES_PER_ELEMENT)
       )
     }
-
     ws.onopen = (event) => {
       isConnected = true
       emitter.emit('connect')
       nextReconnect = 0
     }
-
     ws.onclose = (event) => {
       isConnected = false
       isHealthy = false
@@ -102,13 +98,11 @@ export const createClient = (options: Options) => {
       clear()
       if (autoreconnect) connect()
     }
-
     ws.onerror = (event) => {
       isHealthy = false
     }
 
     await forEvent(emitter, 'connect')
-
     return client
   }
 
@@ -130,16 +124,37 @@ export const createClient = (options: Options) => {
     streams.clear()
   }
 
-  const send: Send = async (type, payload) => {
+  const sendWithWs: SendWithWs = async (type, payload) => {
     if (!isConnected) await forEvent(emitter, 'connect')
     ws.send(concat(encodeNumber(type, Uint8Array), payload))
+  }
+
+  const sendWithFetch = async (procedure, payload) => {
+    return fetch(httpUrl + 'api' + '/' + procedure, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      credentials: 'include',
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then((res) => res.json())
+      .then(({ response, error }) => {
+        if (error) throw new ApiError(error.code, error.message, error.data)
+        return response
+      })
   }
 
   const rpc = (
     procedure: string,
     payload: any,
-    timeout: number = options.timeout
+    options: {
+      timeout?: number
+      useHttp?: boolean
+    } = {}
   ) => {
+    const { timeout = options.timeout, useHttp = false } = options
     const callId = nextCallId++
     const streams = []
     const callPayload = encodeText(
@@ -153,26 +168,35 @@ export const createClient = (options: Options) => {
         return value
       })
     )
-    const streamsPayload = encodeText(JSON.stringify(streams))
-    const streamDataLength = encodeNumber(
-      streamsPayload.byteLength,
-      Uint32Array
-    )
-    send(MessageType.RPC, concat(streamDataLength, streamsPayload, callPayload))
 
-    const timer = setTimeout(() => {
-      const call = calls.get(callId)
-      if (call) {
-        const [, reject] = call
-        reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
-        calls.delete(callId)
-      }
-    }, timeout || 15000)
+    if (useHttp && streams.length)
+      throw new Error('Unable to stream data over HTTP')
 
-    return new Promise((res, rej) => calls.set(callId, [res, rej, timer]))
+    if (useHttp) {
+      return sendWithFetch(procedure, payload)
+    } else {
+      const streamsPayload = encodeText(JSON.stringify(streams))
+      const streamDataLength = encodeNumber(
+        streamsPayload.byteLength,
+        Uint32Array
+      )
+      const data = concat(streamDataLength, streamsPayload, callPayload)
+      sendWithWs(MessageType.Rpc, data)
+
+      const timer = setTimeout(() => {
+        const call = calls.get(callId)
+        if (call) {
+          const [, reject] = call
+          reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
+          calls.delete(callId)
+        }
+      }, timeout || 15000)
+
+      return new Promise((res, rej) => calls.set(callId, [res, rej, timer]))
+    }
   }
 
-  emitter.on(internalEvents[MessageType.STREAM_PULL], (ws, buffer) => {
+  emitter.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
     const id = decodeNumber(
       buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
       Uint32Array
@@ -188,8 +212,11 @@ export const createClient = (options: Options) => {
     stream.push(received)
   })
 
-  emitter.on(internalEvents[MessageType.RPC], (ws, buffer) => {
-    const { callId, response, error } = JSON.parse(decodeText(buffer))
+  emitter.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
+    const {
+      callId,
+      payload: { error, response },
+    } = JSON.parse(decodeText(buffer))
     const call = calls.get(callId)
     if (call) {
       const [resolve, reject, timer] = call
@@ -200,17 +227,22 @@ export const createClient = (options: Options) => {
     }
   })
 
+  emitter.on(internalEvents[MessageType.Event], (ws, buffer) => {
+    const { event, data } = JSON.parse(decodeText(buffer))
+    emitter.emit(event, data)
+  })
+
   const client = Object.assign(emitter, {
     connect,
     disconnect,
     rpc,
-    createStream: createStream.bind(undefined, send),
+    createStream: createStream.bind(undefined, sendWithWs),
   })
 
   return client
 }
 
-const createStream = (send: Send, file: File) => {
+const createStream = (send: SendWithWs, file: File) => {
   const emitter = new EventEmitter()
   // @ts-expect-error
   const reader = file.stream().getReader()
@@ -237,18 +269,18 @@ const createStream = (send: Send, file: File) => {
       await flow()
       const { done, value } = await reader.read()
       if (done) {
-        send(MessageType.STREAM_END, encodeNumber(id, Uint32Array))
+        send(MessageType.StreamEnd, encodeNumber(id, Uint32Array))
         reader.cancel()
         emitter.emit('end')
       } else {
         send(
-          MessageType.STREAM_PUSH,
+          MessageType.StreamPush,
           concat(encodeNumber(id, Uint32Array), value)
         )
         emitter.emit('progress', meta.size, received)
       }
     } catch (e) {
-      send(MessageType.STREAM_TERMINATE, encodeNumber(id, Uint32Array))
+      send(MessageType.StreamTerminate, encodeNumber(id, Uint32Array))
       destroy(e)
     }
   }

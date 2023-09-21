@@ -4,13 +4,13 @@
   "license": "MIT",
   "description": "Nodejs application server",
   "scripts": {
-    "watch": "npm run build -- --watch",
-    "build": "rm -rf dist && tsc --project tsconfig.esm.json && tsc --project tsconfig.cjs.json"
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
   },
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
     }
   }
 }

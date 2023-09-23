@@ -160,3 +160,9 @@ export type CallScopeParams = ConnectionScopeParams & {
    */
   setHeader?: (name: string, value: string) => void
 }
+
+export type Application = {
+  start: () => Promise<void>
+  stop: () => Promise<void>
+  container: import('../lib/container').Container
+}

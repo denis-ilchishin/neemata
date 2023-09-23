@@ -72,10 +72,12 @@ export const createContainer = (
     return exports
   }
 
+  /** @type {import('../types').Inject} */
   const inject = {
     provider: injectProvider,
     context: injectContext,
     app: {
+      websockets: server.websockets,
       logger,
     },
   }

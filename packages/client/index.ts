@@ -244,7 +244,6 @@ export const createClient = (options: Options) => {
 
 const createStream = (send: SendWithWs, file: File) => {
   const emitter = new EventEmitter()
-  // @ts-expect-error
   const reader = file.stream().getReader()
   const id = nextStreamId++
   const meta: StreamMeta = {

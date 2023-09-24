@@ -7,7 +7,7 @@
     "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
     "build": "tsup --clean --dts"
   },
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "os": [
     "darwin",
     "linux"

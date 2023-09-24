@@ -80,7 +80,8 @@ const markAs = (value, mark) => {
 export const PROCEDURE_SYMBOL = Symbol('procedure')
 export const PROVIDER_SYMBOL = Symbol('provider')
 export const CONTEXT_SYMBOL = Symbol('context')
-export const APPLICATION_SYMBOL = Symbol('app')
+export const TASK_SYMBOL = Symbol('task')
+export const APPLICATION_SYMBOL = Symbol('application')
 
 /** @type {import('../types').DefineProcedure} */
 export const defineProcedure = (value) => markAs(value, PROCEDURE_SYMBOL)
@@ -90,3 +91,9 @@ export const defineProvider = (value) => markAs(value, PROVIDER_SYMBOL)
 
 /** @type {import('../types').DefineContext} */
 export const defineContext = (value) => markAs(value, CONTEXT_SYMBOL)
+
+/** @type {import('../types').DefineTask} */
+export const defineTask = (value) => markAs(value, TASK_SYMBOL)
+
+/** @type {import('../types').DefineApplication} */
+export const defineApplication = (value) => markAs(value, APPLICATION_SYMBOL)

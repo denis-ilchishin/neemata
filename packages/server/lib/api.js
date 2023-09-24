@@ -2,8 +2,8 @@
 
 import { ApiError, ErrorCode } from '@neemata/common'
 import { relative, resolve } from 'node:path'
-import { createLoader } from './loader'
-import { logger } from './logger'
+import { createLoader } from './loader.js'
+import { logger } from './logger.js'
 
 /**
  * @param {import('./config').Config} config

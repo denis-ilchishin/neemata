@@ -5,7 +5,7 @@ export type DefineProcedure = <Input, Response, Output>(
 export type Procedure<Input, Response, Output> = (
   inject: Inject,
   params: CallScopeParams
-) => Asyncable<{
+) => Async<{
   input?: (data: any) => Input
   handle: (
     data: Awaited<Input>,
@@ -44,13 +44,15 @@ export type Inject = {
   context: <C extends ReturnType<DefineContext>>(
     context: C
   ) => Promise<Awaited<C['type']>>
-  app: {
-    websockets: Map<string, WebSocketInterface>
-    logger: import('pino').BaseLogger
-  }
+  websockets: Map<string, WebSocketInterface>
+  logger: import('pino').BaseLogger
+  invoke: <T extends Task, H extends Awaited<ReturnType<T['factory']>>>(
+    task: T,
+    args: Parameters<H>[0]
+  ) => Promise<Awaited<ReturnType<H>>>
 }
 
-export type Asyncable<T> = T | Promise<T>
+export type Async<T> = T | Promise<T>
 
 export type Context<
   DefaultType = undefined,
@@ -61,13 +63,13 @@ export type Context<
     inject: Inject,
     value: ConnectionType,
     params: CallScopeParams
-  ) => Asyncable<CallType>
+  ) => Async<CallType>
   connection?: (
     inject: Inject,
     value: DefaultType,
     params: ConnectionScopeParams
-  ) => Asyncable<ConnectionType>
-  default?: (inject: Inject) => Asyncable<DefaultType>
+  ) => Async<ConnectionType>
+  default?: (inject: Inject) => Async<DefaultType>
   dispose?: (
     inject: Inject,
     value: DefaultType | ConnectionType | CallType
@@ -89,16 +91,27 @@ export type ErrorHandler = [ErrorConstructor, (error: Error) => any]
 export type ApplicationDeclaration = {
   config: ApplicationConfig
   procedures: string | Record<string, Procedure<any, any, any>>
+  tasks?: Task[]
   contexts?: Context<any, any, any>[]
   errorHandlers?: ErrorHandler[]
 }
 
 export type ApplicationConfig = {
-  port: number
+  /**
+   * Must be the path of exported application. Required for tasker to work.
+   *
+   * @example import.meta.url
+   */
+  applicationPath: string
+  port?: number
   hostname?: string
   https?: import('uWebSockets.js').AppOptions
   basePath?: string
   qsOptions?: import('qs').IParseOptions
+  tasker?: {
+    workers: number
+    timeout: number
+  }
   rpc?: {
     /**
      * Maximum number of concurrent calls execution
@@ -166,3 +179,14 @@ export type Application = {
   stop: () => Promise<void>
   container: import('../lib/container').Container
 }
+
+export type Task = {
+  name: string
+  factory: (
+    inject: Omit<Inject, 'websockets'>
+  ) => Async<(args: any, ab: AbortController) => any>
+}
+
+export type DefineTask = <T extends Task>(cb: T) => T
+
+export type DefineApplication = <T extends ApplicationDeclaration>(app: T) => T

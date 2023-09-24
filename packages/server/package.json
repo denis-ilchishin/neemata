@@ -7,13 +7,14 @@
     "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
     "build": "tsup --clean --dts"
   },
-  "main": "./dist/index.js",
+  "type": "module",
+  "main": "./dist/index.cjs",
   "os": [
     "darwin",
     "linux"
   ],
   "engines": {
-    "node": ">=18.0.0 <19"
+    "node": ">=18.0.0 <21"
   },
   "dependencies": {
     "@neemata/common": "workspace:*",

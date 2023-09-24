@@ -25,4 +25,4 @@ export class ApiError extends Error {
   }
 }
 
-export const STREAM_ID_PREFIX = 'neemata:stream:'
+export class TaskError extends Error {}

@@ -38,3 +38,13 @@ export const Scope = Object.freeze({
   Call: 'call',
 })
 export type Scope = (typeof Scope)[keyof typeof Scope]
+
+export const WorkerEvent = Object.freeze({
+  Ready: 'ready',
+  Error: 'error',
+  Invoke: 'invoke',
+  Abort: 'abort',
+})
+export type WorkerEvent = (typeof WorkerEvent)[keyof typeof WorkerEvent]
+
+export const STREAM_ID_PREFIX = 'neemata:stream:'

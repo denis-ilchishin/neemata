@@ -1,6 +1,6 @@
-export * from './lib/api'
 export * from './lib/binary'
-export * from './lib/enums'
+export * from './lib/consts'
+export * from './lib/errors'
 
 export interface StreamMeta {
   name: string

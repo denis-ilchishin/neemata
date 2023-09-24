@@ -100,7 +100,7 @@ export const createServer = (config, api) => {
    * @param {any} payload
    */
   const handleRPC = async (name, container, payload, params = {}) => {
-    logger.info('Handling [%s] procedure...', name)
+    logger.debug('Handling [%s] procedure...', name)
     try {
       return await throttle(async () => {
         logger.trace('Resolving [%s] procedure...', name)
@@ -516,8 +516,13 @@ export const createServer = (config, api) => {
 
   const start = async () => {
     const { hostname, port, basePath } = config
-    const _socket = await new Promise((r) => server.listen(hostname, port, r))
-    socket = _socket
+    socket = await new Promise((r) => {
+      if (hostname.startsWith('unix:')) {
+        server.listen_unix(r, hostname.slice(5))
+      } else if (typeof port !== 'string') {
+        server.listen(hostname, port, r)
+      }
+    })
     logger.info(
       'Listening on %s://%s:%s%s',
       config.https ? 'https' : 'http',

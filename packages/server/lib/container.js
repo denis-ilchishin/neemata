@@ -1,16 +1,16 @@
 /** @typedef {ReturnType<typeof createContainer>} Container */
 
 import { Scope } from '@neemata/common'
-import { logger } from './logger'
+import { logger } from './logger.js'
 
 /**
  * @param {import("./config").Config} config
- * @param {any} server
+ * @param {Record<string, any>} [injectMixin]
  * @param {import("../types").Context<any, any, any>[]} preload
  */
 export const createContainer = (
   config,
-  server,
+  injectMixin = {},
   preload = [],
   scope = Scope.Default,
   params = {},
@@ -56,7 +56,6 @@ export const createContainer = (
         contexts.set(context, value)
       }
     }
-
     return self
   }
 
@@ -72,20 +71,15 @@ export const createContainer = (
     return exports
   }
 
-  /** @type {import('../types').Inject} */
   const inject = {
     provider: injectProvider,
     context: injectContext,
-    app: {
-      websockets: server.websockets,
-      logger,
-    },
+    ...injectMixin,
   }
 
   const copy = (scope, params) =>
-    createContainer(config, server, [], scope, params, providers, contexts)
+    createContainer(config, injectMixin, [], scope, params, providers, contexts)
 
   const self = { copy, load, dispose, inject, params }
-
   return self
 }

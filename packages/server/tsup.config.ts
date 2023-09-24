@@ -10,9 +10,4 @@ export default defineConfig({
   bundle: false,
   platform: 'node',
   target: 'node18',
-  outExtension({ format }) {
-    return {
-      js: `.cjs`,
-    }
-  },
 })

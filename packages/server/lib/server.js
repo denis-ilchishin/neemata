@@ -212,7 +212,7 @@ export const createServer = (config, api) => {
         proxyRemoteAddress,
         remoteAddress,
       }
-      const scopeContainer = await container
+      const connectionContainer = await container
         .copy(Scope.Connection, params)
         .load()
 
@@ -223,7 +223,9 @@ export const createServer = (config, api) => {
         method,
       }
 
-      const callContainer = await scopeContainer.copy(Scope.Call, params).load()
+      const callContainer = await connectionContainer
+        .copy(Scope.Call, params)
+        .load()
 
       const responseHeaders = new Map()
       const setResponseHeader = (name, value) =>
@@ -247,14 +249,14 @@ export const createServer = (config, api) => {
         )
       })
 
-      await scopeContainer.dispose()
+      await connectionContainer.dispose()
       await callContainer.dispose()
     } catch (error) {
       tryRespond(() => {
         if (error instanceof ApiError) {
           httpResponseHandler(req, res, headers, { error })
         } else {
-          logger.error({ error }, 'Unexpected error')
+          logger.error(new Error('Unexpected error', { cause: error }))
           res.writeStatus('500 Internal Server Error')
           httpResponseHandler(req, res, headers, { error: InternalError })
         }
@@ -371,7 +373,7 @@ export const createServer = (config, api) => {
           true
         )
       } else {
-        logger.error({ error }, 'Unexpected error')
+        logger.error(new Error('Unexpected error', { cause: error }))
         ws.send(
           concat(
             type,

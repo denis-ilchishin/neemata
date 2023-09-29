@@ -1,73 +1,84 @@
 /**
- * @param {number} size
- * @param {number} [defaultTimeout]
+ * @typedef {Object} PoolOptions
+ * @property {number} [timeout=0]
  */
-export const createPool = (size, defaultTimeout = 0) => {
-  const items = []
-  const free = []
-  const queue = []
-  let current = 0
-  let available = 0
 
-  const next = async (timeout = defaultTimeout) => {
-    if (size === 0) return null
-    if (available === 0) {
+/**
+ * @typedef {Object} Waiting
+ * @property {Function} resolve
+ * @property {number|null} timer
+ */
+
+/**
+ * @template {any} T
+ * @typedef {Object} Pool
+ * @property {Function} add
+ * @property {Function} capture
+ * @property {Function} release
+ * @property {Function} isFree
+ * @property {Function} next
+ * @property {Set<T>} items
+ * @property {Set<T>} free
+ * @property {Array<Waiting>} queue
+ */
+
+/**
+ * @template {any} T
+ * @param {number} size
+ * @param {PoolOptions} [options]
+ * @returns {Pool<T>}
+ */
+export const createPool = (size, options = {}) => {
+  const timeout = options.timeout || 0
+  const items = new Set()
+  const free = new Set()
+  const queue = []
+
+  const next = async (timeout = options.timeout) => {
+    if (items.size === 0) throw new Error('Pool: pool is empty')
+    if (free.size === 0) {
       return new Promise((resolve, reject) => {
         const waiting = { resolve, timer: null }
-        waiting.timer = setTimeout(() => {
-          waiting.resolve = null
-          queue.shift()
-          reject(new Error('Pool next item timeout'))
-        }, timeout)
+        waiting.timer = timeout
+          ? setTimeout(() => {
+              waiting.resolve = null
+              queue.shift()
+              reject(new Error('Pool: pull item timeout'))
+            }, timeout)
+          : null
         queue.push(waiting)
       })
     }
-    let item = null
-    let isFree = false
-    do {
-      item = items[current]
-      isFree = free[current]
-      current++
-      if (current === size) current = 0
-    } while (!item || !isFree)
-    return item
+
+    return free.values().next().value
   }
 
   const add = (item) => {
-    if (items.includes(item)) throw new Error('Pool: add duplicates')
-    size++
-    available++
-    items.push(item)
-    free.push(true)
+    if (items.has(item)) throw new Error('Pool: item already in pool')
+    items.add(item)
+    free.add(item)
   }
 
-  const capture = async (timeout) => {
+  const capture = async (timeout = options.timeout) => {
     const item = await next(timeout)
-    if (!item) return null
-    const index = items.indexOf(item)
-    free[index] = false
-    available--
+    free.delete(item)
     return item
   }
 
   const release = (item) => {
-    const index = items.indexOf(item)
-    if (index < 0) throw new Error('Pool: release unexpected item')
-    if (free[index]) throw new Error('Pool: release not captured')
-    free[index] = true
-    available++
+    if (!items.has(item)) throw new Error('Pool: release unexpected item')
+    if (free.has(item)) throw new Error('Pool: release not captured')
+    free.add(item)
     if (queue.length > 0) {
       const { resolve, timer } = queue.shift()
-      if (timer) clearTimeout(timer)
-      if (resolve) setTimeout(resolve, 0, item)
+      clearTimeout(timer)
+      if (resolve) resolve(item)
     }
   }
 
   const isFree = (item) => {
-    const index = items.indexOf(item)
-    if (index < 0) return false
-    return free[index]
+    return free.has(item)
   }
 
-  return { add, capture, release, isFree, next }
+  return { add, capture, release, isFree, next, items, free, queue }
 }

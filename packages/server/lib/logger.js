@@ -9,11 +9,7 @@ export const logger = pino(
   pretty({
     colorize: true,
     errorLikeObjectKeys: ['err', 'error', 'cause'],
-    messageFormat: (log, messageKey) => {
-      const message = log[messageKey]
-      const thread = `Thread(${threadId ? `task-${threadId}` : 'server'})`
-      return `${thread} ${message}`
-    },
+    messageFormat: (log, messageKey) => `(T${threadId}) ${log[messageKey]}`,
   })
 )
 

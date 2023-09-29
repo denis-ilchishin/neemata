@@ -10,7 +10,10 @@ import { createPool } from './pool.js'
  * @param {import('../types').ApplicationDeclaration} userApp
  */
 export const createTasker = (config, userApp) => {
-  const workerPool = createPool(0, 15000)
+  /**
+   * @type {import('./pool.js').Pool<Worker>}
+   */
+  const workerPool = createPool(0, { timeout: config.tasker.timeout })
   const tasks = new Map(
     userApp.tasks ? userApp.tasks.map((task) => [task.name, task]) : []
   )
@@ -45,22 +48,24 @@ export const createTasker = (config, userApp) => {
   }
 
   const start = async () => {
-    if (config.tasker) {
-      logger.debug('Spinning up task workers ...')
-
-      const workers = []
-      for (let i = 0; i < config.tasker.workers; i++) workers.push(spinWorker())
-      for (const worker of await Promise.all(workers)) workerPool.add(worker)
-    }
+    logger.debug('Spinning up task workers ...')
+    const workers = []
+    for (let i = 0; i < config.tasker.workers; i++) workers.push(spinWorker())
+    for (const worker of await Promise.all(workers)) workerPool.add(worker)
   }
 
-  const stop = async () => {}
+  const stop = async () => {
+    logger.debug('Stopping task workers ...')
+    for (const worker of workerPool.items) {
+      // TODO: add gracefull shutdown
+      worker.terminate()
+    }
+  }
 
   /**
    * @param {import('../types').Task} taskProvider
    * @param {*} args
    * @param {*} options
-   * @returns
    */
   const invoke = async (taskProvider, args = [], options = {}) => {
     if (!taskProvider) throw new TaskError('Task is required')
@@ -125,6 +130,7 @@ export const createTasker = (config, userApp) => {
 
   return {
     start,
+    stop,
     invoke,
   }
 }

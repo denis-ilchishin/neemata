@@ -137,8 +137,6 @@ export const createServer = (config, api) => {
   }
 
   const httpResponseHandler = (req, res, headers, data) => {
-    setDefaultHeaders(res)
-    setCors(res, headers)
     res.end(serialize(data))
   }
 
@@ -239,8 +237,12 @@ export const createServer = (config, api) => {
           : httpResponseHandler
 
       tryRespond(() => {
-        for (const [name, value] of responseHeaders)
+        setDefaultHeaders(res)
+        setCors(res, headers)
+        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
+        for (const [name, value] of responseHeaders) {
           res.writeHeader(name, value)
+        }
         responseHandler(
           req,
           res,
@@ -249,10 +251,17 @@ export const createServer = (config, api) => {
         )
       })
 
-      await connectionContainer.dispose()
-      await callContainer.dispose()
+      connectionContainer
+        .dispose()
+        .then(() => callContainer.dispose())
+        .catch((cause) =>
+          logger.error(new Error('Unexpected error', { cause }))
+        )
     } catch (error) {
       tryRespond(() => {
+        setDefaultHeaders(res)
+        setCors(res, headers)
+        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
         if (error instanceof ApiError) {
           httpResponseHandler(req, res, headers, { error })
         } else {
@@ -353,7 +362,7 @@ export const createServer = (config, api) => {
 
     params = {
       ...params,
-      transport: Transport.Http,
+      transport: Transport.Ws,
       procedure,
       websocket: wsInterface,
     }

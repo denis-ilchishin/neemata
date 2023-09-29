@@ -15,8 +15,12 @@ const createTaskWorker = async () => {
     const taskFactory = tasks.get(taskName)
     // @ts-expect-error
     const taskHandler = await taskFactory(container.inject)
-    const result = await taskHandler(args, ab)
-    return result
+    try {
+      const result = await taskHandler(args, ab)
+      return result
+    } catch (error) {
+      logger.error(new Error('Task faild', { cause: error }))
+    }
   }
 
   const invoke = (taskProvider, args, options = {}) => {

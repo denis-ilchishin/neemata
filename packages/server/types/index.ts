@@ -45,7 +45,7 @@ export type Inject = {
     context: C
   ) => Promise<Awaited<C['type']>>
   websockets: Map<string, WebSocketInterface>
-  logger: import('pino').BaseLogger
+  logger: import('pino').Logger
   invoke: <T extends Task, H extends Awaited<ReturnType<T['factory']>>>(
     task: T,
     args: Parameters<H>[0]

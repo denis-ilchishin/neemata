@@ -38,9 +38,9 @@ export const createContainer = (
 
   const dispose = async () => {
     logger.debug('Disposing [%s] scope context...', scope)
-    for (const value of resolvedContexts.values()) {
-      const dispose = value?.dispose
-      if (dispose) await dispose(inject, value, params)
+    for (const [context, value] of resolvedContexts) {
+      const dispose = context.dispose
+      if (context[scope] && dispose) await dispose(inject, value, params)
     }
     resolvedContexts.clear()
     resolvedProviders.clear()
@@ -64,7 +64,7 @@ export const createContainer = (
   const resolveContext = async (context) => {
     const value = parentContexts.get(context)
     const factory = context[scope]
-    if (!factory) return undefined
+    if (!factory) return value
     const exports = await factory(inject, value, params)
     return exports
   }
@@ -83,7 +83,7 @@ export const createContainer = (
       scope,
       params,
       resolvedProviders,
-      resolvedContexts
+      new Map([...parentContexts, ...resolvedContexts])
     )
 
   const self = { copy, load, dispose, inject, params }

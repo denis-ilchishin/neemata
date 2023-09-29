@@ -52,6 +52,7 @@ export const createApp = async (userApp) => {
   return {
     start,
     stop,
+    tasker,
     container,
   }
 }

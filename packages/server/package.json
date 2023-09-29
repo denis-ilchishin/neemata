@@ -20,7 +20,7 @@
     "pino": "^8.15.1",
     "pino-pretty": "^10.2.0",
     "qs": "^6.11.2",
-    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.31.0"
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.32.0"
   },
   "devDependencies": {
     "@types/qs": "^6.9.8"

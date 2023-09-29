@@ -44,8 +44,8 @@ importers:
         specifier: ^6.11.2
         version: 6.11.2
       uWebSockets.js:
-        specifier: uNetworking/uWebSockets.js#v20.31.0
-        version: github.com/uNetworking/uWebSockets.js/809b99d2d7d12e2cbf89b7135041e9b41ff84084
+        specifier: uNetworking/uWebSockets.js#v20.32.0
+        version: github.com/uNetworking/uWebSockets.js/21c0e41a662c27bcc29b64f3e9d7f0bdaa6d7ee7
     devDependencies:
       '@types/qs':
         specifier: ^6.9.8
@@ -1204,8 +1204,8 @@ packages:
     engines: {node: '>= 14'}
     dev: true
 
-  github.com/uNetworking/uWebSockets.js/809b99d2d7d12e2cbf89b7135041e9b41ff84084:
-    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/809b99d2d7d12e2cbf89b7135041e9b41ff84084}
+  github.com/uNetworking/uWebSockets.js/21c0e41a662c27bcc29b64f3e9d7f0bdaa6d7ee7:
+    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/21c0e41a662c27bcc29b64f3e9d7f0bdaa6d7ee7}
     name: uWebSockets.js
-    version: 20.31.0
+    version: 20.32.0
     dev: false

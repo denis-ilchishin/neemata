@@ -5,6 +5,8 @@ import { logger, setLoggerSettings } from './lib/logger.js'
 import { createServer } from './lib/server.js'
 import { createTasker } from './lib/tasker.js'
 
+export { ApiError, ErrorCode, Transport } from '@neemata/common'
+
 export {
   defineApplication,
   defineContext,

@@ -13,7 +13,7 @@ import {
 } from '@neemata/common'
 import { EventEmitter } from 'events'
 
-export { ApiError, ErrorCode, StreamMeta } from '@neemata/common'
+export { ApiError, ErrorCode, type StreamMeta } from '@neemata/common'
 
 const STREAM_ID_KEY = Symbol()
 

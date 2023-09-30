@@ -554,8 +554,10 @@ export const createServer = (config, api) => {
   return { start, stop, setGlobalContainer, websockets, rooms }
 }
 
-const serialize = (data, receiver) => JSON.stringify(data, receiver)
-const deserialize = (data, receiver) => JSON.parse(data, receiver)
+const serialize = (data, receiver) =>
+  data ? JSON.stringify(data, receiver) : undefined
+const deserialize = (data, receiver) =>
+  data ? JSON.parse(data, receiver) : undefined
 
 const createWsEvent = (event, data) => {
   const type = encodeNumber(MessageType.Event, Uint8Array)

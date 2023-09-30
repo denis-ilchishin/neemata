@@ -4,7 +4,7 @@ export default defineConfig({
   entry: ['index.js', 'lib/*'],
   outDir: 'dist',
   splitting: false,
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   format: 'cjs',
   bundle: false,

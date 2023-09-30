@@ -22,8 +22,8 @@ export const createContainer = (
 
   const injectProvider = async (injectable) => {
     const provider = resolvedProviders.get(injectable)
-    if (provider) return injectable
-    const value = await resolveProvider(injectable)
+    if (provider) return provider
+    const value = resolveProvider(injectable)
     resolvedProviders.set(injectable, value)
     return value
   }
@@ -31,7 +31,7 @@ export const createContainer = (
   const injectContext = async (injectable) => {
     const context = resolvedContexts.get(injectable)
     if (context) return context
-    const value = await resolveContext(injectable)
+    const value = resolveContext(injectable)
     resolvedContexts.set(injectable, value)
     return value
   }
@@ -65,7 +65,7 @@ export const createContainer = (
     const value = parentContexts.get(context)
     const factory = context[scope]
     if (!factory) return value
-    const exports = await factory(inject, value, params)
+    const exports = await factory(inject, await value, params)
     return exports
   }
 

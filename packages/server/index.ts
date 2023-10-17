@@ -68,6 +68,12 @@ export class App {
     await this.container.dispose()
     if (this.workerPool) await this.workerPool.stop()
   }
+
+  resolve<T extends AnyProviderDefinition | AnyContextDefinition>(
+    injectable: T
+  ): Promise<ResolvedDependencyInjection<T>> {
+    return this.container.resolve(injectable)
+  }
 }
 
 export { ApiError, ErrorCode, TaskError, Transport } from '@neemata/common'

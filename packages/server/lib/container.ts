@@ -157,6 +157,14 @@ export class Container {
     return resolved
   }
 
+  resolve(injectable: AnyProviderDefinition | AnyContextDefinition) {
+    if (injectable.injectableType === PROVIDER_SYMBOL)
+      return this.resolveProvider(injectable as AnyProviderDefinition)
+    else if (injectable.injectableType === CONTEXT_SYMBOL)
+      return this.resolveContext(injectable as AnyContextDefinition)
+    else throw new Error('Invalid injectable type')
+  }
+
   async createDependencyContext(dependencies: Dependencies) {
     const injections = await this.resolveDependecies(dependencies)
     return {

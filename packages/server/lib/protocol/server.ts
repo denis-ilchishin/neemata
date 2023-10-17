@@ -133,7 +133,7 @@ export class Server {
       for (const guard of guards) {
         try {
           const permitted = await guard()
-          if (permitted) throw ForbiddenError
+          if (!permitted) throw ForbiddenError
         } catch (error) {
           if (error instanceof ApiError) throw error
           else {

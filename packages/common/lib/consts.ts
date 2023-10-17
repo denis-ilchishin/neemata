@@ -33,7 +33,7 @@ export const Transport = Object.freeze({
 export type Transport = (typeof Transport)[keyof typeof Transport]
 
 export const Scope = Object.freeze({
-  Default: 'default',
+  Global: 'global',
   Connection: 'connection',
   Call: 'call',
 })
@@ -41,6 +41,7 @@ export type Scope = (typeof Scope)[keyof typeof Scope]
 
 export const WorkerEvent = Object.freeze({
   Ready: 'ready',
+  Stop: 'stop',
   Error: 'error',
   Invoke: 'invoke',
   Abort: 'abort',

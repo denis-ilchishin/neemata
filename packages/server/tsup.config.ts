@@ -1,10 +1,10 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['index.js', 'lib/*'],
+  entry: ['index.ts', 'lib/**/*'],
   outDir: 'dist',
   splitting: false,
-  sourcemap: false,
+  sourcemap: true,
   minify: false,
   format: 'cjs',
   bundle: false,

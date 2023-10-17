@@ -8,6 +8,10 @@
     "build": "tsup --clean --dts"
   },
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "types"
+  ],
   "os": [
     "darwin",
     "linux"

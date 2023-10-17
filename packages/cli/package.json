@@ -1,0 +1,28 @@
+{
+  "name": "@neemata/cli",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "bin": {
+    "neemata": "./neemata.mjs",
+    "neemata-watch": "./neemata-watch.mjs"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.0.0 <21"
+  },
+  "dependencies": {
+    "tsx": "^3.13.0",
+    "defaults": "^2.0.2",
+    "dotenv": "^16.3.1"
+  },
+  "peerDependencies": {
+    "@neemata/server": "workspace:*"
+  },
+  "devDependencies": {
+    "@neemata/server": "workspace:*"
+  }
+}

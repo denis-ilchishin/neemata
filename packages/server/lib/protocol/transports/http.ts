@@ -151,7 +151,7 @@ export class HttpTransport {
         } else {
           this.logger.error(new Error('Unexpected error', { cause: error }))
           res.writeStatus('500 Internal Server Error')
-          this.handleResponse(req, res, headers, { error: InternalError })
+          this.handleResponse(req, res, headers, { error: InternalError() })
         }
       })
     }

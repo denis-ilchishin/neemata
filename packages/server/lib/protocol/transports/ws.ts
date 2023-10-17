@@ -102,7 +102,7 @@ export class WsTransport {
           this.handleStreamTerminate.bind(this)
         )
         events.on(MessageType.Event.toString(), (event, data) => {
-          sendToWebsocket(ws, MessageType.Event, { event, data })
+          send(ws, MessageType.Event, { event, data })
         })
       },
       message: (ws, message, isBinary) => {
@@ -132,16 +132,24 @@ export class WsTransport {
           roomId
         )
 
-        const room: Room = this.server.rooms.get(roomId) ?? {
-          id: roomId,
-          websockets: new Set(),
-          publish: (event: string, data: any, exclude?: WebSocketInterface) => {
-            for (const ws of room.websockets) {
-              if (!exclude || exclude.id !== ws.id) {
-                ws.send(event, data)
+        let room: Room = this.server.rooms.get(roomId)
+
+        if (!room) {
+          room = {
+            id: roomId,
+            websockets: new Set(),
+            publish: (
+              event: string,
+              data: any,
+              exclude?: WebSocketInterface
+            ) => {
+              for (const ws of room.websockets) {
+                if (!exclude || exclude.id !== ws.id) {
+                  ws.send(event, data)
+                }
               }
-            }
-          },
+            },
+          }
         }
 
         if (newCount === 0) {
@@ -201,36 +209,40 @@ export class WsTransport {
 
     const type = MessageType.Rpc
 
-    let { id, container, params } = ws.getUserData()
+    // let { id, container, params } = ws.getUserData()
+    const wsData = ws.getUserData()
+
     const { procedure, payload, callId } = rpcPayload
 
-    const callParams: CallScopeParams<(typeof Transport)['Ws']> = {
-      ...params,
-      transport: Transport.Ws,
-      procedure,
-      websocket: this.server.websockets.get(id),
-    }
-    const scopeContainer = container.copy(Scope.Call, callParams)
+    const callParams: CallScopeParams<(typeof Transport)['Ws']> = Object.freeze(
+      {
+        ...wsData.params,
+        transport: Transport.Ws,
+        procedure,
+        websocket: this.server.websockets.get(wsData.id),
+      }
+    )
+    const container = wsData.container.copy(Scope.Call, callParams)
 
     try {
-      await scopeContainer.load()
+      await container.load()
       const response = await this.server.handleRPC(
         procedure,
-        scopeContainer,
+        container,
         payload,
         Transport.Ws,
         callParams
       )
-      sendToWebsocket(ws, type, { callId, payload: { response } })
+      send(ws, type, { callId, payload: { response } })
     } catch (error) {
       if (error instanceof ApiError) {
-        sendToWebsocket(ws, type, { callId, payload: { error } })
+        send(ws, type, { callId, payload: { error } })
       } else {
         this.logger.error(new Error('Unexpected error', { cause: error }))
-        sendToWebsocket(ws, type, { callId, payload: { error: InternalError } })
+        send(ws, type, { callId, payload: { error: InternalError() } })
       }
     } finally {
-      await scopeContainer
+      await container
         .dispose()
         .catch(
           (cause) => new Error('Error while disposing call context', { cause })
@@ -267,7 +279,7 @@ export class WsTransport {
   }
 }
 
-const sendToWebsocket = (ws: WebSocket, type: number, payload: any) =>
+const send = (ws: WebSocket, type: number, payload: any) =>
   ws.send(
     concat(encodeNumber(type, Uint8Array), encodeText(toJSON(payload))),
     true
@@ -320,7 +332,7 @@ const createWsInterface = (
 ): WebSocketInterface => ({
   id: wsId,
   send: (event: string, data: any) =>
-    sendToWebsocket(ws, MessageType.Event, { event, data }),
+    send(ws, MessageType.Event, { event, data }),
   rooms: () => {
     const wsRooms = new Set<Room>()
     for (const roomId of ws.getTopics()) {

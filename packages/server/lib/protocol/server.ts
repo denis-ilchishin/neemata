@@ -42,13 +42,14 @@ export const HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Credentials': 'true',
 }
-export const InternalError = new ApiError(
-  ErrorCode.InternalServerError,
-  'Internal Server Error'
-)
+export const InternalError = (message = 'Internal Server Error') =>
+  new ApiError(ErrorCode.InternalServerError, message)
 
-export const NotFoundError = new ApiError(ErrorCode.NotFound, 'Not Found')
-export const ForbiddenError = new ApiError(ErrorCode.Forbidden, 'Forbidden')
+export const NotFoundError = (message = 'Not Found') =>
+  new ApiError(ErrorCode.NotFound, message)
+
+export const ForbiddenError = (message = 'Forbidden') =>
+  new ApiError(ErrorCode.Forbidden, message)
 
 export class Server {
   container: Container
@@ -103,7 +104,7 @@ export class Server {
     container: Container,
     payload: any,
     transport: Transport,
-    params: any = {}
+    params: CallScopeParams
   ) {
     this.config.logger.debug('Handling [%s] procedure...', procedureName)
     try {
@@ -113,10 +114,13 @@ export class Server {
           procedureName,
           transport
         )
-        if (!procedure) {
-          throw new ApiError(ErrorCode.NotFound, 'Procedure not found')
-        }
-        const { guards, handle, input, output } = procedure
+        if (!procedure) throw NotFoundError()
+
+        const { guards, handle, input, output, httpMethod } = procedure
+
+        if (transport === Transport.Http && !httpMethod.includes(params.method))
+          throw NotFoundError()
+
         const resolvedGuards = guards ? await guards(payload, params) : null
         if (resolvedGuards) await this.handleGuards(resolvedGuards)
         const data = input ? await input(payload, params) : payload
@@ -129,21 +133,10 @@ export class Server {
   }
 
   async handleGuards(guards: Guard[] | undefined) {
-    if (guards) {
-      for (const guard of guards) {
-        try {
-          const permitted = await guard()
-          if (!permitted) throw ForbiddenError
-        } catch (error) {
-          if (error instanceof ApiError) throw error
-          else {
-            this.config.logger.warn('Guard throwed unexpected error', {
-              cause: error,
-            })
-            throw ForbiddenError
-          }
-        }
-      }
+    if (!guards) return
+    for (const guard of guards) {
+      const permitted = await guard()
+      if (!permitted) throw ForbiddenError()
     }
   }
 

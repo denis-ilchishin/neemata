@@ -129,7 +129,7 @@ declare type HttpCallScopeParams = {
 }
 
 declare type CallScopeParams<
-  Transport extends import('@neemata/common').Transport
+  Transport extends import('@neemata/common').Transport = unknown
 > = ConnectionScopeParams & {
   procedure: string
   transport: Transport
@@ -209,6 +209,10 @@ declare type Procedure<
   Output,
   Transport extends import('@neemata/common').Transport
 > = {
+  /**
+   * @default ['post']
+   */
+  httpMethod?: Array<'post' | 'get'>
   transport?: Transport
   guards?: (
     ctx: DependencyContext<Deps>,

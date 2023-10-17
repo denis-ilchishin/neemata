@@ -43,7 +43,7 @@ declare type Context<
     params: S extends typeof import('@neemata/common').Scope['Call']
       ? CallScopeParams
       : S extends typeof import('@neemata/common').Scope['Connection']
-      ? ConnectionScopeParams
+      ? Readonly<ConnectionScopeParams>
       : {}
   ) => Async<T>
   dispose?: (
@@ -52,7 +52,7 @@ declare type Context<
     params: S extends typeof import('@neemata/common').Scope['Call']
       ? CallScopeParams
       : S extends typeof import('@neemata/common').Scope['Connection']
-      ? ConnectionScopeParams
+      ? Readonly<ConnectionScopeParams>
       : {}
   ) => any
   scope?: S
@@ -87,7 +87,7 @@ declare type ApplicationOptions = {
 
 declare type DefaultScopeParams = undefined
 
-declare type ConnectionScopeParams = Readonly<{
+declare type ConnectionScopeParams = {
   /**
    * HTTP headers
    */
@@ -107,29 +107,37 @@ declare type ConnectionScopeParams = Readonly<{
    * Resolved remote address (empty string if none)
    */
   remoteAddress: string
-}>
+}
 
-declare type CallScopeParams = ConnectionScopeParams &
-  Readonly<{
-    procedure: string
+declare type WebSocketCallScopeParams = {
+  /**
+   * WebSocket interface (Ws transport only)
+   */
+  websocket: WebSocketInterface
+}
 
-    transport: import('@neemata/common').Transport
+declare type HttpCallScopeParams = {
+  /**
+   * HTTP method (Http transport only)
+   */
+  method: 'post' | 'get'
 
-    /**
-     * WebSocket interface (Ws transport only)
-     */
-    websocket?: WebSocketInterface
+  /**
+   * Set response HTTP header (Http transport only)
+   */
+  setHeader: (name: string, value: string) => void
+}
 
-    /**
-     * HTTP method (Http transport only)
-     */
-    method?: string
-
-    // /**
-    //  * Set response HTTP header (Http transport only)
-    //  */
-    // setHeader?: (name: string, value: string) => void
-  }>
+declare type CallScopeParams<
+  Transport extends import('@neemata/common').Transport
+> = ConnectionScopeParams & {
+  procedure: string
+  transport: Transport
+} & (Transport extends typeof import('@neemata/common').Transport['Ws']
+    ? WebSocketCallScopeParams
+    : Transport extends typeof import('@neemata/common').Transport['Http']
+    ? HttpCallScopeParams
+    : Partial<WebSocketCallScopeParams & HttpCallScopeParams>)
 
 declare type Task<Injections extends Dependencies> = (
   inject: Omit<DependencyContext<Injections>, 'websockets'> & {
@@ -194,23 +202,28 @@ declare type DependencyContext<Deps extends Dependencies = {}> = {
   ) => Promise<Awaited<ReturnType<Task>>>
 }
 
-declare type Procedure<Deps extends Dependencies, Input, Response, Output> = {
+declare type Procedure<
+  Deps extends Dependencies,
+  Input,
+  Response,
+  Output,
+  Transport extends import('@neemata/common').Transport
+> = {
+  transport?: Transport
   guards?: (
     ctx: DependencyContext<Deps>,
-    data: any,
-    params: Readonly<CallScopeParams>
+    data: unknown,
+    params: Readonly<CallScopeParams<Transport>>
   ) => Array<Guard>
   input?: (
     ctx: DependencyContext<Deps>,
-    data: any,
-    params: Readonly<CallScopeParams>
+    data: unknown,
+    params: Readonly<CallScopeParams<Transport>>
   ) => Input
   handle: (
     ctx: DependencyContext<Deps>,
     data: Awaited<Input>,
-    extra: Readonly<CallScopeParams> & {
-      setHeader?: (name: string, value: string) => void
-    }
+    params: Readonly<CallScopeParams<Transport>>
   ) => Response
   output?: (ctx: DependencyContext<Deps>, response: Awaited<Response>) => Output
 }
@@ -260,11 +273,15 @@ declare type DefineProcedure = <
   Deps extends Dependencies,
   Input,
   Response,
-  Output
+  Output,
+  Transport extends import('@neemata/common').Transport
 >(
-  procedure: Procedure<Deps, Input, Response, Output>,
+  procedure: Procedure<Deps, Input, Response, Output, Transport>,
   dependencies?: Deps
-) => ProcedureDefinition<Deps, Procedure<Deps, Input, Response, Output>>
+) => ProcedureDefinition<
+  Deps,
+  Procedure<Deps, Input, Response, Output, Transport>
+>
 
 declare type DefineProvider = <
   Deps extends Dependencies,
@@ -274,7 +291,7 @@ declare type DefineProvider = <
   dependencies?: Deps
 ) => ProviderDefinition<Deps, T>
 
-declare type AnyProdecure = Procedure<any, any, any, any>
+declare type AnyProdecure = Procedure<any, any, any, any, any>
 declare type AnyProvider = Provider<any>
 declare type AnyContext = Context<any, any, any>
 declare type AnyTask = Task<any>

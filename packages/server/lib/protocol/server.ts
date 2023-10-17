@@ -1,4 +1,9 @@
-import { ApiError, ErrorCode, type StreamMeta } from '@neemata/common'
+import {
+  ApiError,
+  ErrorCode,
+  Transport,
+  type StreamMeta,
+} from '@neemata/common'
 import EventEmitter from 'node:events'
 import { Duplex, PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
@@ -97,6 +102,7 @@ export class Server {
     procedureName: string,
     container: Container,
     payload: any,
+    transport: Transport,
     params: any = {}
   ) {
     this.config.logger.debug('Handling [%s] procedure...', procedureName)
@@ -104,10 +110,12 @@ export class Server {
       return await this.throttle(async () => {
         const procedure = await this.api.resolveProcedure(
           container,
-          procedureName
+          procedureName,
+          transport
         )
-        if (!procedure)
+        if (!procedure) {
           throw new ApiError(ErrorCode.NotFound, 'Procedure not found')
+        }
         const { guards, handle, input, output } = procedure
         const resolvedGuards = guards ? await guards(payload, params) : null
         if (resolvedGuards) await this.handleGuards(resolvedGuards)

@@ -1,4 +1,4 @@
-import { ApiError } from '@neemata/common'
+import { ApiError, Transport } from '@neemata/common'
 import { Config } from './config'
 import { Container } from './container'
 import { Loader } from './loader'
@@ -29,10 +29,15 @@ export class Api extends Loader<AnyProdecureDefinition> {
     return error
   }
 
-  async resolveProcedure(container: Container, procedureName: string) {
+  async resolveProcedure(
+    container: Container,
+    procedureName: string,
+    transport: Transport
+  ) {
     const procedureDefinition = this.modules.get(procedureName)
     if (!procedureDefinition) return null
     const { dependencies, procedure } = procedureDefinition
+    if (procedure.transport && procedure.transport !== transport) return null
     const ctx = await container.createDependencyContext(dependencies)
     const bind = (v?: Function) => v?.bind(null, ctx)
     const guards = bind(procedure.guards)

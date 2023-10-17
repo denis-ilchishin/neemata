@@ -100,28 +100,30 @@ export class HttpTransport {
         connectionParams
       )
 
-      const callParams: CallScopeParams = Object.freeze({
-        ...connectionParams,
-        procedure: procedureName,
-        transport: Transport.Http,
-        method,
-      })
+      const resHeaders = new Map<string, string>()
+      const setResponseHeader = (name: string, value: string) =>
+        resHeaders.set(name, value)
+
+      const callParams: CallScopeParams<(typeof Transport)['Http']> =
+        Object.freeze({
+          ...connectionParams,
+          procedure: procedureName,
+          transport: Transport.Http,
+          method: method as 'post' | 'get',
+          setHeader: setResponseHeader,
+        })
 
       const callContainer = await connectionContainer.copyAndLoad(
         Scope.Call,
         callParams
       )
 
-      const resHeaders = new Map<string, string>()
-      const setResponseHeader = (name: string, value: string) =>
-        resHeaders.set(name, value)
       const response = await this.server.handleRPC(
         procedureName,
         callContainer,
         body,
-        {
-          setHeader: setResponseHeader,
-        }
+        Transport.Http,
+        callParams
       )
       const isStream = response instanceof Readable
       tryRespond(() => {

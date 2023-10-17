@@ -204,7 +204,7 @@ export class WsTransport {
     let { id, container, params } = ws.getUserData()
     const { procedure, payload, callId } = rpcPayload
 
-    const callParams: CallScopeParams = {
+    const callParams: CallScopeParams<(typeof Transport)['Ws']> = {
       ...params,
       transport: Transport.Ws,
       procedure,
@@ -217,7 +217,9 @@ export class WsTransport {
       const response = await this.server.handleRPC(
         procedure,
         scopeContainer,
-        payload
+        payload,
+        Transport.Ws,
+        callParams
       )
       sendToWebsocket(ws, type, { callId, payload: { response } })
     } catch (error) {

@@ -13,6 +13,8 @@ export class App {
   workerPool?: TaskWorkerPool
   tasks?: Tasks
 
+  private starting: Promise<void>
+
   private get logger() {
     return this.config.logger
   }
@@ -42,26 +44,26 @@ export class App {
   }
 
   async start() {
-    this.logger.info('Starting the application...')
+    this.starting = (async () => {
+      this.logger.info('Starting the application...')
 
-    this.logger.debug('Loading api procedures...')
-    await this.api.load()
+      await this.api.load()
+      await this.container.load()
 
-    this.logger.debug('Loading default contexts...')
-    await this.container.load()
+      if (this.workerPool) {
+        await this.tasks.load()
+        await this.workerPool.start()
+      }
 
-    if (this.workerPool) {
-      this.logger.debug('Spinning up tasker workers...')
-      await this.tasks.load()
-      await this.workerPool.start()
-    }
+      await this.server.start()
+    })()
 
-    this.logger.debug('Starting the server...')
-    await this.server.start()
+    return this.starting
   }
 
   async stop() {
     this.logger.info('Stopping the application...')
+    await this.starting
     await this.server.stop()
     await this.container.dispose()
     if (this.workerPool) await this.workerPool.stop()

@@ -3,7 +3,6 @@
 import { App } from '@neemata/server'
 import defaults from 'defaults'
 import dotenv from 'dotenv'
-import os from 'node:os'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
@@ -54,23 +53,19 @@ const applicationPath = resolve(
     'application/index.ts'
 )
 
-const hostname = values.hostname || process.env.NEEMATA_HOSTNAME || '0.0.0.0'
-
-/**@type {ApplicationOptions['logging']['level']} */
-//@ts-expect-error
-const level = values.level || process.env.NEEMATA_LOG_LEVEL || 'info'
+const {
+  hostname = process.env.NEEMATA_HOSTNAME || '0.0.0.0',
+  port = process.env.NEEMATA_PORT || '0.0.0.0',
+  level = process.env.NEEMATA_LOG_LEVEL || 'info',
+  workersNumber = process.env.NEEMATA_WORKERS_NUMBER,
+  workersTimeout = process.env.NEEMATA_WORKERS_TIMEOUT,
+} = values
 
 import(applicationPath)
   .catch(() => ({ default: {} }))
   .then(async (module) => {
     /**@type {ApplicationOptions} */
     const appConfig = module.default
-    const port = parseInt(values.port) || 42069
-    const _workersNumber = parseInt(values.workersNumber)
-    const workersNumber = Number.isNaN(_workersNumber)
-      ? Math.floor(os.cpus().length / 4)
-      : _workersNumber
-    const workersTimeout = parseInt(values.workersTimeout) || 15_000
 
     /**@type {ApplicationOptions} */
     const appOptions = defaults(appConfig, {
@@ -78,13 +73,13 @@ import(applicationPath)
       procedures: resolve('application/api'),
       tasks: resolve('application/tasks'),
       hostname,
-      port,
+      port: parseInt(port) || 42069,
       logging: {
         level,
       },
       workers: {
-        number: workersNumber,
-        timeout: workersTimeout,
+        number: parseInt(workersNumber) || 0,
+        timeout: parseInt(workersTimeout) || 15000,
       },
     })
     const app = new App(appOptions)

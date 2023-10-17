@@ -35,10 +35,6 @@ const { values, positionals } = parseArgs({
 
 const [command, taskName] = positionals
 
-if (!['server', 'task'].includes(command)) {
-  throw new Error(`Unknown command: ${command}`)
-}
-
 if (values.env) {
   const { error } = dotenv.config({ path: resolve(values.env) })
   if (error) throw error

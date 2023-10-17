@@ -1,6 +1,10 @@
 #!/usr/bin/env node --loader tsx/esm --no-warnings
 
-import { app, command } from './application.mjs'
+import { app, command, taskName } from './application.mjs'
+
+if (!['server', 'task'].includes(command)) {
+  throw new Error(`Unknown command: ${command}`)
+}
 
 const commands = {
   server: async () => {

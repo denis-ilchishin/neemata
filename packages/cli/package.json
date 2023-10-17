@@ -4,8 +4,8 @@
   "license": "MIT",
   "description": "Nodejs application server",
   "bin": {
-    "neemata": "./neemata.mjs",
-    "neemata-watch": "./neemata-watch.mjs"
+    "neemata": "./cli.mjs",
+    "neemata-watch": "./cli-watch.mjs"
   },
   "os": [
     "darwin",
@@ -14,7 +14,7 @@
   "exports": {
     "./runtime": {
       "import": "./application.mjs",
-      "types": "./application.d.ts"
+      "types": "./application.d.mts"
     }
   },
   "engines": {

@@ -58,15 +58,11 @@ const {
   workersTimeout = process.env.NEEMATA_WORKERS_TIMEOUT,
 } = values
 
-const load = async () => {
+const load = () =>
   import(applicationPath)
     .catch(() => ({ default: {} }))
     .then(async (module) => {
-      /**@type {ApplicationOptions} */
-      const appConfig = module.default
-
-      /**@type {ApplicationOptions} */
-      const appOptions = defaults(appConfig, {
+      const defaultOptions = {
         applicationPath,
         procedures: resolve('application/api'),
         tasks: resolve('application/tasks'),
@@ -79,10 +75,10 @@ const load = async () => {
           number: parseInt(workersNumber) || 0,
           timeout: parseInt(workersTimeout) || 15000,
         },
-      })
+      }
+      const appOptions = defaults(module.default, defaultOptions)
       return new App(appOptions)
     })
-}
 
 const app = await load()
 

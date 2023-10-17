@@ -11,6 +11,12 @@
     "darwin",
     "linux"
   ],
+  "exports": {
+    "./runtime": {
+      "import": "./application.mjs",
+      "types": "./application.d.ts"
+    }
+  },
   "engines": {
     "node": ">=18.0.0 <21"
   },

@@ -11,11 +11,11 @@ export class Api extends Loader<AnyProdecureDefinition> {
     this.errorHandlers = new Map(config.errorHandlers ?? [])
   }
 
-  handleError(error: Error) {
+  handleError(error: Error, ctx: any) {
     if (this.errorHandlers.size) {
       for (const [errorType, errorHandler] of this.errorHandlers) {
         if (error instanceof errorType) {
-          const handledError = errorHandler(error)
+          const handledError = errorHandler(error, ctx)
           if (!handledError || handledError.constructor !== ApiError) {
             console.warn(
               `Error handler for ${error.constructor.name} did not return an ApiError instance, therefore is ignored.`

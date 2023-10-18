@@ -58,7 +58,17 @@ declare type Context<
   scope?: S
 }
 
-declare type ErrorHandler = [ErrorConstructor, (error: Error) => any]
+declare type ErrorHandler = [
+  new (...args: any[]) => Error,
+  (
+    error: Error,
+    ctx: {
+      procedureName: string
+      transport: import('@neemata/common').Transport
+      params: CallScopeParams<unknown>
+    }
+  ) => any
+]
 
 declare type ApplicationOptions = {
   procedures: string
@@ -148,7 +158,9 @@ declare type Task<Injections extends Dependencies> = (
 
 declare type Guard = () => Async<boolean>
 
-declare type DefineApplication = <T extends ApplicationOptions>(app: T) => T
+declare type DefineApplication = <T extends Partial<ApplicationOptions>>(
+  app: T
+) => T
 
 declare type DefineTask = <
   D extends Dependencies = {},

@@ -128,7 +128,7 @@ export class Server {
         return output ? await output(response) : response
       })
     } catch (error) {
-      throw this.api.handleError(error)
+      throw this.api.handleError(error, { procedureName, transport, params })
     }
   }
 

@@ -5,14 +5,14 @@
   "description": "Nodejs application server",
   "bin": {
     "neemata": "./cli.mjs",
-    "neemata-watch": "./cli-watch.mjs"
+    "neemata-watch": "./watch.mjs"
   },
   "os": [
     "darwin",
     "linux"
   ],
   "exports": {
-    "./runtime": {
+    "./application": {
       "import": "./application.mjs",
       "types": "./application.d.mts"
     }

@@ -10,7 +10,7 @@ const { values, positionals } = parseArgs({
   options: {
     applicationPath: {
       type: 'string',
-      default: 'application/index',
+      default: 'application/index.ts',
     },
     env: {
       type: 'string',
@@ -73,9 +73,9 @@ const load = () =>
         },
       }
       const appOptions = defaults(module.default, defaultOptions)
-      return new App(appOptions)
+      return [appOptions, new App(appOptions)]
     })
 
-const app = await load()
+const [options, app] = await load()
 
-export { app, command, taskName }
+export { app, command, options, taskName }

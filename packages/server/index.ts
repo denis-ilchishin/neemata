@@ -10,8 +10,8 @@ export class App {
   server: Server
   container: Container
   api: Api
+  tasks: Tasks
   workerPool?: TaskWorkerPool
-  tasks?: Tasks
 
   private starting: Promise<void>
 
@@ -25,9 +25,9 @@ export class App {
 
     this.api = new Api(this.config)
     this.server = new Server(this.config, this.api)
+    this.tasks = new Tasks(this.config)
 
     if (this.config.workers?.number) {
-      this.tasks = new Tasks(this.config)
       this.workerPool = new TaskWorkerPool(this.config, this.tasks, options)
     }
 

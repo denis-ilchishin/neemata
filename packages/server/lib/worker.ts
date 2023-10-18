@@ -65,6 +65,10 @@ export class TaskWorker extends EventEmitter {
     this.runningTasks.set(taskId, task)
     return task
   }
+
+  async stop() {
+    await this.container.dispose()
+  }
 }
 
 if (!isMainThread) {
@@ -114,7 +118,7 @@ if (!isMainThread) {
     taskWorker.once(WorkerEvent.Stop, async () => {
       parentPort.close()
       logger.info('Stopping up a task worker...')
-      await taskWorker.container.dispose()
+      await taskWorker.stop()
       process.exit(0)
     })
 

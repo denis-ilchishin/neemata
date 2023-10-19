@@ -4,7 +4,6 @@ declare type AcceptAnythingExceptFunction =
   | Promise<ExcludeFunction<any>>
   | ExcludeFunction<any>
 
-// declare type ProviderFactory<Injections = {}> =
 declare type Provider<Injections extends Dependencies = {}> = (
   inject: DependencyContext<Injections>
 ) => any
@@ -16,8 +15,9 @@ declare type WebSocketInterface = {
   join: (roomId: string) => boolean
   leave: (roomId: string) => boolean
   send: (event: string, data: any) => void
-  rooms: () => Set<Room>
+  rooms: () => Map<string, Room>
 }
+
 declare type Room = {
   id: string
   websockets: Set<WebSocketInterface>

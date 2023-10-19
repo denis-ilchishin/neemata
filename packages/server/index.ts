@@ -21,10 +21,8 @@ export class App {
 
   constructor(private readonly options: ApplicationOptions) {
     this.config = new Config(options)
-    this.logger.debug('Creating the application...')
-
     this.api = new Api(this.config)
-    this.server = new Server(this.config, this.api)
+    this.server = new Server(this)
     this.tasks = new Tasks(this.config)
 
     if (this.config.workers?.number) {
@@ -39,8 +37,6 @@ export class App {
         ? this.workerPool.invoke.bind(this.workerPool)
         : () => Promise.reject('Workers are not enabled'),
     }))
-
-    this.server.setGlobalContainer(this.container)
   }
 
   async start() {

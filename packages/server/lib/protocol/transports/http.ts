@@ -26,7 +26,7 @@ export class HttpTransport {
   constructor(private readonly server: Server) {}
 
   get logger() {
-    return this.server.config.logger
+    return this.server.app.config.logger
   }
 
   bind() {
@@ -77,7 +77,7 @@ export class HttpTransport {
 
     const method = req.getMethod()
     const url = getRequestUrl(req)
-    const query = qs.parse(req.getQuery(), this.server.config.qsOptions)
+    const query = qs.parse(req.getQuery(), this.server.app.config.qsOptions)
     const headers = getRequestHeaders(req)
     const proxyRemoteAddress = decodeText(res.getProxiedRemoteAddressAsText())
     const remoteAddress = decodeText(res.getRemoteAddressAsText())
@@ -95,7 +95,7 @@ export class HttpTransport {
         remoteAddress,
       })
 
-      const connectionContainer = await this.server.container.copyAndLoad(
+      const connectionContainer = await this.server.app.container.copyAndLoad(
         Scope.Connection,
         connectionParams
       )

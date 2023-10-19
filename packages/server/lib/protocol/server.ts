@@ -5,13 +5,11 @@ import {
   type StreamMeta,
 } from '@neemata/common'
 import EventEmitter from 'node:events'
+import { resolve } from 'node:path'
 import { Duplex, PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
-import { Api } from '../api'
-import { Config } from '../config'
+import { App } from '../../index'
 import { Container } from '../container'
-
-import { resolve } from 'node:path'
 import { Semaphore, SemaphoreError } from '../utils/semaphore'
 import { HttpTransport } from './transports/http'
 import { WsTransport } from './transports/ws'
@@ -52,7 +50,6 @@ export const ForbiddenError = (message = 'Forbidden') =>
   new ApiError(ErrorCode.Forbidden, message)
 
 export class Server {
-  container: Container
   httpServer: uws.TemplatedApp
   httpSocket!: uws.us_listen_socket
   throttler?: Semaphore
@@ -60,11 +57,13 @@ export class Server {
   readonly websockets = new Map<string, WebSocketInterface>()
   readonly rooms = new Map<string, Room>()
 
-  constructor(public readonly config: Config, public readonly api: Api) {
-    this.httpServer = config.https ? uws.SSLApp(config.https) : uws.App()
+  constructor(public readonly app: App) {
+    this.httpServer = app.config.https
+      ? uws.SSLApp(app.config.https)
+      : uws.App()
 
-    if (config.api?.queue) {
-      const { concurrency, size, timeout } = config.api.queue
+    if (app.config.api?.queue) {
+      const { concurrency, size, timeout } = app.config.api.queue
       this.throttler = new Semaphore(concurrency, size, timeout)
     }
 
@@ -77,12 +76,9 @@ export class Server {
   }
 
   setCors(res: Res, headers: Headers) {
+    //TODO: configurable cors
     const origin = headers['origin']
     if (origin) res.writeHeader('Access-Control-Allow-Origin', origin)
-  }
-
-  setGlobalContainer(container: Container) {
-    this.container = container
   }
 
   async throttle(cb: AnyFunction) {
@@ -106,10 +102,10 @@ export class Server {
     transport: Transport,
     params: CallScopeParams
   ) {
-    this.config.logger.debug('Handling [%s] procedure...', procedureName)
+    this.app.config.logger.debug('Call [%s] procedure...', procedureName)
     try {
       return await this.throttle(async () => {
-        const procedure = await this.api.resolveProcedure(
+        const procedure = await this.app.api.resolveProcedure(
           container,
           procedureName,
           transport
@@ -128,7 +124,11 @@ export class Server {
         return output ? await output(response) : response
       })
     } catch (error) {
-      throw this.api.handleError(error, { procedureName, transport, params })
+      throw this.app.api.handleError(error, {
+        procedureName,
+        transport,
+        params,
+      })
     }
   }
 
@@ -141,7 +141,7 @@ export class Server {
   }
 
   async start() {
-    const { hostname, port } = this.config
+    const { hostname, port } = this.app.config
     this.httpSocket = await new Promise((r) => {
       if (hostname.startsWith('unix:')) {
         this.httpServer.listen_unix(r, resolve(hostname.slice(5)))
@@ -149,9 +149,9 @@ export class Server {
         this.httpServer.listen(hostname, port, r)
       }
     })
-    this.config.logger.info(
+    this.app.config.logger.info(
       'Listening on %s://%s:%s',
-      this.config.https ? 'https' : 'http',
+      this.app.config.https ? 'https' : 'http',
       hostname,
       port
     )

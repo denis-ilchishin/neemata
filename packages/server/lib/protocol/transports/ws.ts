@@ -29,7 +29,7 @@ export class WsTransport {
   constructor(private readonly server: Server) {}
 
   get logger() {
-    return this.server.config.logger
+    return this.server.app.config.logger
   }
 
   bind() {
@@ -46,7 +46,7 @@ export class WsTransport {
           res.getProxiedRemoteAddressAsText()
         )
         const remoteAddress = decodeText(res.getRemoteAddressAsText())
-        const query = qs.parse(req.getQuery(), this.server.config.qsOptions)
+        const query = qs.parse(req.getQuery(), this.server.app.config.qsOptions)
 
         const secKey = headers['sec-websocket-key']
         const secProtocol = headers['sec-websocket-protocol']
@@ -61,7 +61,10 @@ export class WsTransport {
           proxyRemoteAddress,
           remoteAddress,
         }
-        const container = this.server.container.copy(Scope.Connection, params)
+        const container = this.server.app.container.copy(
+          Scope.Connection,
+          params
+        )
         const wsData = {
           id: randomUUID(),
           streams,
@@ -86,7 +89,7 @@ export class WsTransport {
 
         this.server.websockets.set(
           id,
-          createWsInterface(this.server.rooms, ws, id)
+          new WebsocketInterface(id, ws, this.server.rooms)
         )
         events.on(MessageType.Rpc.toString(), this.handleRPC.bind(this))
         events.on(
@@ -192,7 +195,7 @@ export class WsTransport {
 
     for (const stream of streamsPayload) {
       const { id, ...meta } = stream
-      streams.set(id.toString(), createStream(ws, id, meta))
+      streams.set(id.toString(), new Stream(ws, id, meta))
     }
 
     const streamsReplacer = (key, value) => {
@@ -279,68 +282,91 @@ export class WsTransport {
   }
 }
 
+class Stream extends PassThrough {
+  paused: boolean
+
+  bytesReceived = 0
+
+  constructor(
+    private readonly ws: WebSocket,
+    public readonly id: number,
+    public readonly meta: StreamMeta
+  ) {
+    super()
+    this.updatePaused()
+    this.on('pause', this.updatePaused.bind(this))
+    this.on('resume', this.updatePaused.bind(this))
+    this.once('resume', async () => {
+      // TODO: wtf is this???
+      while (await this.tryPull()) await this.pull()
+    })
+  }
+
+  private updatePaused() {
+    this.paused = this.isPaused()
+  }
+
+  private async tryPull() {
+    if (!this.paused) return true
+    if (this.writableFinished) return false
+    return new Promise((r) => this.once('resume', r))
+  }
+
+  async pull() {
+    this.ws.send(
+      concat(
+        encodeNumber(MessageType.StreamPull, Uint8Array),
+        encodeNumber(this.id, Uint32Array),
+        encodeBigNumber(this.bytesReceived, BigUint64Array)
+      ),
+      true
+    )
+    return new Promise<void>((resolve) =>
+      this.once('received', (byteLength) => {
+        this.bytesReceived += byteLength
+        resolve()
+      })
+    )
+  }
+}
+
 const send = (ws: WebSocket, type: number, payload: any) =>
   ws.send(
     concat(encodeNumber(type, Uint8Array), encodeText(toJSON(payload))),
     true
   )
 
-const createStream = (ws: WebSocket, id: number, meta: StreamMeta) => {
-  const stream = new PassThrough()
-  let paused = stream.isPaused()
-  let bytesReceived = 0
+class WebsocketInterface implements WebSocketInterface {
+  #rooms: Map<string, Room>
+  #ws: WebSocket
 
-  const pull = () => {
-    ws.send(
-      concat(
-        encodeNumber(MessageType.StreamPull, Uint8Array),
-        encodeNumber(id, Uint32Array),
-        encodeBigNumber(bytesReceived, BigUint64Array)
-      ),
-      true
-    )
-    return new Promise<void>((resolve) =>
-      stream.once('received', (byteLength) => {
-        bytesReceived += byteLength
-        resolve()
-      })
-    )
+  constructor(
+    public readonly id: string,
+    ws: WebSocket,
+    rooms: Map<string, Room>
+  ) {
+    this.#rooms = rooms
+    this.#ws = ws
   }
 
-  const setPause = () => stream.isPaused()
-
-  stream.on('pause', setPause)
-  stream.on('resume', setPause)
-
-  const tryPull = async () => {
-    if (!paused) return true
-    if (stream.writableFinished) return false
-    return new Promise((r) => stream.once('resume', r))
+  send(event: string, data: any) {
+    send(this.#ws, MessageType.Event, { event, data })
   }
 
-  stream.once('resume', async () => {
-    while (await tryPull()) await pull() // TODO: wtf is this???
-  })
-
-  return Object.assign(stream, { meta })
-}
-
-const createWsInterface = (
-  rooms: Map<string, Room>,
-  ws: WebSocket,
-  wsId: string
-): WebSocketInterface => ({
-  id: wsId,
-  send: (event: string, data: any) =>
-    send(ws, MessageType.Event, { event, data }),
-  rooms: () => {
-    const wsRooms = new Set<Room>()
-    for (const roomId of ws.getTopics()) {
-      const room = rooms.get(roomId)
-      if (room) wsRooms.add(room)
+  rooms() {
+    const wsRooms = new Map<string, Room>()
+    for (const roomId of this.#ws.getTopics()) {
+      const room = this.#rooms.get(roomId)
+      if (room) wsRooms.set(roomId, room)
     }
     return wsRooms
-  },
-  join: (roomId: string) => ws.subscribe(roomId),
-  leave: (roomId: string) => ws.unsubscribe(roomId),
-})
+  }
+
+  join(roomId: string) {
+    return this.#ws.subscribe(roomId)
+  }
+
+  leave(roomId: string) {
+    return this.#ws.unsubscribe(roomId)
+  }
+}

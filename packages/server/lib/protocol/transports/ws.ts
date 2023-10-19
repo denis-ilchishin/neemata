@@ -349,7 +349,7 @@ class WebsocketInterface implements WebSocketInterface {
     this.#ws = ws
   }
 
-  send(event: string, data: any) {
+  send(event: string, data?: any) {
     send(this.#ws, MessageType.Event, { event, data })
   }
 

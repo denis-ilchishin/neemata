@@ -14,7 +14,7 @@ declare type WebSocketInterface = {
   id: string
   join: (roomId: string) => boolean
   leave: (roomId: string) => boolean
-  send: (event: string, data: any) => void
+  send: (event: string, data?: any) => void
   rooms: () => Map<string, Room>
 }
 

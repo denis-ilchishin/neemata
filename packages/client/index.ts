@@ -21,6 +21,12 @@ type Options = {
   autoreconnect?: boolean
 }
 
+type Call = [
+  (value?: any) => void,
+  (reason?: any) => void,
+  ReturnType<typeof setTimeout>
+]
+
 const once = (emitter: EventEmitter, event: string) =>
   new Promise((r) => emitter.once(event, r))
 
@@ -36,6 +42,7 @@ const internalEvents = {
 }
 
 export { ApiError, ErrorCode, type StreamMeta } from '@neemata/common'
+
 export class Client extends EventEmitter {
   private ws: WebSocket
   private autoreconnect: boolean
@@ -47,8 +54,8 @@ export class Client extends EventEmitter {
   private nextReconnect = -1
   private nextStreamId = 1
   private nextCallId = 1
-  private calls = new Map()
-  private streams = new Map<number, any>()
+  private calls = new Map<number, Call>()
+  private streams = new Map<number, Stream>()
 
   constructor(private readonly options: Options) {
     super()
@@ -78,10 +85,8 @@ export class Client extends EventEmitter {
     })
 
     this.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
-      const {
-        callId,
-        payload: { error, response },
-      } = JSON.parse(decodeText(buffer))
+      const { callId, payload } = JSON.parse(decodeText(buffer))
+      const { error, response } = payload
       const call = this.calls.get(callId)
       if (call) {
         const [resolve, reject, timer] = call
@@ -150,7 +155,7 @@ export class Client extends EventEmitter {
     return await once(this, 'disconnect')
   }
 
-  rpc(
+  rpc<T>(
     procedure: string,
     payload?: any,
     options: {
@@ -189,14 +194,14 @@ export class Client extends EventEmitter {
       const timer = setTimeout(() => {
         const call = this.calls.get(callId)
         if (call) {
-          const [, reject] = call
+          const reject = call[1]
           reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
           this.calls.delete(callId)
         }
       }, timeout || 30000)
 
-      return new Promise((...args) => {
-        this.calls.set(callId, [...args, timer])
+      return new Promise<T>((resolse, reject) => {
+        this.calls.set(callId, [resolse, reject, timer])
         this.sendWithWs(MessageType.Rpc, data)
       })
     }
@@ -247,7 +252,6 @@ class Stream extends EventEmitter {
   private meta: StreamMeta
 
   private paused = true
-  private processed = 0
   private received = 0
 
   constructor(private readonly client: Client, private readonly blob: Blob) {
@@ -255,7 +259,8 @@ class Stream extends EventEmitter {
     this.reader = blob.stream().getReader()
     //@ts-expect-error
     this.id = client.nextStreamId++
-    Object.defineProperty(this, STREAM_ID_KEY, this.id)
+    //@ts-expect-error
+    client.streams.set(this.id, this)
     this.meta = {
       size: blob.size,
       type: blob.type,
@@ -263,16 +268,20 @@ class Stream extends EventEmitter {
     }
   }
 
+  private get [STREAM_ID_KEY]() {
+    return this.id
+  }
+
   async flow() {
     if (this.paused) await once(this, 'resume')
   }
 
-  async push() {
-    if (!this.processed && this.paused && !this.received) {
+  async push(received: number) {
+    if (!this.received && this.paused) {
       this.resume()
       this.emit('start')
     }
-    this.processed += this.received
+    this.received = received
     try {
       await this.flow()
       const { done, value } = await this.reader.read()

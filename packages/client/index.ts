@@ -13,10 +13,6 @@ import {
 } from '@neemata/common'
 import { EventEmitter } from 'events'
 
-export { ApiError, ErrorCode, type StreamMeta } from '@neemata/common'
-
-const STREAM_ID_KEY = Symbol()
-
 type Options = {
   host: string
   https?: boolean
@@ -25,14 +21,10 @@ type Options = {
   autoreconnect?: boolean
 }
 
-type SendWithWs = (type: MessageType, payload: ArrayBuffer) => any
+const once = (emitter: EventEmitter, event: string) =>
+  new Promise((r) => emitter.once(event, r))
 
-let nextStreamId = 1
-let nextCallId = 1
-let nextReconnect = 0
-
-const calls = new Map()
-const streams = new Map<number, any>()
+const STREAM_ID_KEY = Symbol()
 
 const internalEvents = {
   [MessageType.Rpc]: Symbol(),
@@ -43,121 +35,131 @@ const internalEvents = {
   [MessageType.Event]: Symbol(),
 }
 
-export const createClient = (options: Options) => {
-  let ws: WebSocket
-  let isHealthy = false
-  let isConnected = false
-  let autoreconnect = options.autoreconnect ?? true
+export { ApiError, ErrorCode, type StreamMeta } from '@neemata/common'
+export class Client extends EventEmitter {
+  private ws: WebSocket
+  private autoreconnect: boolean
+  private httpUrl: URL
+  private wsUrl: URL
 
-  const emitter = new EventEmitter()
+  private isHealthy = false
+  private isConnected = false
+  private nextReconnect = -1
+  private nextStreamId = 1
+  private nextCallId = 1
+  private calls = new Map()
+  private streams = new Map<number, any>()
 
-  const httpUrl = new URL(
-    `${options.https ? 'https' : 'http'}://${options.host}`,
-    options.basePath
-  )
+  constructor(private readonly options: Options) {
+    super()
+    this.httpUrl = new URL(
+      `${options.https ? 'https' : 'http'}://${options.host}`,
+      options.basePath
+    )
+    this.wsUrl = new URL(
+      options.basePath ?? '/',
+      `${options.https ? 'wss' : 'ws'}://${options.host}`
+    )
 
-  const wsUrl = new URL(
-    options.basePath ?? '/',
-    `${options.https ? 'wss' : 'ws'}://${options.host}`
-  )
+    this.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
+      const id = decodeNumber(
+        buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
+        Uint32Array
+      )
+      const received = decodeBigNumber(
+        buffer.slice(
+          Uint32Array.BYTES_PER_ELEMENT,
+          BigUint64Array.BYTES_PER_ELEMENT + Uint32Array.BYTES_PER_ELEMENT
+        ),
+        BigUint64Array
+      )
+      const stream = this.streams.get(id)
+      stream.push(received)
+    })
 
-  const healthCheck = async () => {
-    while (!isHealthy) {
-      try {
-        const { ok } = await fetch(httpUrl + 'health')
-        isHealthy = ok
-      } catch (e) {}
-      nextReconnect = Math.min(nextReconnect + 1, 10)
-      await new Promise((r) => setTimeout(r, nextReconnect * 1000))
-    }
-    emitter.emit('healthy')
+    this.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
+      const {
+        callId,
+        payload: { error, response },
+      } = JSON.parse(decodeText(buffer))
+      const call = this.calls.get(callId)
+      if (call) {
+        const [resolve, reject, timer] = call
+        clearTimeout(timer)
+        this.calls.delete(callId)
+        if (error) reject(new ApiError(error.code, error.message, error.data))
+        else resolve(response)
+      }
+    })
+
+    this.on(internalEvents[MessageType.Event], (ws, buffer) => {
+      const { event, data } = JSON.parse(decodeText(buffer))
+      this.emit(event, data)
+    })
   }
 
-  const connect = async () => {
-    autoreconnect = options.autoreconnect ?? true
-    await healthCheck()
-    ws = new WebSocket(wsUrl + 'api')
-    ws.binaryType = 'arraybuffer'
+  async healthCheck() {
+    while (!this.isHealthy) {
+      try {
+        const { ok } = await fetch(`${this.httpUrl}health`)
+        this.isHealthy = ok
+      } catch (e) {}
+      this.nextReconnect = Math.min(this.nextReconnect + 1, 10)
+      await new Promise((r) => setTimeout(r, this.nextReconnect * 1000))
+    }
+    this.emit('healthy')
+  }
 
-    ws.onmessage = (event) => {
+  async connect() {
+    this.autoreconnect = this.options.autoreconnect ?? true
+    await this.healthCheck()
+    this.ws = new WebSocket(`${this.wsUrl}api`)
+    this.ws.binaryType = 'arraybuffer'
+
+    this.ws.onmessage = (event) => {
       const buffer: ArrayBuffer = event.data
       const type = decodeNumber(buffer, Uint8Array)
-      emitter.emit(
+      this.emit(
         internalEvents[type],
-        ws,
+        this.ws,
         buffer.slice(Uint8Array.BYTES_PER_ELEMENT)
       )
     }
-    ws.onopen = (event) => {
-      isConnected = true
-      emitter.emit('connect')
-      nextReconnect = 0
+    this.ws.onopen = (event) => {
+      this.isConnected = true
+      this.emit('connect')
+      this.nextReconnect = -1
     }
-    ws.onclose = (event) => {
-      isConnected = false
-      isHealthy = false
-      emitter.emit('disconnect')
-      clear()
-      if (autoreconnect) connect()
+    this.ws.onclose = (event) => {
+      this.isConnected = false
+      this.isHealthy = false
+      this.emit('disconnect')
+      this.clear()
+      if (this.autoreconnect) this.connect()
     }
-    ws.onerror = (event) => {
-      isHealthy = false
+    this.ws.onerror = (event) => {
+      this.isHealthy = false
     }
 
-    await forEvent(emitter, 'connect')
-    return client
+    await once(this, 'connect')
   }
 
-  const disconnect = () => {
-    autoreconnect = false
-    ws.close(1000)
-    return forEvent(emitter, 'disconnect')
+  async disconnect() {
+    this.autoreconnect = false
+    this.ws.close(1000)
+    return await once(this, 'disconnect')
   }
 
-  const clear = (error?: Error) => {
-    for (const call of calls.values()) {
-      const [, reject, timer] = call
-      clearTimeout(timer)
-      reject(error)
-    }
-    calls.clear()
-
-    for (const stream of streams.values()) stream.destroy(error)
-    streams.clear()
-  }
-
-  const sendWithWs: SendWithWs = async (type, payload) => {
-    if (!isConnected) await forEvent(emitter, 'connect')
-    ws.send(concat(encodeNumber(type, Uint8Array), payload))
-  }
-
-  const sendWithFetch = async (procedure, payload) => {
-    return fetch(httpUrl + 'api' + '/' + procedure, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      credentials: 'include',
-      cache: 'no-cache',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-      .then((res) => res.json())
-      .then(({ response, error }) => {
-        if (error) throw new ApiError(error.code, error.message, error.data)
-        return response
-      })
-  }
-
-  const rpc = (
+  rpc(
     procedure: string,
-    payload: any,
+    payload?: any,
     options: {
       timeout?: number
       useHttp?: boolean
     } = {}
-  ) => {
+  ) {
     const { timeout = options.timeout, useHttp = false } = options
-    const callId = nextCallId++
+    const callId = this.nextCallId++
     const streams = []
     const callPayload = encodeText(
       JSON.stringify({ callId, procedure, payload }, (key, value) => {
@@ -175,7 +177,7 @@ export const createClient = (options: Options) => {
       throw new Error('Unable to stream data over HTTP')
 
     if (useHttp) {
-      return sendWithFetch(procedure, payload)
+      return this.sendWithHttp(procedure, payload)
     } else {
       const streamsPayload = encodeText(JSON.stringify(streams))
       const streamDataLength = encodeNumber(
@@ -183,137 +185,138 @@ export const createClient = (options: Options) => {
         Uint32Array
       )
       const data = concat(streamDataLength, streamsPayload, callPayload)
-      sendWithWs(MessageType.Rpc, data)
 
       const timer = setTimeout(() => {
-        const call = calls.get(callId)
+        const call = this.calls.get(callId)
         if (call) {
           const [, reject] = call
           reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
-          calls.delete(callId)
+          this.calls.delete(callId)
         }
-      }, timeout || 15000)
+      }, timeout || 30000)
 
-      return new Promise((res, rej) => calls.set(callId, [res, rej, timer]))
+      return new Promise((...args) => {
+        this.calls.set(callId, [...args, timer])
+        this.sendWithWs(MessageType.Rpc, data)
+      })
     }
   }
 
-  emitter.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
-    const id = decodeNumber(
-      buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
-      Uint32Array
-    )
-    const received = decodeBigNumber(
-      buffer.slice(
-        Uint32Array.BYTES_PER_ELEMENT,
-        BigUint64Array.BYTES_PER_ELEMENT + Uint32Array.BYTES_PER_ELEMENT
-      ),
-      BigUint64Array
-    )
-    const stream = streams.get(id)
-    stream.push(received)
-  })
+  createStream(blob: Blob) {
+    return new Stream(this, blob)
+  }
 
-  emitter.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
-    const {
-      callId,
-      payload: { error, response },
-    } = JSON.parse(decodeText(buffer))
-    const call = calls.get(callId)
-    if (call) {
-      const [resolve, reject, timer] = call
+  private async clear(error?: Error) {
+    for (const call of this.calls.values()) {
+      const [, reject, timer] = call
       clearTimeout(timer)
-      calls.delete(callId)
-      if (error) reject(new ApiError(error.code, error.message, error.data))
-      else resolve(response)
+      reject(error)
     }
-  })
+    this.calls.clear()
 
-  emitter.on(internalEvents[MessageType.Event], (ws, buffer) => {
-    const { event, data } = JSON.parse(decodeText(buffer))
-    emitter.emit(event, data)
-  })
+    for (const stream of this.streams.values()) stream.destroy(error)
+    this.streams.clear()
+  }
 
-  const client = Object.assign(emitter, {
-    connect,
-    disconnect,
-    rpc,
-    createStream: createStream.bind(undefined, sendWithWs),
-  })
+  private async sendWithWs(type: MessageType, payload: ArrayBuffer) {
+    if (!this.isConnected) await once(this, 'connect')
+    this.ws.send(concat(encodeNumber(type, Uint8Array), payload))
+  }
 
-  return client
+  private async sendWithHttp(procedure: string, payload: any) {
+    return fetch(`${this.httpUrl}api/${procedure}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      credentials: 'include',
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then((res) => res.json())
+      .then(({ response, error }) => {
+        if (error) throw new ApiError(error.code, error.message, error.data)
+        return response
+      })
+  }
 }
 
-const createStream = (send: SendWithWs, file: File) => {
-  const emitter = new EventEmitter()
-  const reader = file.stream().getReader()
-  const id = nextStreamId++
-  const meta: StreamMeta = {
-    name: file.name,
-    size: file.size,
-    type: file.type,
-  }
-  let paused = true
-  let processed = 0
+class Stream extends EventEmitter {
+  private reader: ReadableStreamDefaultReader
+  private id: number
+  private meta: StreamMeta
 
-  const flow = async () => {
-    if (paused) await forEvent(emitter, 'resume')
-  }
+  private paused = true
+  private processed = 0
+  private received = 0
 
-  const push = async (received: number) => {
-    if (!processed && paused && !received) {
-      resume()
-      emitter.emit('start')
+  constructor(private readonly client: Client, private readonly blob: Blob) {
+    super()
+    this.reader = blob.stream().getReader()
+    //@ts-expect-error
+    this.id = client.nextStreamId++
+    Object.defineProperty(this, STREAM_ID_KEY, this.id)
+    this.meta = {
+      size: blob.size,
+      type: blob.type,
+      name: blob instanceof File ? blob.name : undefined,
     }
-    processed += received
+  }
+
+  async flow() {
+    if (this.paused) await once(this, 'resume')
+  }
+
+  async push() {
+    if (!this.processed && this.paused && !this.received) {
+      this.resume()
+      this.emit('start')
+    }
+    this.processed += this.received
     try {
-      await flow()
-      const { done, value } = await reader.read()
+      await this.flow()
+      const { done, value } = await this.reader.read()
       if (done) {
-        send(MessageType.StreamEnd, encodeNumber(id, Uint32Array))
-        reader.cancel()
-        emitter.emit('end')
-      } else {
-        send(
-          MessageType.StreamPush,
-          concat(encodeNumber(id, Uint32Array), value)
+        //@ts-expect-error
+        this.client.sendWithWs(
+          MessageType.StreamEnd,
+          encodeNumber(this.id, Uint32Array)
         )
-        emitter.emit('progress', meta.size, received)
+        this.reader.cancel()
+        this.emit('end')
+      } else {
+        //@ts-expect-error
+        this.client.sendWithWs(
+          MessageType.StreamPush,
+          concat(encodeNumber(this.id, Uint32Array), value)
+        )
+        this.emit('progress', this.meta.size, this.received)
       }
     } catch (e) {
-      send(MessageType.StreamTerminate, encodeNumber(id, Uint32Array))
-      destroy(e)
+      //@ts-expect-error
+      this.client.sendWithWs(
+        MessageType.StreamTerminate,
+        encodeNumber(this.id, Uint32Array)
+      )
+      this.destroy(e)
     }
   }
 
-  const destroy = (error?: Error) => {
-    streams.delete(id)
-    reader.cancel(error)
-    if (error) emitter.emit('error', error)
-    emitter.emit('close')
+  destroy(error?: Error) {
+    //@ts-expect-error
+    this.client.streams.delete(this.id)
+    this.reader.cancel(error)
+    if (error) this.emit('error', error)
+    this.emit('close')
   }
 
-  const pause = () => {
-    paused = true
-    emitter.emit('pause')
+  pause() {
+    this.paused = true
+    this.emit('pause')
   }
 
-  const resume = () => {
-    paused = false
-    emitter.emit('resume')
+  resume() {
+    this.paused = false
+    this.emit('resume')
   }
-
-  const stream = {
-    id,
-    meta,
-    push,
-    destroy,
-  }
-
-  streams.set(id, stream)
-
-  return Object.assign(emitter, { [STREAM_ID_KEY]: id, meta, pause, resume })
 }
-
-const forEvent = (emitter: EventEmitter, event: string) =>
-  new Promise((r) => emitter.once(event, r))

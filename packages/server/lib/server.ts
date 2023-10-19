@@ -4,15 +4,14 @@ import {
   Transport,
   type StreamMeta,
 } from '@neemata/common'
-import EventEmitter from 'node:events'
 import { resolve } from 'node:path'
-import { Duplex, PassThrough, Readable } from 'node:stream'
+import { PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
-import { App } from '../../index'
-import { Container } from '../container'
-import { Semaphore, SemaphoreError } from '../utils/semaphore'
+import { App } from '../index'
+import { Container } from './container'
 import { HttpTransport } from './transports/http'
 import { WsTransport } from './transports/ws'
+import { Semaphore, SemaphoreError } from './utils/semaphore'
 
 export type Stream = Readable & { meta: StreamMeta }
 export type Headers = Record<string, string>
@@ -20,10 +19,9 @@ export type Req = uws.HttpRequest
 export type Res = uws.HttpResponse
 export type WebSocketUserData = {
   id: string
-  streams: Map<string, Duplex>
+  streams: Map<number, Readable>
   container: Container
   params: ConnectionScopeParams
-  events: EventEmitter
 }
 
 export type WebSocket = uws.WebSocket<WebSocketUserData>

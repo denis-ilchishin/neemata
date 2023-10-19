@@ -5,7 +5,6 @@ import {
   STREAM_ID_PREFIX,
   StreamMeta,
   concat,
-  decodeBigNumber,
   decodeNumber,
   decodeText,
   encodeNumber,
@@ -19,6 +18,7 @@ type Options = {
   basePath?: string
   timeout?: number
   autoreconnect?: boolean
+  debug?: boolean
 }
 
 type Call = [
@@ -27,8 +27,8 @@ type Call = [
   ReturnType<typeof setTimeout>
 ]
 
-const once = (emitter: EventEmitter, event: string) =>
-  new Promise((r) => emitter.once(event, r))
+const once = <T = void>(emitter: EventEmitter, event: string, value?: T) =>
+  new Promise<T>((r) => emitter.once(event, () => r(value)))
 
 const STREAM_ID_KEY = Symbol()
 
@@ -68,22 +68,6 @@ export class Client extends EventEmitter {
       `${options.https ? 'wss' : 'ws'}://${options.host}`
     )
 
-    this.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
-      const id = decodeNumber(
-        buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
-        Uint32Array
-      )
-      const received = decodeBigNumber(
-        buffer.slice(
-          Uint32Array.BYTES_PER_ELEMENT,
-          BigUint64Array.BYTES_PER_ELEMENT + Uint32Array.BYTES_PER_ELEMENT
-        ),
-        BigUint64Array
-      )
-      const stream = this.streams.get(id)
-      stream.push(received)
-    })
-
     this.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
       const { callId, payload } = JSON.parse(decodeText(buffer))
       const { error, response } = payload
@@ -100,6 +84,24 @@ export class Client extends EventEmitter {
     this.on(internalEvents[MessageType.Event], (ws, buffer) => {
       const { event, data } = JSON.parse(decodeText(buffer))
       this.emit(event, data)
+    })
+
+    this.on(internalEvents[MessageType.Event], (ws, buffer) => {
+      const { event, data } = JSON.parse(decodeText(buffer))
+      this.emit(event, data)
+    })
+
+    this.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
+      const id = decodeNumber(
+        buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
+        Uint32Array
+      )
+      const size = decodeNumber(
+        buffer.slice(Uint32Array.BYTES_PER_ELEMENT),
+        Uint32Array
+      )
+      const stream = this.streams.get(id)
+      stream.emit(internalEvents[MessageType.StreamPull], size)
     })
   }
 
@@ -124,6 +126,11 @@ export class Client extends EventEmitter {
     this.ws.onmessage = (event) => {
       const buffer: ArrayBuffer = event.data
       const type = decodeNumber(buffer, Uint8Array)
+      if (this.options.debug)
+        console.log(
+          'Neemata: received message',
+          Object.keys(MessageType).find((key) => MessageType[key] === type)
+        )
       this.emit(
         internalEvents[type],
         this.ws,
@@ -247,12 +254,13 @@ export class Client extends EventEmitter {
 }
 
 class Stream extends EventEmitter {
-  private reader: ReadableStreamDefaultReader
-  private id: number
-  private meta: StreamMeta
+  paused = true
+  sentBytes = 0
 
-  private paused = true
-  private received = 0
+  private id: number
+  private reader: ReadableStreamDefaultReader<Uint8Array>
+  private meta: StreamMeta
+  private queue: ArrayBuffer
 
   constructor(private readonly client: Client, private readonly blob: Blob) {
     super()
@@ -266,25 +274,41 @@ class Stream extends EventEmitter {
       type: blob.type,
       name: blob instanceof File ? blob.name : undefined,
     }
+
+    this.on(internalEvents[MessageType.StreamPull], (size: number) => {
+      if (!this.sentBytes) {
+        this.resume()
+        this.emit('start')
+      }
+      this.push(size)
+    })
   }
 
-  private get [STREAM_ID_KEY]() {
-    return this.id
+  private next() {
+    if (this.sentBytes && this.paused) return once(this, 'resume')
   }
 
-  async flow() {
-    if (this.paused) await once(this, 'resume')
-  }
-
-  async push(received: number) {
-    if (!this.received && this.paused) {
-      this.resume()
-      this.emit('start')
-    }
-    this.received = received
-    try {
-      await this.flow()
+  private async read(size: number) {
+    if (this.queue?.byteLength > 0) {
+      const end = Math.min(size, this.queue.byteLength)
+      const chunk = this.queue.slice(0, end)
+      this.queue = this.queue.byteLength > size ? this.queue.slice(end) : null
+      return { chunk }
+    } else {
       const { done, value } = await this.reader.read()
+      if (done) {
+        return { done }
+      } else {
+        this.queue = value
+        return this.read(size)
+      }
+    }
+  }
+
+  private async push(size: number) {
+    await this.next()
+    try {
+      const { done, chunk } = await this.read(size)
       if (done) {
         //@ts-expect-error
         this.client.sendWithWs(
@@ -292,14 +316,17 @@ class Stream extends EventEmitter {
           encodeNumber(this.id, Uint32Array)
         )
         this.reader.cancel()
+        // @ts-ignore
+        this.client.streams.delete(this.id)
         this.emit('end')
       } else {
+        this.sentBytes += chunk.byteLength
         //@ts-expect-error
         this.client.sendWithWs(
           MessageType.StreamPush,
-          concat(encodeNumber(this.id, Uint32Array), value)
+          concat(encodeNumber(this.id, Uint32Array), chunk)
         )
-        this.emit('progress', this.meta.size, this.received)
+        this.emit('progress', this.meta.size, this.sentBytes)
       }
     } catch (e) {
       //@ts-expect-error
@@ -327,5 +354,9 @@ class Stream extends EventEmitter {
   resume() {
     this.paused = false
     this.emit('resume')
+  }
+
+  private get [STREAM_ID_KEY]() {
+    return this.id
   }
 }

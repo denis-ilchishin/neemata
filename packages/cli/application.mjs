@@ -62,8 +62,11 @@ const load = () =>
         applicationPath,
         procedures: resolve('application/api'),
         tasks: resolve('application/tasks'),
-        hostname,
-        port: parseInt(port) || 42069,
+        server: {
+          hostname,
+          // TODO: add unix socket support
+          port: parseInt(port) || 42069,
+        },
         logging: {
           level,
         },

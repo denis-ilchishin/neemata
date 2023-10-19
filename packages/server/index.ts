@@ -1,7 +1,7 @@
 import { Api } from './lib/api'
 import { Config } from './lib/config'
 import { Container } from './lib/container'
-import { Server } from './lib/protocol/server'
+import { Server } from './lib/server'
 import { Tasks } from './lib/tasks'
 import { TaskWorkerPool } from './lib/worker-pool'
 
@@ -73,7 +73,7 @@ export class App {
 }
 
 export { ApiError, ErrorCode, TaskError, Transport } from '@neemata/common'
-export { type Stream } from './lib/protocol/server'
+export { type Stream } from './lib/transports/ws'
 export {
   defineApplication,
   defineContext,

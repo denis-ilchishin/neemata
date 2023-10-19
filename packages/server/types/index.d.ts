@@ -75,13 +75,17 @@ declare type ApplicationOptions = {
   tasks?: string
   errorHandlers?: ErrorHandler[]
   applicationPath?: string
-  port?: number
-  hostname?: string
-  https?: import('uWebSockets.js').AppOptions
-  qsOptions?: import('qs').IParseOptions
   workers?: {
     number: number
     timeout: number
+  }
+  server?: {
+    port?: number
+    hostname?: string
+    qsOptions?: import('qs').IParseOptions
+    https?: import('uWebSockets.js').AppOptions
+    maxPayloadLength?: number
+    maxStreamChunkLength?: number
   }
   api?: {
     queue?: {

@@ -8,13 +8,11 @@ import {
   Transport,
   concat,
   decodeText,
-  encodeBigNumber,
   encodeNumber,
   encodeText,
 } from '@neemata/common'
 import { randomUUID } from 'node:crypto'
-import { EventEmitter } from 'node:events'
-import { PassThrough } from 'node:stream'
+import { Readable } from 'node:stream'
 import qs from 'qs'
 import {
   InternalError,
@@ -25,6 +23,21 @@ import {
   toJSON,
 } from '../server'
 
+const sendPayload = (ws: WebSocket, type: number, payload: any) => {
+  send(ws, type, encodeText(toJSON(payload)))
+}
+
+const send = (ws: WebSocket, type: number, ...buffers: ArrayBuffer[]) => {
+  try {
+    ws.send(concat(encodeNumber(type, Uint8Array), ...buffers), true)
+  } catch (error) {
+    if (
+      error.message !== 'Invalid access of closed uWS.WebSocket/SSLWebSocket.'
+    )
+      throw error
+  }
+}
+
 export class WsTransport {
   constructor(private readonly server: Server) {}
 
@@ -34,7 +47,7 @@ export class WsTransport {
 
   bind() {
     this.server.httpServer.ws(this.server.basePath('api'), {
-      maxPayloadLength: 16 * 1024 * 1024,
+      maxPayloadLength: this.server.app.config.maxPayloadLength,
       sendPingsAutomatically: true,
       upgrade: async (res, req, socket) => {
         if (!socket) return void res.close()
@@ -53,7 +66,6 @@ export class WsTransport {
         const secExtensions = headers['sec-websocket-extensions']
 
         const streams = new Map()
-        const events = new EventEmitter()
 
         const params: ConnectionScopeParams = {
           headers,
@@ -70,7 +82,6 @@ export class WsTransport {
           streams,
           container: container,
           params,
-          events,
         }
         try {
           await container.load()
@@ -84,39 +95,26 @@ export class WsTransport {
         }
       },
       open: (ws: WebSocket) => {
-        const { id, events } = ws.getUserData()
+        const { id } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
 
         this.server.websockets.set(
           id,
           new WebsocketInterface(id, ws, this.server.rooms)
         )
-        events.on(MessageType.Rpc.toString(), this.handleRPC.bind(this))
-        events.on(
-          MessageType.StreamPush.toString(),
-          this.handleStreamPush.bind(this)
-        )
-        events.on(
-          MessageType.StreamEnd.toString(),
-          this.handleStreamEnd.bind(this)
-        )
-        events.on(
-          MessageType.StreamTerminate.toString(),
-          this.handleStreamTerminate.bind(this)
-        )
-        events.on(MessageType.Event.toString(), (event, data) => {
-          send(ws, MessageType.Event, { event, data })
-        })
       },
       message: (ws, message, isBinary) => {
         if (!isBinary) return void ws.close()
-        const { id, events } = ws.getUserData()
-        this.logger.trace('Receive websocket [%s] message', id)
+        const { id } = ws.getUserData()
         try {
-          const buf = Buffer.from(message)
-          const type = buf.subarray(0, Uint8Array.BYTES_PER_ELEMENT).readUint8()
-          const buffer = buf.subarray(Uint8Array.BYTES_PER_ELEMENT)
-          events.emit(type.toString(), ws, buffer)
+          const messageBuffer = Buffer.from(message)
+          const type = messageBuffer
+            .subarray(0, Uint8Array.BYTES_PER_ELEMENT)
+            .readUint8() as unknown as MessageType
+          const buffer = messageBuffer.subarray(Uint8Array.BYTES_PER_ELEMENT)
+          this.logger.trace('Received websocket [%s] message [%s]', id)
+          const valid = this[type]?.(ws, buffer)
+          if (!valid) throw new Error('Unsupported message type')
         } catch (error) {
           this.logger.error(error)
         }
@@ -167,18 +165,18 @@ export class WsTransport {
         }
       },
       close: async (ws, code, message) => {
-        const { id, container, streams, events } = ws.getUserData()
+        const { id, container, streams } = ws.getUserData()
         this.logger.trace('Close websocket [%s]', id)
         this.server.websockets.delete(id)
-        events.removeAllListeners()
-        for (const stream of streams.values()) stream.destroy()
+        for (const stream of streams.values())
+          stream.destroy(new Error('Client is closed'))
         streams.clear()
         await container.dispose()
       },
     })
   }
 
-  async handleRPC(ws: WebSocket, payloadBuf: Buffer) {
+  async [MessageType.Rpc](ws: WebSocket, payloadBuf: Buffer) {
     //TODO: refactor this mess
 
     const { streams } = ws.getUserData()
@@ -193,14 +191,23 @@ export class WsTransport {
       )
     )
 
-    for (const stream of streamsPayload) {
-      const { id, ...meta } = stream
-      streams.set(id.toString(), new Stream(ws, id, meta))
+    for (const _stream of streamsPayload) {
+      const { id, ...meta } = _stream
+      const stream = new Stream(
+        ws,
+        id,
+        meta,
+        this.server.app.config.maxStreamChunkLength
+      )
+      stream.once('error', () => {
+        send(ws, MessageType.StreamTerminate, encodeNumber(id, Uint32Array))
+      })
+      streams.set(id, stream)
     }
 
     const streamsReplacer = (key, value) => {
       if (typeof value === 'string' && value.startsWith(STREAM_ID_PREFIX)) {
-        return streams.get(value.slice(STREAM_ID_PREFIX.length))
+        return streams.get(parseInt(value.slice(STREAM_ID_PREFIX.length)))
       }
       return value
     }
@@ -236,13 +243,13 @@ export class WsTransport {
         Transport.Ws,
         callParams
       )
-      send(ws, type, { callId, payload: { response } })
+      sendPayload(ws, type, { callId, payload: { response } })
     } catch (error) {
       if (error instanceof ApiError) {
-        send(ws, type, { callId, payload: { error } })
+        sendPayload(ws, type, { callId, payload: { error } })
       } else {
         this.logger.error(new Error('Unexpected error', { cause: error }))
-        send(ws, type, { callId, payload: { error: InternalError() } })
+        sendPayload(ws, type, { callId, payload: { error: InternalError() } })
       }
     } finally {
       await container
@@ -253,88 +260,58 @@ export class WsTransport {
     }
   }
 
-  async handleStreamPush(ws: WebSocket, buffer: Buffer) {
+  async [MessageType.StreamPush](ws: WebSocket, buffer: Buffer) {
     const { streams } = ws.getUserData()
     const id = buffer.readUint32LE()
-    const stream = streams.get(id.toString())
+    const stream = streams.get(id)
     if (!stream) ws.close()
-    const chunk = buffer.subarray(Uint32Array.BYTES_PER_ELEMENT)
-    stream.push(chunk)
-    stream.emit('received', chunk.byteLength)
+    stream.push(buffer.subarray(Uint32Array.BYTES_PER_ELEMENT))
   }
 
-  async handleStreamEnd(ws: WebSocket, buffer: Buffer) {
+  async [MessageType.StreamEnd](ws: WebSocket, buffer: Buffer) {
     const { streams } = ws.getUserData()
-    const id = buffer.readUint32LE().toString()
+    const id = buffer.readUint32LE()
     const stream = streams.get(id)
     if (!stream) return void ws.close()
-    stream.end()
+    stream.push(null)
     streams.delete(id)
   }
 
-  async handleStreamTerminate(ws: WebSocket, buffer: Buffer) {
+  async [MessageType.StreamTerminate](ws: WebSocket, buffer: Buffer) {
     const { streams } = ws.getUserData()
-    const id = buffer.readUint32LE().toString()
+    const id = buffer.readUint32LE()
     const stream = streams.get(id)
     if (!stream) ws.close()
     stream.destroy(new Error('Termiated by client'))
-    streams.delete(id)
   }
 }
 
-class Stream extends PassThrough {
-  paused: boolean
-
+export class Stream extends Readable {
   bytesReceived = 0
 
   constructor(
     private readonly ws: WebSocket,
     public readonly id: number,
-    public readonly meta: StreamMeta
+    public readonly meta: StreamMeta,
+    highWaterMark?: number
   ) {
-    super()
-    this.updatePaused()
-    this.on('pause', this.updatePaused.bind(this))
-    this.on('resume', this.updatePaused.bind(this))
-    this.once('resume', async () => {
-      // TODO: wtf is this???
-      while (await this.tryPull()) await this.pull()
-    })
+    super({ highWaterMark })
   }
 
-  private updatePaused() {
-    this.paused = this.isPaused()
-  }
-
-  private async tryPull() {
-    if (!this.paused) return true
-    if (this.writableFinished) return false
-    return new Promise((r) => this.once('resume', r))
-  }
-
-  async pull() {
-    this.ws.send(
-      concat(
-        encodeNumber(MessageType.StreamPull, Uint8Array),
-        encodeNumber(this.id, Uint32Array),
-        encodeBigNumber(this.bytesReceived, BigUint64Array)
-      ),
-      true
+  _read(size: number): void {
+    send(
+      this.ws,
+      MessageType.StreamPull,
+      encodeNumber(this.id, Uint32Array),
+      size ? encodeNumber(size, Uint32Array) : null
     )
-    return new Promise<void>((resolve) =>
-      this.once('received', (byteLength) => {
-        this.bytesReceived += byteLength
-        resolve()
-      })
-    )
+  }
+
+  push(chunk?: Buffer) {
+    if (chunk !== null) this.bytesReceived += chunk.byteLength
+    return super.push(chunk)
   }
 }
-
-const send = (ws: WebSocket, type: number, payload: any) =>
-  ws.send(
-    concat(encodeNumber(type, Uint8Array), encodeText(toJSON(payload))),
-    true
-  )
 
 class WebsocketInterface implements WebSocketInterface {
   #rooms: Map<string, Room>
@@ -350,7 +327,7 @@ class WebsocketInterface implements WebSocketInterface {
   }
 
   send(event: string, data?: any) {
-    send(this.#ws, MessageType.Event, { event, data })
+    sendPayload(this.#ws, MessageType.Event, { event, data })
   }
 
   rooms() {

@@ -86,11 +86,6 @@ export class Client extends EventEmitter {
       this.emit(event, data)
     })
 
-    this.on(internalEvents[MessageType.Event], (ws, buffer) => {
-      const { event, data } = JSON.parse(decodeText(buffer))
-      this.emit(event, data)
-    })
-
     this.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
       const id = decodeNumber(
         buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),

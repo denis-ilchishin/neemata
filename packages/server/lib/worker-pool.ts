@@ -72,7 +72,7 @@ export class TaskWorkerPool {
     }
 
     const task = new Promise((resolve, reject) => {
-      // TODO: is it necessary to await for a task free worker on capture?
+      // TODO: is it necessary to await for a task-free worker on capture?
       this.pool[capture ? 'capture' : 'next'](poolTimeout)
         .then(async (worker) => {
           const timer = setTimeout(() => {
@@ -111,7 +111,10 @@ export class TaskWorkerPool {
       execArgv: process.execArgv,
       env: process.env,
       workerData: {
-        options: this.options,
+        options: {
+          ...this.options,
+          errorHandlers: undefined, // TODO: unable to clone
+        },
       },
     })
 

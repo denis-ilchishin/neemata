@@ -10,7 +10,6 @@ const { values, positionals } = parseArgs({
   options: {
     applicationPath: {
       type: 'string',
-      default: 'application/index.ts',
     },
     env: {
       type: 'string',

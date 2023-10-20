@@ -8,6 +8,7 @@ export class Config {
   maxPayloadLength: number
   maxStreamChunkLength: number
   api: {
+    timeout: number
     queue?: {
       concurrency: number
       size: number
@@ -31,7 +32,10 @@ export class Config {
     this.maxPayloadLength = options.server?.maxPayloadLength || 16 * 1024 * 1024
     this.maxStreamChunkLength =
       options.server?.maxStreamChunkLength || 512 * 1024
-    this.api = options.api
+    this.api = {
+      timeout: 15000,
+      ...options.api,
+    }
     this.applicationPath = options.applicationPath
     this.workers = options.workers
     this.errorHandlers = options.errorHandlers ?? []

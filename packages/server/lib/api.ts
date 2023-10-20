@@ -43,13 +43,13 @@ export class Api extends Loader<AnyProdecureDefinition> {
     if (!procedureDefinition) return null
     const { dependencies, procedure } = procedureDefinition
     if (procedure.transport && procedure.transport !== transport) return null
-    const { httpMethod } = procedure
+    const { httpMethod, timeout = this.config.api.timeout } = procedure
     const ctx = await container.createDependencyContext(dependencies)
     const bind = (v?: Function) => v?.bind(null, ctx)
     const guards = bind(procedure.guards)
     const input = bind(procedure.input)
     const handle = bind(procedure.handle)
     const output = bind(procedure.output)
-    return { guards, input, handle, output, httpMethod }
+    return { guards, input, handle, output, httpMethod, timeout }
   }
 }

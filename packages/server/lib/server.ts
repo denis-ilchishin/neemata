@@ -6,6 +6,7 @@ import {
 } from '@neemata/common'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
+import { setTimeout } from 'node:timers/promises'
 import uws from 'uWebSockets.js'
 import { App } from '../index'
 import { Container } from './container'
@@ -47,6 +48,9 @@ export const NotFoundError = (message = 'Not Found') =>
 export const ForbiddenError = (message = 'Forbidden') =>
   new ApiError(ErrorCode.Forbidden, message)
 
+export const RequestTimeoutError = (message = 'Request Timeout') =>
+  new ApiError(ErrorCode.RequestTimeout, message)
+
 export class Server {
   httpServer: uws.TemplatedApp
   httpSocket!: uws.us_listen_socket
@@ -87,7 +91,7 @@ export class Server {
     } catch (error) {
       if (error instanceof SemaphoreError)
         throw new ApiError(ErrorCode.ServiceUnavailable, 'Server is too busy')
-      else throw error
+      throw error
     } finally {
       this.throttler.leave()
     }
@@ -110,7 +114,7 @@ export class Server {
         )
         if (!procedure) throw NotFoundError()
 
-        const { guards, handle, input, output, httpMethod } = procedure
+        const { guards, handle, input, output, httpMethod, timeout } = procedure
 
         if (transport === Transport.Http && !httpMethod.includes(params.method))
           throw NotFoundError()
@@ -118,7 +122,10 @@ export class Server {
         const resolvedGuards = guards ? await guards(payload, params) : null
         if (resolvedGuards) await this.handleGuards(resolvedGuards)
         const data = input ? await input(payload, params) : payload
-        const response = await handle(data, params)
+        const response = await Promise.race([
+          handle(data, params),
+          setTimeout(timeout, Promise.reject(RequestTimeoutError())),
+        ])
         return output ? await output(response) : response
       })
     } catch (error) {

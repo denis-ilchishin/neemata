@@ -88,6 +88,7 @@ declare type ApplicationOptions = {
     maxStreamChunkLength?: number
   }
   api?: {
+    timeout?: number
     queue?: {
       concurrency: number
       size: number
@@ -225,6 +226,7 @@ declare type Procedure<
   Output,
   Transport extends import('@neemata/common').Transport
 > = {
+  timeout?: number
   /**
    * @default ['post']
    */

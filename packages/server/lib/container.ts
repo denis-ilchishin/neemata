@@ -56,11 +56,11 @@ export class Container {
 
   async dispose() {
     this.config.logger.debug('Disposing [%s] scope context...', this.scope)
-    for (const [contextDefinition, value] of this.contexts) {
+    for (const [{ context, dependencies }, value] of this.contexts) {
       try {
-        const dispose = contextDefinition.context.dispose
-        if (contextDefinition.context.scope === this.scope && dispose) {
-          const ctx = await this.resolveContext(contextDefinition)
+        const dispose = context.dispose
+        if (context.scope === this.scope && dispose) {
+          const ctx = await this.createDependencyContext(dependencies)
           await dispose(ctx, value, this.params)
         }
       } catch (cause) {

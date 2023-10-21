@@ -1,7 +1,7 @@
 import { createLogger } from './logger'
 
 export class Config {
-  port: number | string
+  port: number
   hostname: string
   https: import('uWebSockets.js').AppOptions
   qsOptions?: import('qs').IParseOptions

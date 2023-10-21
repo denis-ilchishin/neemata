@@ -58,3 +58,15 @@ export const getGroupFromRegex = (
   const match = matches[0]
   return match?.groups?.[group]
 }
+
+export const timeout = <T>(
+  value: Promise<T>,
+  timeout: number,
+  reason?: Error
+): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(reject, timeout, reason)
+    const clearTimer = () => clearTimeout(timer)
+    value.then(resolve).catch(reject).finally(clearTimer)
+  })
+}

@@ -6,12 +6,13 @@ import {
 } from '@neemata/common'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
-import { setTimeout } from 'node:timers/promises'
+import { isPromise } from 'node:util/types'
 import uws from 'uWebSockets.js'
 import { App } from '../index'
 import { Container } from './container'
 import { HttpTransport } from './transports/http'
 import { WsTransport } from './transports/ws'
+import * as utils from './utils/functions'
 import { Semaphore, SemaphoreError } from './utils/semaphore'
 
 export type Stream = Readable & { meta: StreamMeta }
@@ -122,10 +123,10 @@ export class Server {
         const resolvedGuards = guards ? await guards(payload, params) : null
         if (resolvedGuards) await this.handleGuards(resolvedGuards)
         const data = input ? await input(payload, params) : payload
-        const response = await Promise.race([
-          handle(data, params),
-          setTimeout(timeout, Promise.reject(RequestTimeoutError())),
-        ])
+        const result = handle(data, params)
+        const response = isPromise(result)
+          ? utils.timeout(result, timeout, RequestTimeoutError())
+          : result
         return output ? await output(response) : response
       })
     } catch (error) {

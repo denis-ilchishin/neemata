@@ -236,7 +236,7 @@ declare type Procedure<
     ctx: DependencyContext<Deps>,
     data: unknown,
     params: Readonly<CallScopeParams<Transport>>
-  ) => Array<Guard>
+  ) => Async<Array<Guard>>
   input?: (
     ctx: DependencyContext<Deps>,
     data: unknown,

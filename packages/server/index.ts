@@ -81,3 +81,4 @@ export {
   defineProvider,
   defineTask,
 } from './lib/utils/definitions'
+export { TaskWorker, type Task } from './lib/worker'

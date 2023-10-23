@@ -1,49 +1,69 @@
 #!/usr/bin/env node --loader tsx/esm --no-warnings
 
-import { TaskWorker } from '@neemata/server/task-worker'
+import { TaskWorker } from '@neemata/server'
 import { app, command, options, taskName } from './application.mjs'
+
+const logger = app.config.logger
 
 const Command = {
   Server: 'server',
   Task: 'task',
 }
 
-if (!Object.values(Command).includes(command))
+const commands = Object.values(Command)
+if (!commands.includes(command))
   throw new Error(
-    `Unknown command: ${command}. Available commands: ${Object.values(
-      Command
-    ).join(', ')}`
+    `Unknown command: ${command}. Available commands: ${commands.join(', ')}`
   )
 
-const commands = {
+let terminate
+let exitTimeout
+
+const exitProcess = () => {
+  if (exitTimeout) clearTimeout(exitTimeout)
+  process.exit(0)
+}
+
+const tryExit = async (cb) => {
+  if (exitTimeout) return
+  exitTimeout = setTimeout(exitProcess, 10000)
+  try {
+    await cb()
+  } catch (error) {
+    logger.error(error)
+  } finally {
+    exitProcess()
+  }
+}
+
+const handlers = {
   [Command.Server]: async () => {
     await app.start()
-    let terminateTimeout
-    const terminate = async () => {
-      if (terminateTimeout) return
-      const close = () => {
-        clearTimeout(terminateTimeout)
-        process.exit(0)
-      }
-      terminateTimeout = setTimeout(close, 10000)
-      app.stop().finally(close)
-    }
-
-    process.on('SIGTERM', terminate)
-    process.on('SIGINT', terminate)
+    terminate = () => tryExit(() => app.stop())
   },
   [Command.Task]: async () => {
-    app.config.logger.info('Running task [%s]', taskName)
+    logger.info('Running task [%s]', taskName)
     if (!taskName) throw new Error('Task name is required')
     const taskWorker = await TaskWorker.create(options)
-    if (!taskWorker.tasks.modules.has(taskName))
-      throw new Error('Task not found')
-    await taskWorker.runTask(taskName, [], new AbortController())
-    await taskWorker.stop()
+    const taskDefinition = taskWorker.tasks.modules.get(taskName)
+    if (!taskDefinition) throw new Error('Task not found')
+    const task = taskWorker.invoke(taskDefinition, { args: [] })
+    logger.info('Task [%s] started', task.taskId)
+    const execution = task
+      .then(() => taskWorker.stop())
+      .catch(() => taskWorker.stop())
+    terminate = () =>
+      tryExit(async () => {
+        task.abort()
+        return await execution
+      })
   },
 }
 
-process.on('uncaughtException', (error) => app.config.logger.error(error))
-process.on('unhandledRejection', (error) => app.config.logger.error(error))
+process.on('uncaughtException', (error) => logger.error(error))
+process.on('unhandledRejection', (error) => logger.error(error))
 
-await commands[command]()
+await handlers[command]()
+
+process.once('SIGTERM', terminate)
+process.once('SIGINT', terminate)

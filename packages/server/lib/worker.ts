@@ -6,6 +6,8 @@ import { Config } from './config'
 import { Container } from './container'
 import { Tasks } from './tasks'
 
+export type Task = Promise<any> & { taskId: string; abort: () => void }
+
 export class TaskWorker extends EventEmitter {
   runningTasks = new Map<string, ReturnType<typeof this.runTask>>()
 
@@ -45,9 +47,8 @@ export class TaskWorker extends EventEmitter {
     }
   }
 
-  async invoke(taskDefinition: AnyTaskDefinition, options: InvokeOptions = {}) {
+  invoke(taskDefinition: AnyTaskDefinition, options: InvokeOptions = {}): Task {
     const ab = new AbortController()
-
     // TODO: implement timeout
     // TODO: implement capturing another worker from current worker
     const {
@@ -55,7 +56,6 @@ export class TaskWorker extends EventEmitter {
       executionTimeout = this.config.workers.timeout,
       args = [],
     } = options
-
     const taskName = taskDefinition.name
     const taskId = randomUUID()
     const task = Object.assign(this.runTask(taskName, args, ab), {

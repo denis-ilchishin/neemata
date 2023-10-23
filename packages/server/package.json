@@ -7,10 +7,8 @@
     "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
     "build": "tsup --clean --dts"
   },
-  "main": "./dist/index.js",
   "exports": {
     ".": "./dist/index.js",
-    "./task-worker": "./dist/lib/worker.js",
     "./types": "./types/index.d.ts"
   },
   "files": [

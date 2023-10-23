@@ -125,7 +125,9 @@ export class Server {
         const data = input ? await input(payload, params) : payload
         const result = handle(data, params)
         const response = isPromise(result)
-          ? utils.timeout(result, timeout, RequestTimeoutError())
+          ? await (timeout
+              ? utils.timeout(result, timeout, RequestTimeoutError())
+              : result)
           : result
         return output ? await output(response) : response
       })

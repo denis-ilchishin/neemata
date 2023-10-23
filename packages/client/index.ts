@@ -32,7 +32,7 @@ const once = <T = void>(emitter: EventEmitter, event: string, value?: T) =>
 
 const STREAM_ID_KEY = Symbol()
 
-const internalEvents = {
+const KEYS = {
   [MessageType.Rpc]: Symbol(),
   [MessageType.StreamPull]: Symbol(),
   [MessageType.StreamEnd]: Symbol(),
@@ -67,37 +67,6 @@ export class Client extends EventEmitter {
       options.basePath ?? '/',
       `${options.https ? 'wss' : 'ws'}://${options.host}`
     )
-
-    this.on(internalEvents[MessageType.Rpc], (ws, buffer) => {
-      const { callId, payload } = JSON.parse(decodeText(buffer))
-      const { error, response } = payload
-      const call = this.calls.get(callId)
-      if (call) {
-        const [resolve, reject, timer] = call
-        clearTimeout(timer)
-        this.calls.delete(callId)
-        if (error) reject(new ApiError(error.code, error.message, error.data))
-        else resolve(response)
-      }
-    })
-
-    this.on(internalEvents[MessageType.Event], (ws, buffer) => {
-      const { event, data } = JSON.parse(decodeText(buffer))
-      this.emit(event, data)
-    })
-
-    this.on(internalEvents[MessageType.StreamPull], (ws, buffer) => {
-      const id = decodeNumber(
-        buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
-        Uint32Array
-      )
-      const size = decodeNumber(
-        buffer.slice(Uint32Array.BYTES_PER_ELEMENT),
-        Uint32Array
-      )
-      const stream = this.streams.get(id)
-      stream.emit(internalEvents[MessageType.StreamPull], size)
-    })
   }
 
   async healthCheck() {
@@ -113,7 +82,7 @@ export class Client extends EventEmitter {
   }
 
   async connect() {
-    this.autoreconnect = this.options.autoreconnect ?? true
+    this.autoreconnect = this.options.autoreconnect ?? true // reset default autoreconnect value
     await this.healthCheck()
     this.ws = new WebSocket(`${this.wsUrl}api`)
     this.ws.binaryType = 'arraybuffer'
@@ -126,11 +95,7 @@ export class Client extends EventEmitter {
           'Neemata: received message',
           Object.keys(MessageType).find((key) => MessageType[key] === type)
         )
-      this.emit(
-        internalEvents[type],
-        this.ws,
-        buffer.slice(Uint8Array.BYTES_PER_ELEMENT)
-      )
+      this[KEYS[type]](this.ws, buffer.slice(Uint8Array.BYTES_PER_ELEMENT))
     }
     this.ws.onopen = (event) => {
       this.isConnected = true
@@ -152,7 +117,7 @@ export class Client extends EventEmitter {
   }
 
   async disconnect() {
-    this.autoreconnect = false
+    this.autoreconnect = false // disable autoreconnect if manually disconnected
     this.ws.close(1000)
     return await once(this, 'disconnect')
   }
@@ -246,6 +211,37 @@ export class Client extends EventEmitter {
         return response
       })
   }
+
+  [KEYS[MessageType.Rpc]](ws: WebSocket, buffer: ArrayBuffer) {
+    const { callId, payload } = JSON.parse(decodeText(buffer))
+    const { error, response } = payload
+    const call = this.calls.get(callId)
+    if (call) {
+      const [resolve, reject, timer] = call
+      clearTimeout(timer)
+      this.calls.delete(callId)
+      if (error) reject(new ApiError(error.code, error.message, error.data))
+      else resolve(response)
+    }
+  }
+
+  [KEYS[MessageType.Event]](ws: WebSocket, buffer: ArrayBuffer) {
+    const { event, data } = JSON.parse(decodeText(buffer))
+    this.emit(event, data)
+  }
+
+  [KEYS[MessageType.StreamPull]](ws: WebSocket, buffer: ArrayBuffer) {
+    const id = decodeNumber(
+      buffer.slice(0, Uint32Array.BYTES_PER_ELEMENT),
+      Uint32Array
+    )
+    const size = decodeNumber(
+      buffer.slice(Uint32Array.BYTES_PER_ELEMENT),
+      Uint32Array
+    )
+    const stream = this.streams.get(id)
+    stream.emit(KEYS[MessageType.StreamPull], size)
+  }
 }
 
 class Stream extends EventEmitter {
@@ -270,7 +266,7 @@ class Stream extends EventEmitter {
       name: blob instanceof File ? blob.name : undefined,
     }
 
-    this.on(internalEvents[MessageType.StreamPull], (size: number) => {
+    this.on(KEYS[MessageType.StreamPull], (size: number) => {
       if (!this.sentBytes) {
         this.resume()
         this.emit('start')

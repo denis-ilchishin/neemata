@@ -12,6 +12,9 @@
     "linux"
   ],
   "exports": {
+    "./cli": {
+      "import": "./cli.mjs"
+    },
     "./application": {
       "import": "./application.mjs",
       "types": "./application.d.mts"

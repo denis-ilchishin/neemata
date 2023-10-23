@@ -23,6 +23,9 @@ import {
   toJSON,
 } from '../server'
 
+const CLOSED_SOCKET_MESSAGE =
+  'Invalid access of closed uWS.WebSocket/SSLWebSocket.'
+
 const sendPayload = (ws: WebSocket, type: number, payload: any) => {
   send(ws, type, encodeText(toJSON(payload)))
 }
@@ -31,10 +34,7 @@ const send = (ws: WebSocket, type: number, ...buffers: ArrayBuffer[]) => {
   try {
     ws.send(concat(encodeNumber(type, Uint8Array), ...buffers), true)
   } catch (error) {
-    if (
-      error.message !== 'Invalid access of closed uWS.WebSocket/SSLWebSocket.'
-    )
-      throw error
+    if (error.message !== CLOSED_SOCKET_MESSAGE) throw error
   }
 }
 
@@ -168,10 +168,10 @@ export class WsTransport {
         const { id, container, streams } = ws.getUserData()
         this.logger.trace('Close websocket [%s]', id)
         this.server.websockets.delete(id)
+        await this.server.handleDisposal(container)
         for (const stream of streams.values())
           stream.destroy(new Error('Client is closed'))
         streams.clear()
-        await container.dispose()
       },
     })
   }
@@ -219,7 +219,6 @@ export class WsTransport {
 
     const type = MessageType.Rpc
 
-    // let { id, container, params } = ws.getUserData()
     const wsData = ws.getUserData()
 
     const { procedure, payload, callId } = rpcPayload
@@ -252,11 +251,7 @@ export class WsTransport {
         sendPayload(ws, type, { callId, payload: { error: InternalError() } })
       }
     } finally {
-      await container
-        .dispose()
-        .catch(
-          (cause) => new Error('Error while disposing call context', { cause })
-        )
+      this.server.handleDisposal(container)
     }
   }
 

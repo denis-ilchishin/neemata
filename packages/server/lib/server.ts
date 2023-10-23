@@ -146,6 +146,14 @@ export class Server {
     }
   }
 
+  async handleDisposal(...containers: Container[]) {
+    try {
+      for (const container of containers) await container.dispose()
+    } catch (cause) {
+      this.app.config.logger.error(new Error('Unexpected error', { cause }))
+    }
+  }
+
   async start() {
     const { hostname, port } = this.app.config
     this.httpSocket = await new Promise((r) => {

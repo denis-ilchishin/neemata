@@ -135,12 +135,7 @@ export class HttpTransport {
         else this.handleResponse(req, res, headers, { response })
       })
 
-      try {
-        await connectionContainer.dispose()
-        await callContainer.dispose()
-      } catch (cause) {
-        this.logger.error(new Error('Unexpected error', { cause }))
-      }
+      this.server.handleDisposal(callContainer, connectionContainer)
     } catch (error) {
       tryRespond(() => {
         setDefaultHeaders(res)

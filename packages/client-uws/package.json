@@ -1,19 +1,16 @@
 {
-  "name": "@neemata/common",
+  "name": "@neemata/client-uws",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
+  "type": "module",
   "scripts": {
     "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
     "build": "tsup --clean --dts"
   },
-  "exports": {
-    ".": {
-      "require": "./dist/index.js",
-      "import": "./dist/index.mjs"
-    }
-  },
-  "devDependencies": {
-    "pino": "^8.15.1"
+  "main": "./dist/index.js",
+  "dependencies": {
+    "@neemata/common": "workspace:*",
+    "events": "^3.3.0"
   }
 }

@@ -5,7 +5,7 @@
   "description": "Nodejs application server",
   "private": true,
   "scripts": {
-    "clean": "pnpm -r exec rm -rf node_modules,dist && pnpm exec rm -rf node_modules",
+    "clean": "pnpm -r exec rm -rf node_modules dist",
     "watch": "pnpm run --parallel --filter \"*\" watch",
     "build": "pnpm run --filter common build && pnpm run --filter !common build"
   },

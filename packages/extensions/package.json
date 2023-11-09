@@ -1,0 +1,43 @@
+{
+  "name": "@neemata/extensions",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
+  },
+  "bin": {
+    "neemata-schema": "./bin/schema.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "main": "./dist/index.js",
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.0.0 <21"
+  },
+  "dependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
+    "json-schema-to-typescript": "^13.1.1"
+  },
+  "devDependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
+    "json-schema-to-typescript": "^13.1.1"
+  },
+  "peerDependenciesMeta": {
+    "@neemata/application": {
+      "optional": true
+    },
+    "json-schema-to-typescript": {
+      "optional": true
+    }
+  }
+}

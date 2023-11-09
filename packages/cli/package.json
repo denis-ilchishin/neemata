@@ -4,8 +4,9 @@
   "license": "MIT",
   "description": "Nodejs application server",
   "bin": {
-    "neemata": "./cli.mjs",
-    "neemata-watch": "./watch.mjs"
+    "neemata-start": "./start.mjs",
+    "neemata-watch": "./watch.mjs",
+    "neemata-command": "./command.mjs"
   },
   "os": [
     "darwin",
@@ -25,13 +26,12 @@
   },
   "dependencies": {
     "tsx": "3.13.0",
-    "defaults": "^2.0.2",
     "dotenv": "^16.3.1"
   },
   "peerDependencies": {
-    "@neemata/server": "workspace:*"
+    "@neemata/application": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/server": "workspace:*"
+    "@neemata/application": "workspace:*"
   }
 }

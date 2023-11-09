@@ -1,0 +1,34 @@
+{
+  "name": "@neemata/adapter-uws",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.0.0 <21"
+  },
+  "dependencies": {
+    "qs": "^6.11.2",
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.33.0"
+  },
+  "peerDependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
+    "@types/qs": "^6.9.8"
+  }
+}

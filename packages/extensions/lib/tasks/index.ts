@@ -48,10 +48,8 @@ export class Tasks extends Loader<TaskDeclaration<any, any, any>> {
     super(root)
   }
 
-  protected async import(name: string, path: string) {
-    const declaration = await super.import(name, path)
+  protected set(name: string, path: string, declaration: any) {
     if (!declaration.name) declaration.name = name
-    return declaration
   }
 }
 

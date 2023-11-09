@@ -9,6 +9,7 @@ export class Loader<T> implements LoaderInterface<T> {
   constructor(protected readonly root: string) {}
 
   async load() {
+    if (!this.root) return
     const read = async (dir: string, level = 0) => {
       // TODO: potential max call stack exception? maybe use loop instead of recursion
       const entries = await readdir(dir, { withFileTypes: true })
@@ -25,7 +26,13 @@ export class Loader<T> implements LoaderInterface<T> {
               .join('/')
             const entryName = level && baseName === 'index' ? null : baseName
             const name = [levelName, entryName].filter(Boolean).join('/')
-            await this.import(name, join(dir, entry.name))
+            const path = join(dir, entry.name)
+            try {
+              const { default: module } = await import(path)
+              if (typeof module !== 'undefined') this.set(name, path, module)
+            } catch (cause) {
+              new LoaderError(`Unable to import module ${path}`, { cause })
+            }
           }
         }
         if (entry.isDirectory()) await read(join(dir, entry.name), level + 1)
@@ -34,13 +41,7 @@ export class Loader<T> implements LoaderInterface<T> {
     await read(this.root)
   }
 
-  protected async import(name: string, path: string): Promise<T> {
-    try {
-      const { default: module } = await import(path)
-      this.modules.set(name, module)
-      return module
-    } catch (cause) {
-      new LoaderError(`Unable to import module ${path}`, { cause })
-    }
+  protected set(name: string, path: string, module: any) {
+    this.modules.set(name, module)
   }
 }

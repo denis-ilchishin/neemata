@@ -50,6 +50,7 @@ export class Tasks extends Loader<TaskDeclaration<any, any, any>> {
 
   protected set(name: string, path: string, declaration: any) {
     if (!declaration.name) declaration.name = name
+    super.set(name, path, declaration)
   }
 }
 

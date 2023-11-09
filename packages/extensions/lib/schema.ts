@@ -96,8 +96,10 @@ export class SchemaExtension<SchemaType> extends BaseExtension<
     payload: any,
     next: (payload?: any) => any
   ) {
-    const input = await this.resolveOption('input', arg, payload)
-    const output = await this.resolveOption('output', arg, payload)
+    const [input, output] = await Promise.all([
+      this.resolveOption('input', arg, payload),
+      this.resolveOption('output', arg, payload),
+    ])
     const { parse } = this.options
     if (input) payload = await parse(input, payload)
     let result = await next(payload)

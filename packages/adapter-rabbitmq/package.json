@@ -1,0 +1,33 @@
+{
+  "name": "@neemata/adapter-rabbitmq",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "tsc --watch",
+    "build": "rm -rf ./dist && tsc"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.0.0 <21"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.3"
+  },
+  "peerDependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
+    "@types/amqplib": "^0.10.3"
+  }
+}

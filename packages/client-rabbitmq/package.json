@@ -1,0 +1,23 @@
+{
+  "name": "@neemata/client-rabbitmq",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "type": "module",
+  "scripts": {
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
+  },
+  "main": "./dist/index.js",
+  "dependencies": {
+    "events": "^3.3.0",
+    "amqplib": "^0.10.3"
+  },
+  "peerDependencies": {
+    "@neemata/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@neemata/common": "workspace:*",
+    "@types/amqplib": "^0.10.3"
+  }
+}

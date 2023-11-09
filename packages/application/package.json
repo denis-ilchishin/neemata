@@ -1,0 +1,26 @@
+{
+  "name": "@neemata/application",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application adapter",
+  "scripts": {
+    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
+    "build": "tsup --clean --dts"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.0.0 <21"
+  },
+  "dependencies": {
+    "@neemata/common": "workspace:*",
+    "pino": "^8.15.1",
+    "pino-pretty": "^10.2.0"
+  }
+}

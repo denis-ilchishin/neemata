@@ -1,69 +1,35 @@
-#!/usr/bin/env node --loader tsx/esm --no-warnings
+import dotenv from 'dotenv'
+import { resolve } from 'node:path'
+import { parseArgs } from 'node:util'
 
-import { TaskWorker } from '@neemata/server'
-import { app, command, options, taskName } from './application.mjs'
-
-const logger = app.config.logger
-
-const Command = {
-  Server: 'server',
-  Task: 'task',
-}
-
-const commands = Object.values(Command)
-if (!commands.includes(command))
-  throw new Error(
-    `Unknown command: ${command}. Available commands: ${commands.join(', ')}`
-  )
-
-let terminate
-let exitTimeout
-
-const exitProcess = () => {
-  if (exitTimeout) clearTimeout(exitTimeout)
-  process.exit(0)
-}
-
-const tryExit = async (cb) => {
-  if (exitTimeout) return
-  exitTimeout = setTimeout(exitProcess, 10000)
-  try {
-    await cb()
-  } catch (error) {
-    logger.error(error)
-  } finally {
-    exitProcess()
-  }
-}
-
-const handlers = {
-  [Command.Server]: async () => {
-    await app.start()
-    terminate = () => tryExit(() => app.stop())
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  strict: false,
+  options: {
+    applicationPath: {
+      type: 'string',
+    },
+    env: {
+      type: 'string',
+    },
   },
-  [Command.Task]: async () => {
-    logger.info('Running task [%s]', taskName)
-    if (!taskName) throw new Error('Task name is required')
-    const taskWorker = await TaskWorker.create(options)
-    const taskDefinition = taskWorker.tasks.modules.get(taskName)
-    if (!taskDefinition) throw new Error('Task not found')
-    const task = taskWorker.invoke(taskDefinition, { args: [] })
-    logger.info('Task [%s] started', task.taskId)
-    const execution = task
-      .then(() => taskWorker.stop())
-      .catch(() => taskWorker.stop())
-    terminate = () =>
-      tryExit(async () => {
-        task.abort()
-        return await execution
-      })
-  },
+})
+
+let { env, applicationPath, kwargs } = values
+
+if (env) {
+  const { error } = dotenv.config({ path: resolve(env) })
+  if (error) throw error
 }
 
-process.on('uncaughtException', (error) => logger.error(error))
-process.on('unhandledRejection', (error) => logger.error(error))
+applicationPath = resolve(
+  applicationPath || process.env.NEEMATA_APPLICATION_PATH
+)
 
-await handlers[command]()
+const args = positionals
 
-process.once('SIGTERM', terminate)
-process.once('SIGINT', terminate)
+const application = await import(applicationPath).then(
+  (module) => module.default
+)
+
+export { application, args, kwargs }

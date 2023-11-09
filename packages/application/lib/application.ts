@@ -60,7 +60,7 @@ export class Application<
   }
 
   async start() {
-    if (this.options.loader?.procedures) await this.api.load()
+    await this.api.load()
     await this.container.load()
     await this.fireHook(Hook.Start)
     this.initContext()

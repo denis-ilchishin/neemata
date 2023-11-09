@@ -12,22 +12,31 @@ type Options = {
   timeout?: number
 }
 
-type ApiInterface = Record<
-  string,
-  {
-    input: any
-    output: any
-    metadata: Record<string, any>
-  }
->
-
 type Call = [
   (value?: any) => void,
   (reason?: any) => void,
   ReturnType<typeof setTimeout>
 ]
 
-class Client<Api extends ApiInterface = any> extends EventEmitter {
+type GeneratedApi = {
+  input?: any
+  output?: any
+}
+type GenerateApiType<
+  Api,
+  Key,
+  Type extends keyof GeneratedApi
+> = Key extends keyof Api
+  ? Api[Key] extends GeneratedApi
+    ? Api[Key][Type]
+    : any
+  : any
+
+type RPCOptions = {
+  timeout?: number
+}
+
+class Client<Api extends any = never> extends EventEmitter {
   private connection!: amqplib.Connection
   private channel!: amqplib.Channel
 
@@ -73,12 +82,14 @@ class Client<Api extends ApiInterface = any> extends EventEmitter {
 
   rpc<P extends keyof Api>(
     procedure: P,
-    ...args: null | undefined extends Api[P]['input']
-      ? [Api[P]['input']?, { timeout?: number }?]
-      : [Api[P]['input'], { timeout?: number }?]
-  ): Promise<Api[P]['output']> {
+    ...args: Api extends never
+      ? [any?, RPCOptions?]
+      : null | undefined extends GenerateApiType<Api, P, 'input'>
+      ? [GenerateApiType<Api, P, 'input'>?, RPCOptions?]
+      : [GenerateApiType<Api, P, 'input'>, RPCOptions?]
+  ): Promise<Api extends never ? any : GenerateApiType<Api, P, 'output'>> {
     const [payload, options = {}] = args
-
+    // TODO: implement timeout
     const correlationId = (this.nextCallId++).toString()
     this.channel.sendToQueue(
       this.options.requestQueue,

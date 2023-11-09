@@ -62,7 +62,7 @@ type GenerateApiType<
   Type extends keyof GeneratedApi
 > = Key extends keyof Api
   ? Api[Key] extends GeneratedApi
-    ? Api[Key]['input']
+    ? Api[Key][Type]
     : any
   : any
 

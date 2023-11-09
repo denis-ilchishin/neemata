@@ -32,6 +32,11 @@ type Call = [
   ReturnType<typeof setTimeout>
 ]
 
+type RPCOptions = {
+  timeout?: number
+  useHttp?: boolean
+}
+
 const once = <T = void>(emitter: EventEmitter, event: string, value?: T) =>
   new Promise<T>((r) => emitter.once(event, () => r(value)))
 
@@ -46,16 +51,22 @@ const KEYS = {
   [MessageType.Event]: Symbol(),
 }
 
-type ApiInterface = Record<
-  string,
-  {
-    input: any
-    output: any
-    metadata: Record<string, any>
-  }
->
+type GeneratedApi = {
+  input?: any
+  output?: any
+}
 
-class Client<Api extends ApiInterface = any> extends EventEmitter {
+type GenerateApiType<
+  Api,
+  Key,
+  Type extends keyof GeneratedApi
+> = Key extends keyof Api
+  ? Api[Key] extends GeneratedApi
+    ? Api[Key]['input']
+    : any
+  : any
+
+class Client<Api extends any = any> extends EventEmitter {
   private ws: WebSocket
   private autoreconnect: boolean
   private httpUrl: URL
@@ -137,10 +148,12 @@ class Client<Api extends ApiInterface = any> extends EventEmitter {
 
   rpc<P extends keyof Api>(
     procedure: P,
-    ...args: null | undefined extends Api[P]['input']
-      ? [Api[P]['input']?, { timeout?: number; useHttp?: boolean }?]
-      : [Api[P]['input'], { timeout?: number; useHttp?: boolean }?]
-  ): Promise<Api[P]['output']> {
+    ...args: Api extends never
+      ? [any?, RPCOptions?]
+      : null | undefined extends GenerateApiType<Api, P, 'input'>
+      ? [GenerateApiType<Api, P, 'input'>?, RPCOptions?]
+      : [GenerateApiType<Api, P, 'input'>, RPCOptions?]
+  ): Promise<Api extends never ? any : GenerateApiType<Api, P, 'output'>> {
     const [payload, options = {}] = args
     const { timeout = options.timeout, useHttp = false } = options
     const callId = this.nextCallId++
@@ -323,7 +336,7 @@ class Stream extends EventEmitter {
       const { done, chunk } = await this.read(size)
       if (done) {
         //@ts-expect-error
-        this.client.sendWithWs(
+        this.client.sendViaWs(
           MessageType.StreamEnd,
           encodeNumber(this.id, 'Uint16')
         )
@@ -334,7 +347,7 @@ class Stream extends EventEmitter {
       } else {
         this.sentBytes += chunk.byteLength
         //@ts-expect-error
-        this.client.sendWithWs(
+        this.client.sendViaWs(
           MessageType.StreamPush,
           concat(encodeNumber(this.id, 'Uint16'), chunk)
         )
@@ -342,7 +355,7 @@ class Stream extends EventEmitter {
       }
     } catch (e) {
       //@ts-expect-error
-      this.client.sendWithWs(
+      this.client.sendViaWs(
         MessageType.StreamTerminate,
         encodeNumber(this.id, 'Uint16')
       )

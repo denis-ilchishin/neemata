@@ -20,7 +20,7 @@ export abstract class BaseExtension<
 
   abstract name: string
 
-  install?(options: ExtensionInstallOptions<ProcedureOptions, Context>): void
+  install?(options: ExtensionInstallOptions<ProcedureOptions, Context>): any
   context?(): Context
 
   protected resolveOption<T extends keyof ProcedureOptions>(

@@ -1,9 +1,4 @@
-import {
-  Async,
-  ExtensionInstallOptions,
-  ExtensionInterface,
-  Extra,
-} from './types'
+import { ExtensionInstallOptions, ExtensionInterface, Extra } from './types'
 
 export abstract class BaseAdapter<
   ProcedureOptions extends Extra = {},
@@ -17,7 +12,7 @@ export abstract class BaseAdapter<
   abstract name: string
   abstract install(
     options: ExtensionInstallOptions<ProcedureOptions, Context>
-  ): Async<void>
-  abstract start(): Async<void>
-  abstract stop(): Async<void>
+  ): any
+  abstract start(): any
+  abstract stop(): any
 }

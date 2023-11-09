@@ -57,25 +57,20 @@ export class Application<
     })
 
     this.initExtensions()
-    this.initContext()
-
-    process.on('uncaughtException', (error) => this.logger.error(error))
-    process.on('unhandledRejection', (error) => this.logger.error(error))
   }
 
   async start() {
     if (this.options.loader?.procedures) await this.api.load()
     await this.container.load()
     await this.fireHook(Hook.Start)
-
+    this.initContext()
     await this.adapter.start()
   }
 
   async stop() {
+    await this.adapter.stop()
     await this.fireHook(Hook.Stop)
     await this.container.dispose()
-
-    await this.adapter.stop()
   }
 
   private async fireHook(hook: string) {

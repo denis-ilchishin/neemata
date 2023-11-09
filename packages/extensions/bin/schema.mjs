@@ -1,4 +1,4 @@
-#!/usr/bin/env node --loader tsx/esm --no-warnings
+#!/usr/bin/env node
 import { compile } from 'json-schema-to-typescript'
 import fsp from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
@@ -90,7 +90,7 @@ for (const [procedure, { input, output, metadata }] of Object.entries(
   proceduresSchema.required = [...proceduresSchema.required, procedure]
 }
 
-const result = await compile(proceduresSchema, 'Api')
+const result = await compile(proceduresSchema, 'Api', { unknownAny: false })
 await fsp.writeFile(
   output,
   result.replace('interface Api', 'interface Api<Stream = any>')

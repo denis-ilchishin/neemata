@@ -7,7 +7,7 @@
   "scripts": {
     "clean": "pnpm -r exec rm -rf node_modules dist",
     "watch": "pnpm run --parallel --filter \"*\" watch",
-    "build": "pnpm run --filter common build && pnpm run --filter !common build"
+    "build": "pnpm run --filter common build && pnpm run --filter application build && pnpm run --filter !common --filter !application build"
   },
   "engines": {
     "pnpm": ">=8.0.0"

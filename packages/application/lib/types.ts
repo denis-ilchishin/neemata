@@ -49,7 +49,7 @@ export type BaseProcedure<
   Context extends Extra,
   Data,
   Response
-> = AsProcedureOptions<Options, Context> & {
+> = AsProcedureOptions<Options, DependencyContext<Context, Deps>> & {
   handle: (
     ctx: DependencyContext<Context, Deps> & ProcedureContext,
     data: Data

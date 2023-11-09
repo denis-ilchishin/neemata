@@ -2,16 +2,18 @@
   "compilerOptions": {
     "lib": ["ESNext"],
     "moduleResolution": "node",
-    "module": "ESNext",
+    "module": "CommonJS",
     "target": "ESNext",
     "noImplicitAny": false,
     "allowJs": true,
     "checkJs": true,
     "allowSyntheticDefaultImports": true,
-    "noEmit": true,
-    "declaration": false,
+    "noEmit": false,
+    "declaration": true,
     "emitDeclarationOnly": false,
     "skipLibCheck": true,
-    "strict": false
-  }
+    "strict": false,
+    "outDir": "./dist"
+  },
+  "include": ["./index.ts", "./lib/**/*.ts"]
 }

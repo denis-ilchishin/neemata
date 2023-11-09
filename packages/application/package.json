@@ -4,8 +4,8 @@
   "license": "MIT",
   "description": "Nodejs application adapter",
   "scripts": {
-    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
-    "build": "tsup --clean --dts"
+    "watch": "tsc --watch",
+    "build": "rm -rf ./dist && tsc"
   },
   "main": "./dist/index.js",
   "files": [

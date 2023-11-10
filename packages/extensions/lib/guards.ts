@@ -65,7 +65,6 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
         const guards = Array.isArray(provider)
           ? provider
           : await container.resolve(provider)
-        console.log({ guards })
         if (guards) await this.handleGuards(guards)
       }
     }

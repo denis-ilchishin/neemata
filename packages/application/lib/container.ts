@@ -116,16 +116,16 @@ export class Container<
   }
 
   private async resolveDependecies(dependencies: Dependencies) {
-    const resolved: any = {}
-    if (!dependencies) return resolved
+    const injections: any = {}
+    if (!dependencies) return injections
     const resolvers: Promise<any>[] = []
     for (const [key, dependency] of Object.entries(dependencies)) {
       const resolver = this.resolve(dependency)
-      resolver.then((value) => (resolved[key] = value))
+      resolver.then((value) => (injections[key] = value))
       resolvers.push(resolver)
     }
     await Promise.all(resolvers)
-    return resolved
+    return Object.freeze(injections)
   }
 
   async context(dependencies: Dependencies, ...extra: Extra[]) {
@@ -133,7 +133,7 @@ export class Container<
     const context = merge(...extra, this.options.context, {
       injections,
       scope: this.scope,
-      logger: this.options.logger,
+      logger: this.options.logger.child({ $group: this.scope }),
     })
     return Object.freeze(context)
   }
@@ -149,7 +149,7 @@ export class Container<
     dependencies?: Deps
   ): ProviderDeclaration<Type, Context, Deps, S> {
     provider = typeof provider === 'function' ? { factory: provider } : provider
-    //@ts-expect-error
+    // @ts-expect-error
     if (!provider.scope) provider.scope = Scope.Global
     return {
       provider,

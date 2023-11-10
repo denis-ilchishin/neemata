@@ -54,13 +54,13 @@ export class Api<
     callContext: Extra,
     withMiddleware = declaration[MIDDLEWARE_ENABLED]
   ) {
-    let middlewareIndex = 0
+    let middlewareIter = this.middlewares.values()
     const { dependencies, procedure } = declaration
     const call = (declaration, payload) =>
       this.call(name, declaration, payload, container, callContext, false)
     const context = await container.context(dependencies, { call }, callContext)
     const handle = (payload) => {
-      const middleware = this.middlewares[middlewareIndex++]
+      const middleware = middlewareIter.next()?.value
       if (middleware) {
         const options = { name, context, procedure, container }
         const next = (newPayload = payload) => handle(newPayload)

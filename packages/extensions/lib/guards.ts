@@ -12,12 +12,11 @@ import { Pattern, match } from './utils'
 
 export type Guard = () => Async<boolean>
 
-export type GuardsProviderResolver = () =>
-  | Guard[]
-  | ProviderDeclaration<Guard[]>
+export type GuardsProviderResolver = Guard[] | ProviderDeclaration<Guard[]>
 
 export type GuardsExtensionOptions = {
-  guards?: [[Pattern, GuardsProviderResolver[]]]
+  guards?: [[Pattern, GuardsProviderResolver]]
+  concurrent?: boolean
 }
 
 export type GuardsExtensionProcedureOptions = {
@@ -26,17 +25,21 @@ export type GuardsExtensionProcedureOptions = {
 
 export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptions> {
   name = 'GuardsExtension'
-  guards: Map<Pattern, GuardsProviderResolver[]>
+  guards: Map<Pattern, GuardsProviderResolver>
+  application!: ExtensionInstallOptions<GuardsExtensionProcedureOptions, {}>
+  concurrent: boolean
 
   constructor(options?: GuardsExtensionOptions) {
     super()
     this.guards = new Map(options?.guards ?? [])
+    this.concurrent = options?.concurrent ?? false
   }
 
-  install({
-    registerHook,
-  }: ExtensionInstallOptions<GuardsExtensionProcedureOptions, {}>): void {
-    registerHook(Hook.Middleware, this.middleware.bind(this))
+  install(
+    application: ExtensionInstallOptions<GuardsExtensionProcedureOptions, {}>
+  ): void {
+    this.application = application
+    this.application.registerHook(Hook.Middleware, this.middleware.bind(this))
   }
 
   async middleware(
@@ -51,21 +54,19 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
     return next()
   }
 
-  private async handleGlobalGuards(
-    arg: ExtensionMiddlewareOptions<
-      AsProcedureOptions<GuardsExtensionProcedureOptions>
-    >
-  ) {
-    for (const [pattern, guardResolvers] of this.guards) {
-      if (match(arg.name, pattern)) {
-        for (const resolver of guardResolvers) {
-          const provider = resolver()
-          const guards = Array.isArray(provider)
-            ? provider
-            : await arg.container.resolve(provider)
-          await this.handleGuards(guards)
-          break
-        }
+  private async handleGlobalGuards({
+    container,
+    name,
+  }: ExtensionMiddlewareOptions<
+    AsProcedureOptions<GuardsExtensionProcedureOptions>
+  >) {
+    for (const [pattern, provider] of this.guards) {
+      if (match(name, pattern)) {
+        const guards = Array.isArray(provider)
+          ? provider
+          : await container.resolve(provider)
+        console.log({ guards })
+        if (guards) await this.handleGuards(guards)
       }
     }
   }
@@ -77,19 +78,23 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
     payload: any
   ) {
     const guards = await this.resolveOption('guards', arg, payload)
-    await this.handleGuards(guards)
+    if (guards) await this.handleGuards(guards)
   }
 
-  private async handleGuards(guards?: Guard[]) {
-    if (guards) {
-      for (const guard of guards) {
-        const permitted = await guard()
-        if (!permitted) throw new ApiError(ErrorCode.Forbidden, 'Forbidden')
-      }
+  private async handleGuards(guards: Guard[]) {
+    const handle = async (guard: Guard) => {
+      const permitted = await guard()
+      if (!permitted) throw new ApiError(ErrorCode.Forbidden, 'Forbidden')
+    }
+
+    if (this.concurrent) {
+      await Promise.all(guards.map(handle))
+    } else {
+      for (const guard of guards) await handle(guard)
     }
   }
 
-  registerGuard(pattern: RegExp | string, resolver: GuardsProviderResolver[]) {
+  registerGuard(pattern: RegExp | string, resolver: GuardsProviderResolver) {
     this.guards.set(pattern, resolver)
   }
 }

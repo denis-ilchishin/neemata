@@ -15,7 +15,7 @@ const { values, positionals } = parseArgs({
   },
 })
 
-let { env, applicationPath, kwargs } = values
+let { env, applicationPath, ...kwargs } = values
 
 if (env) {
   const { error } = dotenv.config({ path: resolve(env) })

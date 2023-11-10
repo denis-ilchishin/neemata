@@ -30,14 +30,3 @@ process.once('SIGTERM', terminate)
 process.once('SIGINT', terminate)
 
 await application.start()
-
-// logger.info('Running task [%s]', taskName)
-//     if (!taskName) throw new Error('Task name is required')
-//     const taskWorker = await TaskWorker.create(options)
-//     const taskDefinition = taskWorker.tasks.modules.get(taskName)
-//     if (!taskDefinition) throw new Error('Task not found')
-//     const task = taskWorker.invoke(taskDefinition, { args: [] })
-//     logger.info('Task [%s] started', task.taskId)
-//     const execution = task
-//       .then(() => taskWorker.stop())
-//       .catch(() => taskWorker.stop())

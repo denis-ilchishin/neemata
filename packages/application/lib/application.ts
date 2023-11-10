@@ -5,6 +5,7 @@ import { Container } from './container'
 import { BaseExtension } from './extension'
 import {
   ApplicationOptions,
+  Command,
   Dependencies,
   Extra,
   Hook,
@@ -74,6 +75,16 @@ export class Application<
     await this.container.dispose()
   }
 
+  registerHook(hookName: string, callback: Function) {
+    let hooks = this.hooks.get(hookName)
+    if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
+    hooks.add(callback)
+  }
+
+  registerCommand(name: string, command: string, callback: Command) {
+    this.commands.get(name).set(command, callback)
+  }
+
   private async fireHook(hook: string) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
@@ -113,14 +124,8 @@ export class Application<
     const { api, container } = this
     for (const [name, extension] of installations) {
       if (!extension.install) continue
-      const registerHook = (hookName, callback) => {
-        let hooks = this.hooks.get(hookName)
-        if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
-        hooks.add(callback)
-      }
-      const registerCommand = (command, callback) => {
-        this.commands.get(name).set(command, callback)
-      }
+      const registerHook = this.registerHook.bind(this)
+      const registerCommand = this.registerCommand.bind(this, name)
       const logger = this.logger.child({ $group: extension.name })
       extension.install({
         logger,

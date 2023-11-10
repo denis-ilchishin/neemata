@@ -43,6 +43,16 @@ export type ProcedureContext = {
   ) => Promise<ReturnType<Declaration['procedure']['handle']>>
 }
 
+export type Command = (options: {
+  args: any[]
+  kwargs: Record<string, string>
+}) => any
+export type Middleware = (
+  options: ExtensionMiddlewareOptions,
+  payload: any,
+  next: Next
+) => any
+
 export type BaseProcedure<
   Deps extends Dependencies,
   Options extends Extra,
@@ -89,14 +99,8 @@ export interface ExtensionInstallOptions<
 
   registerHook(hook: typeof Hook.Start, cb: () => any): void
   registerHook(hook: typeof Hook.Stop, cb: () => any): void
-  registerHook(
-    hook: typeof Hook.Middleware,
-    cb: (options: ExtensionMiddlewareOptions, payload: any, next: Next) => any
-  ): void
-  registerCommand(
-    command: string,
-    cb: (options: { args: any[]; kwargs: Record<string, string> }) => any
-  ): void
+  registerHook(hook: typeof Hook.Middleware, cb: Middleware): void
+  registerCommand(command: string, cb: Command): void
 }
 
 export interface ExtensionInterface<

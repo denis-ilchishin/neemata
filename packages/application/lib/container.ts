@@ -22,8 +22,8 @@ export class Container<
   T extends Depender<Dependencies>,
   Context extends Extra = {}
 > {
+  readonly instances = new Map<ProviderDeclaration, any>()
   private readonly resolvers = new Map<ProviderDeclaration, Promise<any>>()
-  private readonly instances = new Map<ProviderDeclaration, any>()
   private readonly providers: Set<ProviderDeclaration> = new Set()
   constructor(
     private readonly options: {
@@ -81,25 +81,19 @@ export class Container<
     const declarations: ProviderDeclaration[] = []
     const isStricterScope = (dependency: ProviderDeclaration) =>
       ScopeStrictness[dependency.provider.scope] > ScopeStrictness[this.scope]
-    const isDesiredScope = (depender: Depender<{}>) => {
-      if (!depender.dependencies) return true
-      return Object.values(depender.dependencies).every(
-        (dependency: ProviderDeclaration) =>
-          !isStricterScope(dependency) &&
-          Object.values(dependency.dependencies ?? {}).every(isDesiredScope)
-      )
+    const isDesiredScope = (provider: ProviderDeclaration) => {
+      const deps = Object.values(provider.dependencies ?? {})
+      return !isStricterScope(provider) && deps.every(isDesiredScope)
     }
-
-    for (const provider of this.providers.values()) {
+    for (const provider of this.providers)
       if (isDesiredScope(provider)) declarations.push(provider)
-    }
     return declarations
   }
 
   async resolve<T extends ProviderDeclaration>(
     declaration: T
   ): Promise<ResolvedDependencyInjection<T>> {
-    if (declaration.provider.scope !== this.scope)
+    if (this.parent?.instances.has(declaration))
       return this.parent?.resolve(declaration)
     const { factory } = declaration.provider
     if (this.instances.has(declaration)) {

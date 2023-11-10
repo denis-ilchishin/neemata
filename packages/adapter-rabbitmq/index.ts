@@ -9,7 +9,6 @@ import amqplib from 'amqplib'
 export type AdapterOptions = {
   connection: amqplib.Options.Connect
   requestQueue: string
-  responseQueue: string
 }
 
 type AdapterProcedureOptions = {}
@@ -43,14 +42,11 @@ export class Adapter extends BaseAdapter<
   async start() {
     this.application.logger.debug('Creating a channel...')
     this.channel = await this.connection.createChannel()
-    await Promise.all([
-      this.channel.assertQueue(this.options.requestQueue, { durable: false }),
-      this.channel.assertQueue(this.options.responseQueue, { durable: false }),
-    ])
-    this.application.logger.info(
-      'Listening [%s] queue for requests',
-      this.options.requestQueue
-    )
+    this.channel.assertQueue(this.options.requestQueue, { durable: false }),
+      this.application.logger.info(
+        'Listening [%s] queue for requests',
+        this.options.requestQueue
+      )
     this.channel.consume(this.options.requestQueue, this.handleRPC.bind(this))
   }
 
@@ -61,14 +57,14 @@ export class Adapter extends BaseAdapter<
 
   private async handleRPC(msg: amqplib.ConsumeMessage) {
     const { correlationId } = msg.properties
+    const { procedure, payload, queue } = this.deserialize(msg.content)
     const respond = (data: any) =>
-      this.channel.sendToQueue(
-        this.options.responseQueue,
-        this.serialize(data),
-        { correlationId, contentType: 'application/json' }
-      )
+      this.channel.sendToQueue(queue, this.serialize(data), {
+        correlationId,
+        contentType: 'application/json',
+      })
+
     try {
-      const { procedure, payload } = this.deserialize(msg.content)
       const declaration = await this.application.api.find(procedure)
       const response = await this.application.api.call(
         procedure,

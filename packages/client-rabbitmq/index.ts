@@ -39,12 +39,13 @@ type RPCOptions = {
 class Client<Api extends any = never> extends EventEmitter {
   private connection!: amqplib.Connection
   private channel!: amqplib.Channel
-
+  private responseQueue: string
   private nextCallId = 1
   private calls = new Map<string, Call>()
 
   constructor(private readonly options: Options) {
     super()
+    this.responseQueue = `${this.options.responseQueue}:${crypto.randomUUID()}`
   }
 
   async connect() {
@@ -53,32 +54,39 @@ class Client<Api extends any = never> extends EventEmitter {
 
     await Promise.all([
       this.channel.assertQueue(this.options.requestQueue, { durable: false }),
-      this.channel.assertQueue(this.options.responseQueue, { durable: false }),
+      this.channel.assertQueue(this.responseQueue, {
+        durable: false,
+        autoDelete: true,
+      }),
     ])
 
-    this.channel.consume(this.options.responseQueue, (msg) => {
-      const { correlationId } = msg.properties
-      try {
-        const { response, error } = this.deserialize(msg.content)
+    this.channel.consume(
+      this.responseQueue,
+      (msg) => {
+        const { correlationId } = msg.properties
         const call = this.calls.get(correlationId)
-        if (call) {
-          const [resolve, reject, timer] = call
-          clearTimeout(timer)
-          if (error) {
-            reject(new ApiError(error.code, error.message, error.data))
-          } else {
-            resolve(response)
-          }
+        if (!call) return
+        const [resolve, reject, timer] = call
+        const clear = () => clearTimeout(timer)
+        try {
+          const { response, error } = this.deserialize(msg.content)
+          if (error) reject(new ApiError(error.code, error.message, error.data))
+          else resolve(response)
+        } catch (error) {
+          reject(error)
+        } finally {
+          clear()
+          this.calls.delete(correlationId)
         }
-      } catch (error) {
-        console.error(new Error('Unexpected error', { cause: error }))
-      } finally {
-        this.calls.delete(correlationId)
-      }
-    })
+      },
+      { noAck: true }
+    )
   }
 
-  async disconnect() {}
+  async disconnect() {
+    await this.channel?.close()
+    await this.connection?.close()
+  }
 
   rpc<P extends keyof Api>(
     procedure: P,
@@ -91,11 +99,13 @@ class Client<Api extends any = never> extends EventEmitter {
     const [payload, options = {}] = args
     // TODO: implement timeout
     const correlationId = (this.nextCallId++).toString()
+    const queue = this.responseQueue
     this.channel.sendToQueue(
       this.options.requestQueue,
       this.serialize({
         procedure,
         payload,
+        queue,
       }),
       {
         contentType: 'application/json',

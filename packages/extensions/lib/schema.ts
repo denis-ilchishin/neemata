@@ -12,8 +12,8 @@ export type SchemaExtensionOptions<Schema> = {
   include?: Array<RegExp | string>
   exclude?: Array<RegExp | string>
   metadata?: (procedure: any) => Record<string, any>
-  parse?: (schema: Schema | undefined, input: unknown) => any
-  toJsonSchema?: (schema: Schema | undefined) => any
+  parse?: (schema: Schema, input: unknown) => any
+  toJsonSchema?: (schema?: Schema) => any
 }
 
 export type SchemaExtensionProcedureOptions<SchemaType> = {

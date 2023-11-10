@@ -1,9 +1,4 @@
-import {
-  Depender,
-  Logger,
-  OmitFirstItem,
-  ProviderDeclaration,
-} from '@neemata/application'
+import { Depender, Logger, ProviderDeclaration } from '@neemata/application'
 import { Scope } from '@neemata/common'
 
 export type TaskContext = {
@@ -25,10 +20,7 @@ export interface TaskDeclaration<
 > extends Depender<Deps> {
   task: T
   name?: string
-  parse?: (
-    args: string[],
-    kwargs: Record<string, string>
-  ) => OmitFirstItem<Parameters<T>>
+  parse?: Function
 }
 
 export type TaskInterface<Res> = {

@@ -135,9 +135,13 @@ export class TasksExtension extends BaseExtension<
   >(
     task: T,
     dependencies?: Deps,
-    name?: string
+    name?: string,
+    parse?: (
+      args: string[],
+      kwargs: Record<string, string>
+    ) => OmitFirstItem<Parameters<T>>
   ): TaskDeclaration<Deps, DependencyContext<TaskContext, Deps>, T> {
-    return { task, dependencies, name }
+    return { task, dependencies, name, parse }
   }
 
   registerTask(

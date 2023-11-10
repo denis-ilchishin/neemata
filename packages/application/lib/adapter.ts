@@ -10,9 +10,9 @@ export abstract class BaseAdapter<
   context?(): Context
 
   abstract name: string
+  abstract start(): any
+  abstract stop(): any
   abstract install(
     options: ExtensionInstallOptions<ProcedureOptions, Context>
   ): any
-  abstract start(): any
-  abstract stop(): any
 }

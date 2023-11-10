@@ -3,26 +3,30 @@ import { Api } from './api'
 import { Container } from './container'
 import { Logger } from './logger'
 
-export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
-  ? U
-  : []
-
 export type ApplicationOptions = {
   logging?: {
     level: import('pino').Level
   }
-  loader?: {
-    procedures?: string
+  api?: {
+    path?: string
   }
 }
-export type Extra = Record<string, any>
 
 export const Hook = {
   Start: 'Start',
   Stop: 'Stop',
   Middleware: 'Middleware',
 } as const
+
 export type Hook = (typeof Hook)[keyof typeof Hook]
+
+export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
+  ? U
+  : []
+
+export type ErrorClass = new (...args: any[]) => Error
+
+export type Extra = Record<string, any>
 
 export type Dependencies = Record<string, ProviderDeclaration>
 
@@ -101,6 +105,10 @@ export interface ExtensionInstallOptions<
   registerHook(hook: typeof Hook.Stop, cb: () => any): void
   registerHook(hook: typeof Hook.Middleware, cb: Middleware): void
   registerCommand(command: string, cb: Command): void
+  registerErrorHandler<T extends ErrorClass>(
+    error: T,
+    cb: (error: InstanceType<ErrorClass>) => Error
+  ): void
 }
 
 export interface ExtensionInterface<

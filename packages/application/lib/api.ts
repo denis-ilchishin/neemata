@@ -3,9 +3,11 @@ import { Container } from './container'
 import { Loader } from './loader'
 import { Logger } from './logger'
 import {
+  ApplicationOptions,
   BaseProcedure,
   Dependencies,
   Depender,
+  ErrorClass,
   Extra,
   ProcedureDeclaration,
 } from './types'
@@ -28,11 +30,12 @@ export class Api<
   > = ProcedureDeclaration<Dependencies, Options, Context, any, any>
 > extends Loader<T> {
   constructor(
+    private readonly options: ApplicationOptions['api'],
     private readonly logger: Logger,
     private readonly middlewares: Set<Function>,
-    path?: string
+    private readonly errorHandlers: Map<ErrorClass, (error: Error) => Error>
   ) {
-    super(path)
+    super(options?.path)
   }
 
   protected set(name: string, path: string, module: any): void {
@@ -69,7 +72,32 @@ export class Api<
         return procedure.handle(context, payload)
       }
     }
-    return withMiddleware ? handle(payload) : procedure.handle(context, payload)
+
+    try {
+      return await (withMiddleware
+        ? handle(payload)
+        : procedure.handle(context, payload))
+    } catch (error) {
+      throw this.handleError(error)
+    }
+  }
+
+  private handleError(error: any) {
+    if (this.errorHandlers.size) {
+      for (const [errorType, handler] of this.errorHandlers.entries()) {
+        if (error instanceof errorType) {
+          const handledError = handler(error)
+          if (!handledError || !(handledError instanceof ApiError)) {
+            this.logger.warn(
+              `Error handler for ${error.constructor.name} did not return an ApiError instance, therefore is ignored.`
+            )
+            break
+          }
+          return handledError
+        }
+      }
+    }
+    return error
   }
 
   declareProcedure<Deps extends Dependencies, Data, Response>(

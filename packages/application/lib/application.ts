@@ -7,6 +7,7 @@ import {
   ApplicationOptions,
   Command,
   Dependencies,
+  ErrorClass,
   Extra,
   Hook,
   ProcedureDeclaration,
@@ -36,6 +37,7 @@ export class Application<
   hooks: Map<string, Set<Function>>
   commands: Map<keyof Extensions, Map<string, Function>>
   context: Context = {} as Context
+  errorHandlers: Map<ErrorClass, (error: Error) => Error>
 
   constructor(
     readonly adapter: Adapter,
@@ -45,12 +47,13 @@ export class Application<
     this.extensions = extensions ?? ({} as Extensions)
     this.logger = createLogger(options.logging?.level || 'info', 'Neemata')
 
-    this.initHooksAndCommands()
+    this.init()
 
     this.api = new Api(
+      this.options.api,
       this.logger.child({ $group: 'Api' }),
       this.hooks.get(Hook.Middleware),
-      this.options.loader?.procedures
+      this.errorHandlers
     )
     this.container = new Container({
       context: this.context,
@@ -85,13 +88,21 @@ export class Application<
     this.commands.get(name).set(command, callback)
   }
 
+  registerErrorHandler<T extends ErrorClass>(
+    errorClass: T,
+    handler: (error: InstanceType<T>) => Error
+  ) {
+    this.errorHandlers.set(errorClass, handler)
+  }
+
   private async fireHook(hook: string) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
     for (const hook of hooks) await hook()
   }
 
-  private initHooksAndCommands() {
+  private init() {
+    this.errorHandlers = new Map()
     this.hooks = new Map()
     this.commands = new Map()
 
@@ -125,6 +136,7 @@ export class Application<
     for (const [name, extension] of installations) {
       if (!extension.install) continue
       const registerHook = this.registerHook.bind(this)
+      const registerErrorHandler = this.registerErrorHandler.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
       const logger = this.logger.child({ $group: extension.name })
       extension.install({
@@ -133,6 +145,7 @@ export class Application<
         container,
         registerCommand,
         registerHook,
+        registerErrorHandler,
       })
     }
   }

@@ -1,6 +1,7 @@
 import { ApiError, ErrorCode } from '@neemata/common'
 import { Container } from './container'
 import { Loader } from './loader'
+import { Logger } from './logger'
 import {
   BaseProcedure,
   Dependencies,
@@ -26,8 +27,17 @@ export class Api<
     any
   > = ProcedureDeclaration<Dependencies, Options, Context, any, any>
 > extends Loader<T> {
-  constructor(private readonly middlewares: Set<Function>, path?: string) {
+  constructor(
+    private readonly logger: Logger,
+    private readonly middlewares: Set<Function>,
+    path?: string
+  ) {
     super(path)
+  }
+
+  protected set(name: string, path: string, module: any): void {
+    this.logger.info('Resolve [%s] procedure', name, path)
+    super.set(name, path, module)
   }
 
   async find(name: string) {

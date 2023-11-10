@@ -47,6 +47,7 @@ export class Application<
     this.initHooksAndCommands()
 
     this.api = new Api(
+      this.logger.child({ $group: 'Api' }),
       this.hooks.get(Hook.Middleware),
       this.options.loader?.procedures
     )
@@ -61,9 +62,9 @@ export class Application<
 
   async start() {
     await this.api.load()
-    await this.container.load()
     await this.fireHook(Hook.Start)
     this.initContext()
+    await this.container.load()
     await this.adapter.start()
   }
 

@@ -29,16 +29,22 @@ export class Adapter extends BaseAdapter<{}, AdapterContext> {
   install(options: ExtensionInstallOptions) {
     this.application = options
     this.application.registerHook(Hook.Start, async () => {
+      this.application.logger.debug('Connecting to RabbitMQ...')
       this.connection = await amqplib.connect(this.options.connection)
     })
   }
 
   async start() {
+    this.application.logger.debug('Creating a channel...')
     const channel = await this.connection.createChannel()
     await Promise.all([
       channel.assertQueue(this.options.requestQueue, { durable: false }),
       channel.assertQueue(this.options.responseQueue, { durable: false }),
     ])
+    this.application.logger.info(
+      'Listening [%s] queue for requests',
+      this.options.requestQueue
+    )
     channel.consume(this.options.requestQueue, this.handleRPC.bind(this))
   }
 

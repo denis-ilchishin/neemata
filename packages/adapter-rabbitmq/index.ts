@@ -42,20 +42,21 @@ export class Adapter extends BaseAdapter<
 
   async start() {
     this.application.logger.debug('Creating a channel...')
-    const channel = await this.connection.createChannel()
+    this.channel = await this.connection.createChannel()
     await Promise.all([
-      channel.assertQueue(this.options.requestQueue, { durable: false }),
-      channel.assertQueue(this.options.responseQueue, { durable: false }),
+      this.channel.assertQueue(this.options.requestQueue, { durable: false }),
+      this.channel.assertQueue(this.options.responseQueue, { durable: false }),
     ])
     this.application.logger.info(
       'Listening [%s] queue for requests',
       this.options.requestQueue
     )
-    channel.consume(this.options.requestQueue, this.handleRPC.bind(this))
+    this.channel.consume(this.options.requestQueue, this.handleRPC.bind(this))
   }
 
   async stop() {
-    this.connection?.close()
+    await this.channel?.close()
+    await this.connection?.close()
   }
 
   private async handleRPC(msg: amqplib.ConsumeMessage) {

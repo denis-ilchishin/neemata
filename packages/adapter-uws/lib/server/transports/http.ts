@@ -104,10 +104,9 @@ export class HttpTransport {
         setResponseHeader,
       }
 
-      const container = this.adapter.application.container.copy(
-        Scope.Call,
-        context
-      )
+      const container = this.adapter.application.container.copy(Scope.Call, {
+        request: context,
+      })
 
       const response = await this.adapter.handleRPC(
         procedureName,

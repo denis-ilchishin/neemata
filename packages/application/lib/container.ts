@@ -86,7 +86,7 @@ export class Container<
       return Object.values(depender.dependencies).every(
         (dependency: ProviderDeclaration) =>
           !isStricterScope(dependency) &&
-          Object.values(dependency.dependencies).every(isDesiredScope)
+          Object.values(dependency.dependencies ?? {}).every(isDesiredScope)
       )
     }
 

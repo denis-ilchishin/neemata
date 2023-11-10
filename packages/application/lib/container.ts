@@ -81,19 +81,17 @@ export class Container<
     const declarations: ProviderDeclaration[] = []
     const isStricterScope = (dependency: ProviderDeclaration) =>
       ScopeStrictness[dependency.provider.scope] > ScopeStrictness[this.scope]
-    const isDesiredScope = (dependecies?: Dependencies) => {
-      if (!dependecies) return true
-      return Object.values(dependecies).every(
-        (dependency) =>
+    const isDesiredScope = (depender: Depender<{}>) => {
+      if (!depender.dependencies) return true
+      return Object.values(depender.dependencies).every(
+        (dependency: ProviderDeclaration) =>
           !isStricterScope(dependency) &&
-          isDesiredScope(dependency.dependencies)
+          Object.values(dependency.dependencies).every(isDesiredScope)
       )
     }
-    for (const depender of this.providers.values()) {
-      for (const key in depender.dependencies) {
-        const provider = depender.dependencies[key]
-        if (isDesiredScope(provider.dependencies)) declarations.push(provider)
-      }
+
+    for (const provider of this.providers.values()) {
+      if (isDesiredScope(provider)) declarations.push(provider)
     }
     return declarations
   }

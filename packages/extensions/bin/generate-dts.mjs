@@ -7,23 +7,37 @@ import { parseArgs } from 'node:util'
 const toBool = [() => true, () => false]
 const { values } = parseArgs({
   options: {
-    url: {
+    input: {
       type: 'string',
     },
     output: {
       type: 'string',
     },
+    key: {
+      type: 'string',
+      default: 'response',
+    },
   },
 })
 
-const { url } = values
+const { input } = values
 const output = resolve(values.output)
 const outpurDir = dirname(output)
 
 const dirExists = await fsp.access(outpurDir).then(...toBool)
 if (!dirExists) await fsp.mkdir(dirname(output), { recursive: true })
 
-const { response: schemas } = await fetch(url).then((res) => res.json())
+const getJsonSchemas = () => {
+  const url = new URL(input)
+  if (url.protocol === 'file:') {
+    return fsp.readFile(url.pathname).then((data) => JSON.parse(data))
+  } else {
+    // fetch doesn't support file:// protocol yet
+    return fetch(input).then((res) => res.json()[key])
+  }
+}
+
+const schemas = await getJsonSchemas()
 
 /**@type {(...args: any[]) => import('json-schema-to-typescript').JSONSchema} */
 const metadataSchema = (metadata) => {
@@ -79,9 +93,8 @@ const proceduresSchema = {
   additionalProperties: false,
   required: [],
 }
-for (const [procedure, { input, output, metadata }] of Object.entries(
-  schemas
-)) {
+for (const entry of Object.entries(schemas)) {
+  const [procedure, { input, output, metadata }] = entry
   proceduresSchema.properties[procedure] = procedureSchema(
     input,
     output,

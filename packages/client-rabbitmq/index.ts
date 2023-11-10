@@ -94,7 +94,7 @@ class Client<Api extends any = never> extends EventEmitter {
     this.channel.sendToQueue(
       this.options.requestQueue,
       this.serialize({
-        procedureName: procedure,
+        procedure,
         payload,
       }),
       {

@@ -12,10 +12,14 @@ export type AdapterOptions = {
   responseQueue: string
 }
 
-export type AdapterContext = {
+type AdapterProcedureOptions = {}
+type AdapterContext = {
   connection: amqplib.Connection
 }
-export class Adapter extends BaseAdapter<{}, AdapterContext> {
+export class Adapter extends BaseAdapter<
+  AdapterProcedureOptions,
+  AdapterContext
+> {
   name = 'RabbitMQ'
 
   application!: ExtensionInstallOptions
@@ -26,7 +30,9 @@ export class Adapter extends BaseAdapter<{}, AdapterContext> {
     super()
   }
 
-  install(options: ExtensionInstallOptions) {
+  install(
+    options: ExtensionInstallOptions<AdapterProcedureOptions, AdapterContext>
+  ) {
     this.application = options
     this.application.registerHook(Hook.Start, async () => {
       this.application.logger.debug('Connecting to RabbitMQ...')

@@ -5,6 +5,7 @@ import qs from 'qs'
 import {
   AdapterCallContext,
   AdapterConnectionContext,
+  AdapterHook,
   MessageType,
   Room,
   STREAM_ID_PREFIX,
@@ -105,12 +106,14 @@ export class WsTransport {
         }
       },
       open: (ws: WebSocket) => {
-        const { id } = ws.getUserData()
+        const { id, context } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
-
-        this.adapter.websockets.set(
-          id,
-          new AdapterWebSocket(id, ws, this.adapter.rooms)
+        const websocket = new AdapterWebSocket(id, ws, this.adapter.rooms)
+        this.adapter.websockets.set(id, websocket)
+        this.adapter.application.fireHook(
+          AdapterHook.Connection,
+          context,
+          websocket
         )
       },
       message: (ws, message, isBinary) => {
@@ -125,7 +128,6 @@ export class WsTransport {
             type
           )
           this[type]?.(ws, messageBuffer)
-          // if (!valid) throw new Error('Unsupported message type')
         } catch (error) {
           this.logger.error(error)
         }

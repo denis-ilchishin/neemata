@@ -26,7 +26,7 @@ const tryExit = async (cb) => {
 
 process.on('uncaughtException', (error) => logger.error(error))
 process.on('unhandledRejection', (error) => logger.error(error))
-process.once('SIGTERM', terminate)
-process.once('SIGINT', terminate)
+process.on('SIGTERM', terminate)
+process.on('SIGINT', terminate)
 
 await application.start()

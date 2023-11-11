@@ -23,7 +23,7 @@ export abstract class BaseExtension<
   install?(options: ExtensionInstallOptions<ProcedureOptions, Context>): any
   context?(): Context
 
-  protected resolveOption<T extends keyof ProcedureOptions>(
+  protected resolveProcedureOption<T extends keyof ProcedureOptions>(
     optionName: T,
     options: MiddlewareOptions,
     data: any

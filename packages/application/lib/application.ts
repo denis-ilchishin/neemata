@@ -6,10 +6,18 @@ import { BaseExtension } from './extension'
 import {
   ApplicationOptions,
   Command,
+  Commands,
   Dependencies,
   ErrorClass,
   Extra,
+  Filter,
+  Filters,
   Hook,
+  Hooks,
+  HooksInterface,
+  Middleware,
+  Middlewares,
+  Pattern,
   ProcedureDeclaration,
   ResolveExtensionContext,
   ResolveExtensionOptions,
@@ -34,10 +42,12 @@ export class Application<
     ProcedureDeclaration<Dependencies, Options, Context, any, any>,
     Context
   >
-  hooks: Map<string, Set<Function>>
-  commands: Map<keyof Extensions, Map<string, Function>>
   context: Context = {} as Context
-  errorHandlers: Map<ErrorClass, (error: Error) => Error>
+
+  hooks: Hooks
+  commands: Commands
+  filters: Filters
+  middlewares: Middlewares
 
   constructor(
     readonly adapter: Adapter,
@@ -52,8 +62,8 @@ export class Application<
     this.api = new Api(
       this.options.api,
       this.logger.child({ $group: 'Api' }),
-      this.hooks.get(Hook.Middleware),
-      this.errorHandlers
+      this.middlewares,
+      this.filters
     )
     this.container = new Container({
       context: this.context,
@@ -65,44 +75,57 @@ export class Application<
   }
 
   async start() {
+    await this.fireHook(Hook.BeforeStart)
     await this.api.load()
-    await this.fireHook(Hook.Start)
-    this.initContext()
     await this.container.load()
+    this.initContext()
+    await this.fireHook(Hook.OnStart)
     await this.adapter.start()
+    await this.fireHook(Hook.AfterStart)
   }
 
   async stop() {
+    await this.fireHook(Hook.BeforeStop)
     await this.adapter.stop()
-    await this.fireHook(Hook.Stop)
+    await this.fireHook(Hook.OnStop)
     await this.container.dispose()
+    await this.fireHook(Hook.AfterStop)
   }
 
-  registerHook(hookName: string, callback: Function) {
+  registerHook<T extends string>(
+    hookName: T,
+    hook: T extends keyof HooksInterface
+      ? HooksInterface[T]
+      : (...args: any[]) => any
+  ) {
     let hooks = this.hooks.get(hookName)
     if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
-    hooks.add(callback)
+    hooks.add(hook)
   }
 
   registerCommand(name: string, command: string, callback: Command) {
     this.commands.get(name).set(command, callback)
   }
 
-  registerErrorHandler<T extends ErrorClass>(
-    errorClass: T,
-    handler: (error: InstanceType<T>) => Error
-  ) {
-    this.errorHandlers.set(errorClass, handler)
+  registerFilter<T extends ErrorClass>(errorClass: T, filter: Filter<T>) {
+    this.filters.set(errorClass, filter)
   }
 
-  private async fireHook(hook: string) {
+  registerMiddleware(pattern: Pattern, middleware: Middleware) {
+    let middlewares = this.middlewares.get(pattern)
+    if (!middlewares) this.middlewares.set(pattern, (middlewares = new Set()))
+    middlewares.add(middleware)
+  }
+
+  private async fireHook(hook: Hook, ...args: any[]) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
-    for (const hook of hooks) await hook()
+    for (const hook of hooks) await hook(...args)
   }
 
   private init() {
-    this.errorHandlers = new Map()
+    this.middlewares = new Map()
+    this.filters = new Map()
     this.hooks = new Map()
     this.commands = new Map()
 
@@ -135,8 +158,10 @@ export class Application<
     const { api, container } = this
     for (const [name, extension] of installations) {
       if (!extension.install) continue
+      const fireHook = this.fireHook.bind(this)
       const registerHook = this.registerHook.bind(this)
-      const registerErrorHandler = this.registerErrorHandler.bind(this)
+      const registerMiddleware = this.registerMiddleware.bind(this)
+      const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
       const logger = this.logger.child({ $group: extension.name })
       extension.install({
@@ -145,7 +170,9 @@ export class Application<
         container,
         registerCommand,
         registerHook,
-        registerErrorHandler,
+        registerFilter,
+        registerMiddleware,
+        fireHook,
       })
     }
   }

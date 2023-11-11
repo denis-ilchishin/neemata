@@ -4,11 +4,11 @@ import {
   BaseExtension,
   ExtensionInstallOptions,
   ExtensionMiddlewareOptions,
-  Hook,
+  Pattern,
   ProviderDeclaration,
+  match,
 } from '@neemata/application'
 import { ApiError, ErrorCode } from '@neemata/common'
-import { Pattern, match } from './utils'
 
 export type Guard = () => Async<boolean>
 
@@ -39,7 +39,7 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
     application: ExtensionInstallOptions<GuardsExtensionProcedureOptions, {}>
   ): void {
     this.application = application
-    this.application.registerHook(Hook.Middleware, this.middleware.bind(this))
+    this.application.registerMiddleware('*', this.middleware.bind(this))
   }
 
   async middleware(
@@ -76,7 +76,7 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
     >,
     payload: any
   ) {
-    const guards = await this.resolveOption('guards', arg, payload)
+    const guards = await this.resolveProcedureOption('guards', arg, payload)
     if (guards) await this.handleGuards(guards)
   }
 

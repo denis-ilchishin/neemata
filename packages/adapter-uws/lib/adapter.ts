@@ -12,6 +12,7 @@ export class Adapter extends BaseAdapter<
 > {
   name = 'μWebSockets'
   server: Server
+  application!: ExtensionInstallOptions<AdapterProcedureOptions, AdapterContext>
 
   constructor(readonly options?: AdapterOptions) {
     super()
@@ -23,9 +24,13 @@ export class Adapter extends BaseAdapter<
   }
 
   install(
-    options: ExtensionInstallOptions<AdapterProcedureOptions, AdapterContext>
+    application: ExtensionInstallOptions<
+      AdapterProcedureOptions,
+      AdapterContext
+    >
   ) {
-    this.server = new Server(this.options, options)
+    this.application = application
+    this.server = new Server(this.options, application)
   }
 
   async start() {

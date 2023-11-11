@@ -7,11 +7,13 @@ import {
   BaseProcedure,
   Dependencies,
   Depender,
-  ErrorClass,
   Extra,
+  Filters,
+  Middleware,
+  Middlewares,
   ProcedureDeclaration,
 } from './types'
-import { merge } from './utils'
+import { match, merge } from './utils'
 
 const NotFound = (name: string) =>
   new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
@@ -32,8 +34,8 @@ export class Api<
   constructor(
     private readonly options: ApplicationOptions['api'],
     private readonly logger: Logger,
-    private readonly middlewares: Set<Function>,
-    private readonly errorHandlers: Map<ErrorClass, (error: Error) => Error>
+    private readonly middlewares: Middlewares,
+    private readonly filters: Filters
   ) {
     super(options?.path)
   }
@@ -57,13 +59,13 @@ export class Api<
     callContext: Extra,
     withMiddleware = declaration[MIDDLEWARE_ENABLED]
   ) {
-    let middlewareIter = this.middlewares.values()
+    let middlewars = this.findMiddlewares(name)
     const { dependencies, procedure } = declaration
     const call = (declaration, payload) =>
       this.call(name, declaration, payload, container, callContext, false)
     const context = await container.context(dependencies, { call }, callContext)
     const handle = (payload) => {
-      const middleware = middlewareIter.next()?.value
+      const middleware: Middleware | undefined = middlewars.next().value
       if (middleware) {
         const options = { name, context, procedure, container }
         const next = (newPayload = payload) => handle(newPayload)
@@ -78,15 +80,23 @@ export class Api<
         ? handle(payload)
         : procedure.handle(context, payload))
     } catch (error) {
-      throw this.handleError(error)
+      throw this.handleFilters(error)
     }
   }
 
-  private handleError(error: any) {
-    if (this.errorHandlers.size) {
-      for (const [errorType, handler] of this.errorHandlers.entries()) {
+  private findMiddlewares(name: string) {
+    const set: Middleware[] = []
+    for (const [pattern, middlewares] of this.middlewares) {
+      if (match(name, pattern)) set.push(...middlewares)
+    }
+    return set[Symbol.iterator]()
+  }
+
+  private handleFilters(error: any) {
+    if (this.filters.size) {
+      for (const [errorType, filter] of this.filters.entries()) {
         if (error instanceof errorType) {
-          const handledError = handler(error)
+          const handledError = filter(error)
           if (!handledError || !(handledError instanceof ApiError)) {
             this.logger.warn(
               `Error handler for ${error.constructor.name} did not return an ApiError instance, therefore is ignored.`

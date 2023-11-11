@@ -19,7 +19,7 @@ import { TaskWorker } from './worker'
 export type RequireProperty<T, K extends keyof T> = T & { [P in K]-?: T[P] }
 export type TasksExtensionOptions = {
   pool: TaskWorkerPoolOptions
-  tasksPath?: string
+  path?: string
 }
 
 export type InvokeOptions = {
@@ -64,7 +64,7 @@ export class TasksExtension extends BaseExtension<
 
   constructor(private readonly options?: TasksExtensionOptions) {
     super()
-    this.tasks = new Tasks(options?.tasksPath)
+    this.tasks = new Tasks(options?.path)
     this.pool = new TaskWorkerPool(options.pool, this.tasks)
   }
 
@@ -76,11 +76,11 @@ export class TasksExtension extends BaseExtension<
     TasksExtensionProcedureOptions,
     TasksExtensionContext
   >) {
-    registerHook(Hook.Start, async () => {
-      if (this.options.tasksPath) await this.tasks.load()
-      this.pool.start()
+    registerHook(Hook.OnStart, async () => {
+      if (this.options.path) await this.tasks.load()
+      await this.pool.start()
     })
-    registerHook(Hook.Stop, () => this.pool.stop())
+    registerHook(Hook.OnStop, () => this.pool.stop())
     registerCommand('run', async ({ args, kwargs }) => {
       const [taskName, ...cliArgs] = args
       const taskWorker = new TaskWorker(this.tasks, {

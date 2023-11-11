@@ -15,10 +15,10 @@ export type {
 } from './lib/types'
 
 declare module '@neemata/application' {
-  export interface ExtensionInstallOptions {
-    registerHook(
-      hookName: typeof AdapterHook.Connection,
-      hook: (request: AdapterConnectionContext, ws: WebSocketInterface) => any
-    ): any
+  export interface HooksInterface {
+    [AdapterHook.Connection]: (
+      request: AdapterConnectionContext,
+      ws: WebSocketInterface
+    ) => any
   }
 }

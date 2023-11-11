@@ -4,13 +4,13 @@ import {
   ExtensionInstallOptions,
   ExtensionMiddlewareOptions,
   Hook,
+  match,
 } from '@neemata/application'
 import { spawnSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path, { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { match } from './utils'
 
 export type SchemaExtensionOptions<Schema> = {
   procedureName?: string
@@ -46,12 +46,12 @@ export class SchemaExtension<SchemaType> extends BaseExtension<
     >
   ): void {
     this.application = application
-    const { registerHook, registerCommand } = application
-    registerHook(Hook.Middleware, this.middleware.bind(this))
+    const { registerHook, registerCommand, registerMiddleware } = application
+    registerMiddleware('*', this.middleware.bind(this))
     registerCommand('dts', ({ args: [output] }) => this.export(output))
     if (this.options.procedureName) this.registerProcedure()
     if (this.options.export)
-      registerHook(Hook.Start, () => this.export(this.options.export))
+      registerHook(Hook.AfterStart, () => this.export(this.options.export))
   }
 
   async registerProcedure() {
@@ -70,8 +70,8 @@ export class SchemaExtension<SchemaType> extends BaseExtension<
     next: (payload?: any) => any
   ) {
     const [input, output] = await Promise.all([
-      this.resolveOption('input', options, payload),
-      this.resolveOption('output', options, payload),
+      this.resolveProcedureOption('input', options, payload),
+      this.resolveProcedureOption('output', options, payload),
     ])
     const { parse } = this.options
     if (input) payload = await parse(input, payload)

@@ -30,24 +30,28 @@ export class Adapter extends BaseAdapter<
   }
 
   install(
-    options: ExtensionInstallOptions<AdapterProcedureOptions, AdapterContext>
+    application: ExtensionInstallOptions<
+      AdapterProcedureOptions,
+      AdapterContext
+    >
   ) {
-    this.application = options
-    this.application.registerHook(Hook.Start, async () => {
+    this.application = application
+    this.application.registerHook(Hook.BeforeStart, async () => {
+      // make connection before start
+      // so it can be added to application context
       this.application.logger.debug('Connecting to RabbitMQ...')
       this.connection = await amqplib.connect(this.options.connection)
     })
   }
 
   async start() {
+    const { requestQueue } = this.options
     this.application.logger.debug('Creating a channel...')
     this.channel = await this.connection.createChannel()
-    this.channel.assertQueue(this.options.requestQueue, { durable: false }),
-      this.application.logger.info(
-        'Listening [%s] queue for requests',
-        this.options.requestQueue
-      )
-    this.channel.consume(this.options.requestQueue, this.handleRPC.bind(this))
+    await this.channel.assertQueue(requestQueue, { durable: false })
+
+    this.application.logger.info('Listening on [%s] queue', requestQueue)
+    await this.channel.consume(requestQueue, this.handleRPC.bind(this))
   }
 
   async stop() {

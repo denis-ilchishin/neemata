@@ -3,7 +3,6 @@ import {
   BaseExtension,
   ExtensionInstallOptions,
   ExtensionMiddlewareOptions,
-  Hook,
 } from '@neemata/application'
 import { ApiError, ErrorCode } from '@neemata/common'
 import { isPromise } from 'util/types'
@@ -19,8 +18,8 @@ export class TimeoutExtension extends BaseExtension<TimeoutExtensionProcedureOpt
     super()
   }
 
-  install({ registerHook }: ExtensionInstallOptions) {
-    registerHook(Hook.Middleware, this.middleware.bind(this))
+  install({ registerMiddleware }: ExtensionInstallOptions) {
+    registerMiddleware('*', this.middleware.bind(this))
   }
 
   private async middleware(
@@ -30,7 +29,7 @@ export class TimeoutExtension extends BaseExtension<TimeoutExtensionProcedureOpt
     data: any,
     next: (data?: any) => any
   ) {
-    let timeout = await this.resolveOption('timeout', arg, data)
+    let timeout = await this.resolveProcedureOption('timeout', arg, data)
     if (!timeout) timeout = this.defaultTimeout
     const result = next()
     const needToAwait = timeout && timeout > 0 && isPromise(result)

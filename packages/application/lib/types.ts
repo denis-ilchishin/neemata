@@ -13,12 +13,16 @@ export type ApplicationOptions = {
 }
 
 export const Hook = {
-  Start: 'Start',
-  Stop: 'Stop',
-  Middleware: 'Middleware',
+  BeforeStart: 'BeforeStart',
+  OnStart: 'OnStart',
+  AfterStart: 'AfterStart',
+  BeforeStop: 'BeforeStop',
+  OnStop: 'OnStop',
+  AfterStop: 'AfterStop',
 } as const
-
 export type Hook = (typeof Hook)[keyof typeof Hook]
+
+export type Pattern = RegExp | string | ((name: string) => boolean)
 
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
   ? U
@@ -26,10 +30,16 @@ export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
 
 export type ErrorClass = new (...args: any[]) => Error
 
+export type Filter<T extends ErrorClass> = (error: InstanceType<T>) => Error
+
 export type Extra = Record<string, any>
 
 export type Dependencies = Record<string, ProviderDeclaration>
 
+export type Filters = Map<ErrorClass, Filter<ErrorClass>>
+export type Middlewares = Map<Pattern, Set<Middleware>>
+export type Commands<T extends string = string> = Map<T, Map<string, Command>>
+export type Hooks = Map<string, Set<(...args: any[]) => any>>
 export interface LoaderInterface<T> {
   modules: Map<string, T>
 }
@@ -51,6 +61,7 @@ export type Command = (options: {
   args: any[]
   kwargs: Record<string, string>
 }) => any
+
 export type Middleware = (
   options: ExtensionMiddlewareOptions,
   payload: any,
@@ -93,6 +104,22 @@ export type ExtensionMiddlewareOptions<
 
 export type Next = (payload?: any) => any
 
+export interface HooksInterface {
+  [Hook.BeforeStart]: () => any
+  [Hook.OnStart]: () => any
+  [Hook.AfterStart]: () => any
+  [Hook.BeforeStop]: () => any
+  [Hook.OnStop]: () => any
+  [Hook.AfterStop]: () => any
+}
+
+export type FireHook<T extends string> = (
+  hook: T,
+  ...args: T extends keyof HooksInterface
+    ? Parameters<HooksInterface[T]>
+    : any[]
+) => Promise<void>
+
 export interface ExtensionInstallOptions<
   Options extends Extra = {},
   Context extends Extra = {}
@@ -101,14 +128,16 @@ export interface ExtensionInstallOptions<
   container: Container<Depender<Dependencies>, Context>
   logger: Logger
 
-  registerHook(hook: typeof Hook.Start, cb: () => any): void
-  registerHook(hook: typeof Hook.Stop, cb: () => any): void
-  registerHook(hook: typeof Hook.Middleware, cb: Middleware): void
-  registerCommand(command: string, cb: Command): void
-  registerErrorHandler<T extends ErrorClass>(
-    error: T,
-    cb: (error: InstanceType<ErrorClass>) => Error
+  fireHook: FireHook<keyof HooksInterface>
+  registerHook<T extends string>(
+    hookName: T,
+    hook: T extends keyof HooksInterface
+      ? HooksInterface[T]
+      : (...args: any[]) => any
   ): void
+  registerMiddleware(pattern: Pattern, middleware: Middleware): void
+  registerCommand(commandName: string, command: Command): void
+  registerFilter<T extends ErrorClass>(error: T, filter: Filter<T>): void
 }
 
 export interface ExtensionInterface<

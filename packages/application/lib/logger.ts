@@ -28,12 +28,12 @@ const messageColors = {
 }
 
 const levelLabels = {
-  10: 'TRACE',
-  20: 'DEBUG',
-  30: 'INFO ',
-  40: 'WARN ',
-  50: 'ERROR',
-  60: 'FATAL',
+  10: ' TRACE ',
+  20: ' DEBUG ',
+  30: ' INFO  ',
+  40: ' WARN  ',
+  50: ' ERROR ',
+  60: ' FATAL ',
   [Infinity]: 'SILENT',
 }
 
@@ -45,13 +45,12 @@ export const createLogger = (level: Level, $group) =>
     },
     pretty({
       colorize: true,
-      include: 'time,level,pid',
-      ignore: '$group',
+      ignore: 'hostname,$group',
       errorLikeObjectKeys: ['err', 'error', 'cause'],
       messageFormat: (log, messageKey) => {
         const group = fg(`[${log.$group}]`, 11)
         const msg = fg(log[messageKey], messageColors[log.level as number])
-        const thread = fg(`(T-${threadId})`, 89)
+        const thread = fg(`(Thread-${threadId})`, 89)
         return `\x1b[0m${thread} ${group} ${msg}`
       },
       customPrettifiers: {

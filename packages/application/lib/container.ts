@@ -133,7 +133,7 @@ export class Container<
     const context = merge(...extra, this.options.context, {
       injections,
       scope: this.scope,
-      logger: this.options.logger.child({ $group: this.scope }),
+      logger: this.options.logger,
     })
     return Object.freeze(context)
   }

@@ -2,10 +2,11 @@ import {
   AsProcedureOptions,
   BaseExtension,
   ExtensionMiddlewareOptions,
-  Hook,
+  Pattern,
+  match,
 } from '@neemata/application'
 import { ApiError, ErrorCode } from '@neemata/common'
-import { Pattern, Semaphore, SemaphoreError, match } from './utils'
+import { Semaphore, SemaphoreError } from './utils'
 
 export type QueueOptions = {
   concurrency: number
@@ -37,8 +38,8 @@ export class QueuesExtension extends BaseExtension<
     )
   }
 
-  install({ registerHook }: any) {
-    registerHook(Hook.Middleware, this.middleware.bind(this))
+  install({ registerMiddleware }: any) {
+    registerMiddleware('*', this.middleware.bind(this))
   }
 
   async middleware(

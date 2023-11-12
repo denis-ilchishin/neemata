@@ -13,6 +13,7 @@
     "emitDeclarationOnly": false,
     "skipLibCheck": true,
     "strict": false,
+    "sourceMap": true,
     "outDir": "./dist"
   },
   "include": ["./index.ts"]

@@ -81,7 +81,7 @@ export type ProcedureDataType<
   ? TypeOf<Schema>
   : Schema extends TSchema
   ? Static<Schema>
-  : Input
+  : unknown
 
 export type BaseProcedure<
   Deps extends Dependencies,
@@ -242,21 +242,3 @@ export interface ProcedureDeclaration<
 > extends Depender<Deps> {
   procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
 }
-
-// export interface BaseInterceptor<
-//   Input = unknown,
-//   Output = unknown
-//   // InputIntersceptor extends <T extends Input>(
-//   //   input: T,
-//   //   data: unknown
-//   // ) => any =
-//   // OutputIntersceptor extends <T extends Output>(
-//   //   output: T,
-//   //   data: unknown
-//   // ) => any = <T extends Output>(output: T, data: unknown) => any
-// > {
-//   _input: Input
-//   _output: Output
-//   inputIntersceptor?: <T extends Input>(input: T, data: unknown) => any
-//   // outputIntersceptor?: OutputIntersceptor
-// }

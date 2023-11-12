@@ -143,6 +143,7 @@ export class Api<
   private async handleOutput(procedure, context, response) {
     if (!this.parser) return response
     const schema = await this.getProcedureSchema(procedure, context, 'output')
+    if (!schema) return response
     return this.parser.parse(schema, response)
   }
 

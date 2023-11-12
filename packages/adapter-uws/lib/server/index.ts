@@ -106,7 +106,7 @@ export class Server {
 
   async handleRPC(
     name: string,
-    container: this['application']['container'],
+    container: Container,
     payload: any,
     context: AdapterCallContext
   ) {
@@ -126,7 +126,7 @@ export class Server {
     })
   }
 
-  handleDisposal(container: this['application']['container']) {
+  handleDisposal(container: Container) {
     defer(() =>
       container.dispose().catch((cause) =>
         this.logger.error(

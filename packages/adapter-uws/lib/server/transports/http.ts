@@ -1,4 +1,4 @@
-import { ApiError, ErrorCode, Scope } from '@neemata/common'
+import { ApiError, ErrorCode, Scope } from '@neemata/application'
 import qs from 'qs'
 import { Readable } from 'stream'
 import { AdapterCallContext, Transport } from '../../types'

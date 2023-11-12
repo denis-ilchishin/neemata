@@ -40,21 +40,21 @@ importers:
         specifier: ^6.11.2
         version: 6.11.2
       uWebSockets.js:
-        specifier: uNetworking/uWebSockets.js#v20.33.0
-        version: github.com/uNetworking/uWebSockets.js/c10b47c350cc97c299c6b4a07a98abb628704c71
+        specifier: uNetworking/uWebSockets.js#v20.34.0
+        version: github.com/uNetworking/uWebSockets.js/fca27c05066342b01951782248640c8013b37196
     devDependencies:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
-      '@neemata/common':
-        specifier: workspace:*
-        version: link:../common
       '@types/qs':
         specifier: ^6.9.8
         version: 6.9.8
 
   packages/application:
     dependencies:
+      '@neemata/common':
+        specifier: workspace:*
+        version: link:../common
       pino:
         specifier: ^8.15.1
         version: 8.15.1
@@ -62,9 +62,6 @@ importers:
         specifier: ^10.2.0
         version: 10.2.0
     devDependencies:
-      '@neemata/common':
-        specifier: workspace:*
-        version: link:../common
       '@sinclair/typebox':
         specifier: ^0.31.23
         version: 0.31.23
@@ -87,16 +84,13 @@ importers:
 
   packages/client-rabbitmq:
     dependencies:
-      amqplib:
-        specifier: ^0.10.3
-        version: 0.10.3
-      events:
-        specifier: ^3.3.0
-        version: 3.3.0
-    devDependencies:
       '@neemata/common':
         specifier: workspace:*
         version: link:../common
+      amqplib:
+        specifier: ^0.10.3
+        version: 0.10.3
+    devDependencies:
       '@types/amqplib':
         specifier: ^0.10.3
         version: 0.10.4
@@ -125,9 +119,6 @@ importers:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
-      '@neemata/common':
-        specifier: workspace:*
-        version: link:../common
 
   packages/parser-typebox:
     dependencies:
@@ -1584,8 +1575,8 @@ packages:
   /zod@3.22.4:
     resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
 
-  github.com/uNetworking/uWebSockets.js/c10b47c350cc97c299c6b4a07a98abb628704c71:
-    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/c10b47c350cc97c299c6b4a07a98abb628704c71}
+  github.com/uNetworking/uWebSockets.js/fca27c05066342b01951782248640c8013b37196:
+    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fca27c05066342b01951782248640c8013b37196}
     name: uWebSockets.js
-    version: 20.33.0
+    version: 20.34.0
     dev: false

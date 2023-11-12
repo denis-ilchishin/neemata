@@ -20,4 +20,3 @@ Lightweight Node.js RPC-like application server
 - Procedure guards
 - Procedure timeout
 - Procedure throttling/queues
-- Procedure input/output validation/transformation with optional JSONSchema-to-code generation for clients

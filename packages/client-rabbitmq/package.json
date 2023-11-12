@@ -10,14 +10,10 @@
   },
   "main": "./dist/index.js",
   "dependencies": {
-    "events": "^3.3.0",
+    "@neemata/common": "workspace:*",
     "amqplib": "^0.10.3"
   },
-  "peerDependencies": {
-    "@neemata/common": "workspace:*"
-  },
   "devDependencies": {
-    "@neemata/common": "workspace:*",
     "@types/amqplib": "^0.10.3"
   }
 }

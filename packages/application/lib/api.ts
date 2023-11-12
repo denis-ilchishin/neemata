@@ -51,11 +51,6 @@ export class Api<
     super(options?.path)
   }
 
-  protected set(name: string, path: string, module: any): void {
-    this.logger.info('Resolve [%s] procedure', name, path)
-    super.set(name, path, module)
-  }
-
   async find(name: string) {
     const declaration = this.modules.get(name)
     if (!declaration) throw NotFound(name)
@@ -74,7 +69,7 @@ export class Api<
     const { dependencies, procedure } = declaration
     const call = (declaration, payload) =>
       this.call(name, declaration, payload, container, callContext, false)
-    const context = await container.context(dependencies, { call }, callContext)
+    const context = await container.context(dependencies, callContext, { call })
     const handleProcedure = async (payload) => {
       const middleware: Middleware | undefined = middlewars?.next()?.value
       if (middleware) {
@@ -112,6 +107,17 @@ export class Api<
     this.modules.set(name, declaration)
   }
 
+  getProcedureSchema(procedure, context, type: 'input' | 'output') {
+    return typeof procedure[type] === 'function'
+      ? procedure[type](context)
+      : procedure[type]
+  }
+
+  protected set(name: string, path: string, module: any): void {
+    this.logger.info('Resolve [%s] procedure', name, path)
+    super.set(name, path, module)
+  }
+
   private findMiddlewares(name: string) {
     const set: Middleware[] = []
     for (const [pattern, middlewares] of this.middlewares) {
@@ -145,11 +151,5 @@ export class Api<
     const schema = await this.getProcedureSchema(procedure, context, 'output')
     if (!schema) return response
     return this.parser.parse(schema, response)
-  }
-
-  getProcedureSchema(procedure, context, type: 'input' | 'output') {
-    return typeof procedure[type] === 'function'
-      ? procedure[type](context)
-      : procedure[type]
   }
 }

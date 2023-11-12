@@ -1,10 +1,11 @@
 import {
+  ApiError,
   AsProcedureOptions,
   BaseExtension,
+  ErrorCode,
   ExtensionInstallOptions,
   ExtensionMiddlewareOptions,
 } from '@neemata/application'
-import { ApiError, ErrorCode } from '@neemata/common'
 import { isPromise } from 'util/types'
 
 export type TimeoutExtensionProcedureOptions = {

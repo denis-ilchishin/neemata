@@ -1,9 +1,10 @@
 import {
+  ApiError,
   BaseAdapter,
   ExtensionInstallOptions,
   Hook,
 } from '@neemata/application'
-import { ApiError } from '@neemata/common'
+
 import amqplib from 'amqplib'
 
 export type AdapterOptions = {

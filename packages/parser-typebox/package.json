@@ -16,7 +16,7 @@
     "linux"
   ],
   "engines": {
-    "node": ">=18.0.0 <21"
+    "node": ">=18.0.0"
   },
   "peerDependencies": {
     "@neemata/application": "workspace:*",

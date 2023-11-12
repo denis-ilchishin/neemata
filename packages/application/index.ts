@@ -1,3 +1,4 @@
+export { ApiError, ErrorCode, Scope } from '@neemata/common'
 export { BaseAdapter } from './lib/adapter'
 export { Api, BaseParser } from './lib/api'
 export { Application } from './lib/application'

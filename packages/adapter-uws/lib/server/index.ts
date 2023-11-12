@@ -1,12 +1,13 @@
 import {
+  ApiError,
   Container,
   Dependencies,
+  ErrorCode,
   ExtensionInstallOptions,
   LoaderInterface,
   ProcedureDeclaration,
   defer,
 } from '@neemata/application'
-import { ApiError, ErrorCode } from '@neemata/common'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'

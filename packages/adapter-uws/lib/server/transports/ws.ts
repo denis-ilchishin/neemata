@@ -1,4 +1,4 @@
-import { ApiError, Scope } from '@neemata/common'
+import { ApiError, Scope } from '@neemata/application'
 import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import qs from 'qs'

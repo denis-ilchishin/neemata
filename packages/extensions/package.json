@@ -16,22 +16,15 @@
     "linux"
   ],
   "engines": {
-    "node": ">=18.0.0 <21"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "json-schema-to-typescript": "^13.1.1"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neemata/application": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@neemata/application": {
-      "optional": true
-    }
+    "@neemata/application": "workspace:*"
   }
 }

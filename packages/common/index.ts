@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events'
+
 export const ErrorCode = Object.freeze({
   ValidationError: 'VALIDATION_ERROR',
   BadRequest: 'BAD_REQUEST',
@@ -45,4 +47,44 @@ export class ApiError extends Error {
       data: this.data,
     }
   }
+}
+
+export type ApiProcedureType = {
+  input?: any
+  output?: any
+}
+
+export type ResolveProcedureApiType<
+  Api,
+  Key,
+  Type extends keyof ApiProcedureType
+> = Key extends keyof Api
+  ? Api[Key] extends ApiProcedureType
+    ? Api[Key][Type]
+    : any
+  : any
+
+export type Call = [
+  (value?: any) => void,
+  (reason?: any) => void,
+  ReturnType<typeof setTimeout>
+]
+
+export abstract class BaseClient<
+  Api extends any = never,
+  RPCOptions = never
+> extends EventEmitter {
+  protected readonly _calls = new Map<string | number, Call>()
+  protected _nextCallId = 1
+
+  abstract rpc<P extends keyof Api>(
+    procedure: P,
+    ...args: Api extends never
+      ? [any?, RPCOptions?]
+      : null | undefined extends ResolveProcedureApiType<Api, P, 'input'>
+      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
+      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+  ): Promise<
+    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+  >
 }

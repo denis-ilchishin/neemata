@@ -8,7 +8,12 @@
     "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
     "build": "tsup --clean --dts"
   },
-  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    }
+  },
   "dependencies": {
     "@neemata/common": "workspace:*",
     "events": "^3.3.0"

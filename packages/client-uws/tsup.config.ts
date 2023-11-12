@@ -3,11 +3,11 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: ['index.ts'],
   outDir: 'dist',
-  splitting: true,
+  splitting: false,
   sourcemap: true,
   minify: true,
-  format: 'esm',
-  bundle: true,
-  noExternal: ['events'],
-  platform: 'browser',
+  bundle: false,
+  format: ['cjs', 'esm'],
+  platform: 'neutral',
+  external: ['events'],
 })

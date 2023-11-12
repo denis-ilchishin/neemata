@@ -1,14 +1,15 @@
 import {
+  ApiError,
   AsProcedureOptions,
   Async,
   BaseExtension,
+  ErrorCode,
   ExtensionInstallOptions,
   ExtensionMiddlewareOptions,
   Pattern,
   ProviderDeclaration,
   match,
 } from '@neemata/application'
-import { ApiError, ErrorCode } from '@neemata/common'
 
 export type Guard = () => Async<boolean>
 

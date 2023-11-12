@@ -1,11 +1,12 @@
 import {
+  ApiError,
   AsProcedureOptions,
   BaseExtension,
+  ErrorCode,
   ExtensionMiddlewareOptions,
   Pattern,
   match,
 } from '@neemata/application'
-import { ApiError, ErrorCode } from '@neemata/common'
 import { Semaphore, SemaphoreError } from './utils'
 
 export type QueueOptions = {

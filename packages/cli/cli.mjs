@@ -8,9 +8,11 @@ const { values, positionals } = parseArgs({
   options: {
     applicationPath: {
       type: 'string',
+      short: 'a',
     },
     env: {
       type: 'string',
+      short: 'e',
     },
   },
 })
@@ -32,4 +34,28 @@ const application = await import(applicationPath).then(
   (module) => module.default
 )
 
-export { application, args, kwargs }
+const { logger } = application
+
+process.on('uncaughtException', (error) => logger.error(error))
+process.on('unhandledRejection', (error) => logger.error(error))
+
+let exitTimeout
+
+const exitProcess = () => {
+  if (exitTimeout) clearTimeout(exitTimeout)
+  process.exit(0)
+}
+
+const tryExit = async (cb) => {
+  if (exitTimeout) return
+  exitTimeout = setTimeout(exitProcess, 10000)
+  try {
+    await cb()
+  } catch (error) {
+    logger.error(error)
+  } finally {
+    exitProcess()
+  }
+}
+
+export { application, args, kwargs, tryExit }

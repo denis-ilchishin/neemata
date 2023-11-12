@@ -16,19 +16,17 @@
     "linux"
   ],
   "engines": {
-    "node": ">=18.0.0 <21"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "qs": "^6.11.2",
-    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.33.0"
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neemata/application": "workspace:*"
   },
   "devDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*",
     "@types/qs": "^6.9.8"
   }
 }

@@ -1,6 +1,10 @@
-import { ApiError, ErrorCode } from '@neemata/common'
+import {
+  ApiError,
+  BaseClient,
+  ErrorCode,
+  ResolveProcedureApiType,
+} from '@neemata/common'
 import amqplib from 'amqplib'
-import { EventEmitter } from 'events'
 
 export { ApiError, Client, ErrorCode }
 
@@ -12,36 +16,14 @@ type Options = {
   timeout?: number
 }
 
-type Call = [
-  (value?: any) => void,
-  (reason?: any) => void,
-  ReturnType<typeof setTimeout>
-]
-
-type GeneratedApi = {
-  input?: any
-  output?: any
-}
-type GenerateApiType<
-  Api,
-  Key,
-  Type extends keyof GeneratedApi
-> = Key extends keyof Api
-  ? Api[Key] extends GeneratedApi
-    ? Api[Key][Type]
-    : any
-  : any
-
 type RPCOptions = {
   timeout?: number
 }
 
-class Client<Api extends any = never> extends EventEmitter {
+class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   private connection!: amqplib.Connection
   private channel!: amqplib.Channel
   private responseQueue: string
-  private nextCallId = 1
-  private calls = new Map<string, Call>()
 
   constructor(private readonly options: Options) {
     super()
@@ -64,7 +46,7 @@ class Client<Api extends any = never> extends EventEmitter {
       this.responseQueue,
       (msg) => {
         const { correlationId } = msg.properties
-        const call = this.calls.get(correlationId)
+        const call = this._calls.get(correlationId)
         if (!call) return
         const [resolve, reject, timer] = call
         const clear = () => clearTimeout(timer)
@@ -76,7 +58,7 @@ class Client<Api extends any = never> extends EventEmitter {
           reject(error)
         } finally {
           clear()
-          this.calls.delete(correlationId)
+          this._calls.delete(correlationId)
         }
       },
       { noAck: true }
@@ -92,13 +74,15 @@ class Client<Api extends any = never> extends EventEmitter {
     procedure: P,
     ...args: Api extends never
       ? [any?, RPCOptions?]
-      : null | undefined extends GenerateApiType<Api, P, 'input'>
-      ? [GenerateApiType<Api, P, 'input'>?, RPCOptions?]
-      : [GenerateApiType<Api, P, 'input'>, RPCOptions?]
-  ): Promise<Api extends never ? any : GenerateApiType<Api, P, 'output'>> {
+      : null extends ResolveProcedureApiType<Api, P, 'input'>
+      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
+      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+  ): Promise<
+    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+  > {
     const [payload, options = {}] = args
-    // TODO: implement timeout
-    const correlationId = (this.nextCallId++).toString()
+    // TODO: implement RabbitMQ message timeout
+    const correlationId = (this._nextCallId++).toString()
     const queue = this.responseQueue
     this.channel.sendToQueue(
       this.options.requestQueue,
@@ -120,7 +104,7 @@ class Client<Api extends any = never> extends EventEmitter {
             reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
           }, timeout)
         : null
-      this.calls.set(correlationId, [resolve, reject, timer])
+      this._calls.set(correlationId, [resolve, reject, timer])
     })
   }
 

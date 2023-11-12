@@ -6,6 +6,8 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   minify: false,
+  bundle: false,
   format: ['cjs', 'esm'],
   platform: 'neutral',
+  external: ['events'],
 })

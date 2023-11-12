@@ -3,10 +3,9 @@
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
-  "type": "module",
   "scripts": {
-    "watch": "tsup --watch --onSuccess \"tsup --dts-only \"",
-    "build": "tsup --clean --dts"
+    "watch": "tsc --watch",
+    "build": "rm -rf ./dist && tsc"
   },
   "main": "./dist/index.js",
   "dependencies": {

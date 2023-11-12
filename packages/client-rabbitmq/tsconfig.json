@@ -1,13 +1,19 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
-    "module": "esnext",
-    "target": "esnext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "noEmit": true,
-    "strict": false,
+    "lib": ["ESNext"],
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "target": "ESNext",
+    "noImplicitAny": false,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": false,
     "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true
-  }
+    "strict": false,
+    "outDir": "./dist"
+  },
+  "include": ["./index.ts"]
 }

@@ -4,6 +4,8 @@ import {
   ErrorCode,
   ResolveProcedureApiType,
 } from '@neemata/common'
+import { randomUUID } from 'node:crypto'
+
 import amqplib from 'amqplib'
 
 export { ApiError, Client, ErrorCode }
@@ -27,7 +29,7 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
 
   constructor(private readonly options: Options) {
     super()
-    this.responseQueue = `${this.options.responseQueue}:${crypto.randomUUID()}`
+    this.responseQueue = `${this.options.responseQueue}:${randomUUID()}`
   }
 
   async connect() {

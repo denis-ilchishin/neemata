@@ -224,9 +224,9 @@ export type Provider<
 }
 
 export interface ProviderDeclaration<
-  Type = unknown,
-  Context extends Extra = {},
-  Deps extends Dependencies = {},
+  Type = any,
+  Context extends Extra = Extra,
+  Deps extends Dependencies = Dependencies,
   Skope extends Scope = Scope
 > extends Depender<Deps> {
   provider: Provider<Type, Context, Deps, Skope>

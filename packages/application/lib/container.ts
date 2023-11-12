@@ -26,7 +26,8 @@ export class Container<
 > {
   readonly instances = new Map<ProviderDeclaration, any>()
   private readonly resolvers = new Map<ProviderDeclaration, Promise<any>>()
-  private readonly providers: Set<ProviderDeclaration> = new Set()
+  private readonly providers = new Set<ProviderDeclaration>()
+
   constructor(
     private readonly options: {
       context: Extra
@@ -81,23 +82,33 @@ export class Container<
 
   private findScopeDeclarations() {
     const declarations: ProviderDeclaration[] = []
-    const isStricterScope = (dependency: ProviderDeclaration) =>
-      ScopeStrictness[dependency.provider.scope] > ScopeStrictness[this.scope]
-    const isDesiredScope = (provider: ProviderDeclaration) => {
-      const deps = Object.values(provider.dependencies ?? {})
-      return !isStricterScope(provider) && deps.every(isDesiredScope)
+
+    for (const provider of this.providers) {
+      if (this.getProviderScope(provider) === this.scope) {
+        declarations.push(provider)
+      }
     }
-    for (const provider of this.providers)
-      if (isDesiredScope(provider)) declarations.push(provider)
+
     return declarations
+  }
+
+  private getProviderScope(declaration: ProviderDeclaration) {
+    let scope = declaration.provider.scope ?? Scope.Global
+    for (const dependency of Object.values(declaration.dependencies ?? {})) {
+      const dependencyScope = this.getProviderScope(dependency)
+      if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
+        scope = dependencyScope
+      }
+    }
+    return scope
   }
 
   async resolve<T extends ProviderDeclaration>(
     declaration: T
   ): Promise<ResolvedDependencyInjection<T>> {
-    if (this.parent?.instances.has(declaration))
-      return this.parent?.resolve(declaration)
-    const { factory } = declaration.provider
+    const { factory, scope } = declaration.provider
+    const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
+    if (this.parent && isStricter) return this.parent.resolve(declaration)
     if (this.instances.has(declaration)) {
       return this.instances.get(declaration)
     } else if (this.resolvers.has(declaration)) {
@@ -107,7 +118,7 @@ export class Container<
         this.context(declaration.dependencies)
           .then((ctx) => factory(merge(this.params, ctx)))
           .then((instance) => {
-            this.instances.set(declaration, instance)
+            if (this.scope === scope) this.instances.set(declaration, instance)
             resolve(instance as any)
           })
           .catch(reject)
@@ -151,11 +162,9 @@ export class Container<
     dependencies?: Deps
   ): ProviderDeclaration<Type, Context, Deps, S> {
     provider = typeof provider === 'function' ? { factory: provider } : provider
+    const declaration = { provider, dependencies }
     // @ts-expect-error
-    if (!provider.scope) provider.scope = Scope.Global
-    return {
-      provider,
-      dependencies,
-    }
+    declaration.provider.scope = this.getProviderScope(declaration)
+    return declaration
   }
 }

@@ -2,6 +2,7 @@ import {
   Container,
   Dependencies,
   ExtensionInstallOptions,
+  LoaderInterface,
   ProcedureDeclaration,
   defer,
 } from '@neemata/application'
@@ -28,12 +29,15 @@ export type WebSocketUserData = {
   id: string
   streams: Map<number, Readable>
   container: Container<
-    ProcedureDeclaration<
-      Dependencies,
-      AdapterProcedureOptions,
-      AdapterContext,
-      any,
-      any
+    LoaderInterface<
+      ProcedureDeclaration<
+        Dependencies,
+        AdapterProcedureOptions,
+        AdapterContext,
+        any,
+        any,
+        any
+      >
     >,
     AdapterContext
   >

@@ -25,11 +25,10 @@ export abstract class BaseExtension<
 
   protected resolveProcedureOption<T extends keyof ProcedureOptions>(
     optionName: T,
-    options: MiddlewareOptions,
-    data: any
+    options: MiddlewareOptions
   ): Async<ProcedureOptions[T]> {
     return typeof options.procedure[optionName] === 'function'
-      ? options.procedure[optionName](options.context, data)
+      ? options.procedure[optionName](options.context)
       : options.procedure[optionName]
   }
 }

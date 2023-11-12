@@ -7,7 +7,6 @@ import {
   ApplicationOptions,
   Command,
   Commands,
-  Dependencies,
   ErrorClass,
   Extra,
   Filter,
@@ -18,7 +17,6 @@ import {
   Middleware,
   Middlewares,
   Pattern,
-  ProcedureDeclaration,
   ResolveExtensionContext,
   ResolveExtensionOptions,
   UnionToIntersection,
@@ -38,10 +36,7 @@ export class Application<
 > {
   api: Api<Options, Context>
   logger: import('pino').Logger
-  container: Container<
-    ProcedureDeclaration<Dependencies, Options, Context, any, any>,
-    Context
-  >
+  container: Container<this['api'], Context>
   context: Context = {} as Context
 
   hooks: Hooks

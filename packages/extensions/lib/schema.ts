@@ -1,88 +1,58 @@
 import {
-  AsProcedureOptions,
   BaseExtension,
   ExtensionInstallOptions,
-  ExtensionMiddlewareOptions,
   Hook,
   match,
 } from '@neemata/application'
-import { spawnSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import os from 'node:os'
-import path, { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { JSONSchema, compile } from 'json-schema-to-typescript'
+import fsp from 'node:fs/promises'
 
-export type SchemaExtensionOptions<Schema> = {
+export type SchemaExtensionOptions<> = {
   procedureName?: string
-  export?: string
+  export?: { typescript: string[] }
+  variants?: {
+    typescript?: {
+      interfaceName?: string
+    }
+  }
   include?: Array<RegExp | string>
   exclude?: Array<RegExp | string>
   metadata?: (procedure: any) => Record<string, any>
-  parse?: (schema: Schema, input: unknown) => any
-  toJsonSchema?: (schema?: Schema) => any
 }
 
-export type SchemaExtensionProcedureOptions<SchemaType> = {
-  input?: SchemaType
-  output?: SchemaType
-}
-export class SchemaExtension<SchemaType> extends BaseExtension<
-  SchemaExtensionProcedureOptions<SchemaType>
-> {
+export class SchemaExtension extends BaseExtension {
   name = 'SchemasExtension'
-  application!: ExtensionInstallOptions<
-    SchemaExtensionProcedureOptions<SchemaType>,
-    {}
-  >
+  application!: ExtensionInstallOptions
 
-  constructor(private readonly options: SchemaExtensionOptions<SchemaType>) {
+  constructor(readonly options: SchemaExtensionOptions) {
     super()
   }
 
-  install(
-    application: ExtensionInstallOptions<
-      SchemaExtensionProcedureOptions<SchemaType>,
-      {}
-    >
-  ): void {
+  install(application: ExtensionInstallOptions): void {
     this.application = application
-    const { registerHook, registerCommand, registerMiddleware } = application
-    registerMiddleware('*', this.middleware.bind(this))
-    registerCommand('dts', ({ args: [output] }) => this.export(output))
-    if (this.options.procedureName) this.registerProcedure()
-    if (this.options.export)
+    const { api, registerHook, registerCommand } = application
+    if (this.options.procedureName) {
+      api.registerProcedure(
+        this.options.procedureName,
+        api.declareProcedure({ handle: this.jsonSchema.bind(this) }),
+        false
+      )
+    }
+
+    if (this.options.export) {
       registerHook(Hook.AfterStart, () => this.export(this.options.export))
-  }
+    }
 
-  async registerProcedure() {
-    const { api } = this.application
-    const declaration = api.declareProcedure({
-      handle: async () => this.jsonSchema(),
+    registerCommand('typescript', async ({ args: [output] }) => {
+      await this.application.api.load()
+      await this.export({ typescript: [output] })
     })
-    api.registerProcedure(this.options.procedureName, declaration, false)
-  }
-
-  async middleware(
-    options: ExtensionMiddlewareOptions<
-      AsProcedureOptions<SchemaExtensionProcedureOptions<SchemaType>>
-    >,
-    payload: any,
-    next: (payload?: any) => any
-  ) {
-    const [input, output] = await Promise.all([
-      this.resolveProcedureOption('input', options, payload),
-      this.resolveProcedureOption('output', options, payload),
-    ])
-    const { parse } = this.options
-    if (input) payload = await parse(input, payload)
-    let result = await next(payload)
-    if (output) result = await parse(output, result)
-    return result
   }
 
   private async jsonSchema() {
     const { api, container } = this.application
     const jsonSchemas = {}
+
     for (const [name, { procedure, dependencies }] of api.modules) {
       if (name === this.options.procedureName) continue
 
@@ -100,8 +70,18 @@ export class SchemaExtension<SchemaType> extends BaseExtension<
         if (matched) continue
       }
 
-      const getJsonSchema = (type: 'input' | 'output') =>
-        this.options.toJsonSchema(procedure[type] as SchemaType)
+      const getJsonSchema = async (type: 'input' | 'output') => {
+        let context
+        if (procedure[type] === 'function') {
+          context = await container.context(dependencies)
+        }
+        const schema = await this.application.api.getProcedureSchema(
+          procedure,
+          context,
+          type
+        )
+        return this.application.api.parser?.toJsonSchema(schema) ?? {}
+      }
       const [input, output] = await Promise.all([
         getJsonSchema('input'),
         getJsonSchema('output'),
@@ -112,22 +92,91 @@ export class SchemaExtension<SchemaType> extends BaseExtension<
     return jsonSchemas
   }
 
-  private async export(output) {
-    // TODO: redesign code generation, it shouldn't require any temp files nor process spawning, and be configurable, e.g custom definitions, types, potentially even support of other languages
-    await this.application.api.load()
-    const schema = await this.jsonSchema()
-    const tmpJson = join(
-      await mkdtemp(path.join(os.tmpdir())),
-      'neemata-json-schema'
-    )
-    try {
-      await writeFile(tmpJson, JSON.stringify(schema))
-      spawnSync('./node_modules/.bin/neemata-generate-dts', [
-        '--input=' + pathToFileURL(tmpJson),
-        '--output=' + output,
-      ])
-    } finally {
-      await rm(tmpJson, { recursive: true, force: true }).catch(() => {})
+  private async export(targets) {
+    const variants = {}
+    const schemas = await this.jsonSchema()
+
+    for (const variant of Object.keys(targets)) {
+      variants[variant] = await this[variant](schemas)
     }
+
+    for (const [variant, outputs] of Object.entries<string[]>(targets)) {
+      for (const output of outputs) {
+        await fsp.writeFile(output, variants[variant])
+      }
+    }
+  }
+
+  private async typescript(schemas: any) {
+    const { interfaceName = 'Api' } = this.options.variants?.typescript ?? {}
+
+    const metadataSchema = (metadata: JSONSchema): JSONSchema => {
+      const keys = Object.keys(metadata)
+      const properties = {}
+      for (const key of keys) {
+        const type = typeof metadata
+        const oneOf = [metadata[key]]
+        properties[key] = { type, oneOf }
+      }
+      return {
+        type: 'object',
+        properties,
+        required: keys,
+        additionalProperties: false,
+      }
+    }
+
+    const procedureSchema = (input, output, metadata): JSONSchema => {
+      const required = new Set(['metadata', 'output', 'input'])
+
+      // "zod-to-json-schema" .optinal() workaround
+      const isZodToJsonSchemaOptional = (schema) => {
+        return typeof schema.not === 'object' && !Object.keys(schema.not).length
+      }
+      if (input.anyOf) {
+        if (input.anyOf.some(isZodToJsonSchemaOptional))
+          required.delete('input')
+        const index = input.anyOf.findIndex(isZodToJsonSchemaOptional)
+        if (index !== -1) input.anyOf.splice(index, 1)
+      }
+      if (output.anyOf) {
+        if (output.anyOf.some(isZodToJsonSchemaOptional))
+          required.delete('output')
+        const index = output.anyOf.findIndex(isZodToJsonSchemaOptional)
+        if (index !== -1) output.anyOf.splice(index, 1)
+      }
+
+      return {
+        properties: {
+          input,
+          output,
+          metadata: metadataSchema(metadata),
+        },
+        required: Array.from(required),
+        additionalProperties: false,
+      }
+    }
+
+    const proceduresSchema: JSONSchema = {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+      required: [],
+    }
+
+    for (const entry of Object.entries<any>(schemas)) {
+      const [procedure, { input, output, metadata }] = entry
+      proceduresSchema.properties[procedure] = procedureSchema(
+        input,
+        output,
+        metadata
+      )
+      proceduresSchema.required = [
+        ...(proceduresSchema.required as string[]),
+        procedure,
+      ]
+    }
+
+    return await compile(proceduresSchema, interfaceName, { unknownAny: false })
   }
 }

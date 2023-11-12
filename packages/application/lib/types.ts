@@ -1,13 +1,17 @@
 import { Scope } from '@neemata/common'
-import { Api } from './api'
+import { Api, BaseParser } from './api'
 import { Container } from './container'
 import { Logger } from './logger'
+
+import { Static, TSchema } from '@sinclair/typebox'
+import { TypeOf, ZodSchema } from 'zod'
 
 export type ApplicationOptions = {
   logging?: {
     level: import('pino').Level
   }
   api?: {
+    parser?: BaseParser
     path?: string
   }
 }
@@ -46,12 +50,14 @@ export interface LoaderInterface<T> {
 
 export type Async<T> = T | Promise<T>
 
-export type ProcedureOption<T, Context extends Extra = {}, Data = unknown> =
+export type ProcedureOption<T, Context extends Extra = {}> =
   | T
-  | ((context: Context, data: Data) => Async<T>)
+  | ((context: Context) => Async<T>)
 
 export type ProcedureContext = {
-  call: <Declaration extends ProcedureDeclaration<any, any, any, any, any>>(
+  call: <
+    Declaration extends ProcedureDeclaration<any, any, any, any, any, any>
+  >(
     declaration: Declaration,
     ...args: OmitFirstItem<Parameters<Declaration['procedure']['handle']>>
   ) => Promise<ReturnType<Declaration['procedure']['handle']>>
@@ -68,17 +74,34 @@ export type Middleware = (
   next: Next
 ) => any
 
+export type ProcedureDataType<
+  Input,
+  Schema = Input extends Promise<any> ? Awaited<Input> : Input
+> = Schema extends ZodSchema
+  ? TypeOf<Schema>
+  : Schema extends TSchema
+  ? Static<Schema>
+  : Input
+
 export type BaseProcedure<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
-  Data,
-  Response
+  Input,
+  Response,
+  Output
 > = AsProcedureOptions<Options, DependencyContext<Context, Deps>> & {
+  input?: Input | ((ctx: DependencyContext<Context, Deps>) => Input)
   handle: (
     ctx: DependencyContext<Context, Deps> & ProcedureContext,
-    data: Data
+    data: ProcedureDataType<Input>
   ) => Response
+  output?:
+    | Output
+    | ((
+        ctx: DependencyContext<Context, Deps>,
+        data: Awaited<Response>
+      ) => Output)
 }
 
 export interface Depender<Deps extends Dependencies> {
@@ -89,7 +112,7 @@ export type AsProcedureOptions<
   Options extends Extra = {},
   Context extends Extra = {}
 > = {
-  [K in keyof Options]: ProcedureOption<Options[K], Context, unknown>
+  [K in keyof Options]: ProcedureOption<Options[K], Context>
 }
 
 export type ExtensionMiddlewareOptions<
@@ -98,8 +121,8 @@ export type ExtensionMiddlewareOptions<
 > = {
   name: string
   context: DependencyContext<Extra, {}>
-  container: Container<Depender<Dependencies>, Context>
-  procedure: BaseProcedure<Dependencies, Options, Context, any, any>
+  container: Container<LoaderInterface<Depender<Dependencies>>, Context>
+  procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
 }
 
 export type Next = (payload?: any) => any
@@ -125,7 +148,7 @@ export interface ExtensionInstallOptions<
   Context extends Extra = {}
 > {
   api: Api<Options, Context>
-  container: Container<Depender<Dependencies>, Context>
+  container: Container<this['api'], Context>
   logger: Logger
 
   fireHook: FireHook<keyof HooksInterface>
@@ -213,8 +236,27 @@ export interface ProcedureDeclaration<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
-  Data,
-  Response
+  Input,
+  Response,
+  Output
 > extends Depender<Deps> {
-  procedure: BaseProcedure<Deps, Options, Context, Data, Response>
+  procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
 }
+
+// export interface BaseInterceptor<
+//   Input = unknown,
+//   Output = unknown
+//   // InputIntersceptor extends <T extends Input>(
+//   //   input: T,
+//   //   data: unknown
+//   // ) => any =
+//   // OutputIntersceptor extends <T extends Output>(
+//   //   output: T,
+//   //   data: unknown
+//   // ) => any = <T extends Output>(output: T, data: unknown) => any
+// > {
+//   _input: Input
+//   _output: Output
+//   inputIntersceptor?: <T extends Input>(input: T, data: unknown) => any
+//   // outputIntersceptor?: OutputIntersceptor
+// }

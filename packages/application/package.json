@@ -19,8 +19,25 @@
     "node": ">=18.0.0 <21"
   },
   "dependencies": {
-    "@neemata/common": "workspace:*",
     "pino": "^8.15.1",
     "pino-pretty": "^10.2.0"
+  },
+  "peerDependencies": {
+    "@neemata/common": "workspace:*",
+    "@sinclair/typebox": "^0.31.23",
+    "zod": "^3.22.4"
+  },
+  "peerDependenciesMeta": {
+    "@sinclair/typebox": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@neemata/common": "workspace:*",
+    "@sinclair/typebox": "^0.31.23",
+    "zod": "^3.22.4"
   }
 }

@@ -76,7 +76,7 @@ export class GuardsExtension extends BaseExtension<GuardsExtensionProcedureOptio
     >,
     payload: any
   ) {
-    const guards = await this.resolveProcedureOption('guards', arg, payload)
+    const guards = await this.resolveProcedureOption('guards', arg)
     if (guards) await this.handleGuards(guards)
   }
 

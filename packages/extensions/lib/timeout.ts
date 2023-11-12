@@ -23,20 +23,21 @@ export class TimeoutExtension extends BaseExtension<TimeoutExtensionProcedureOpt
   }
 
   private async middleware(
-    arg: ExtensionMiddlewareOptions<
+    options: ExtensionMiddlewareOptions<
       AsProcedureOptions<TimeoutExtensionProcedureOptions>
     >,
-    data: any,
-    next: (data?: any) => any
+    payload: any,
+    next: (payload?: any) => any
   ) {
-    let timeout = await this.resolveProcedureOption('timeout', arg, data)
+    let timeout = await this.resolveProcedureOption('timeout', options)
     if (!timeout) timeout = this.defaultTimeout
     const result = next()
-    const needToAwait = timeout && timeout > 0 && isPromise(result)
-    return needToAwait ? await this.awaitWithTimeout(result, timeout) : result
+    const hasTimeout = timeout && timeout > 0
+    const isAsync = isPromise(result)
+    return hasTimeout && isAsync ? this.applyTimeout(result, timeout) : result
   }
 
-  private awaitWithTimeout<T>(value: Promise<T>, timeout: number): Promise<T> {
+  private applyTimeout<T>(value: Promise<T>, timeout: number): Promise<T> {
     return new Promise((resolve, reject) => {
       const timeoutError = new ApiError(
         ErrorCode.RequestTimeout,

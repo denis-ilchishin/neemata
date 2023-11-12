@@ -1,12 +1,13 @@
 import { ApiError, ErrorCode } from '@neemata/common'
 import { Container } from './container'
+
 import { Loader } from './loader'
 import { Logger } from './logger'
+
 import {
   ApplicationOptions,
   BaseProcedure,
   Dependencies,
-  Depender,
   Extra,
   Filters,
   Middleware,
@@ -20,6 +21,14 @@ const NotFound = (name: string) =>
 
 const MIDDLEWARE_ENABLED = Symbol('middlware')
 
+export abstract class BaseParser {
+  abstract parse(schema: any, data: any): any
+
+  toJsonSchema(schema: any): any {
+    return {}
+  }
+}
+
 export class Api<
   Options extends Extra = {},
   Context extends Extra = {},
@@ -28,14 +37,16 @@ export class Api<
     Options,
     Context,
     any,
+    any,
     any
-  > = ProcedureDeclaration<Dependencies, Options, Context, any, any>
+  > = ProcedureDeclaration<Dependencies, Options, Context, any, any, any>
 > extends Loader<T> {
   constructor(
     private readonly options: ApplicationOptions['api'],
     private readonly logger: Logger,
     private readonly middlewares: Middlewares,
-    private readonly filters: Filters
+    private readonly filters: Filters,
+    readonly parser: BaseParser = options?.parser
   ) {
     super(options?.path)
   }
@@ -55,33 +66,50 @@ export class Api<
     name: string,
     declaration: T,
     payload: any,
-    container: Container<Depender<{}>>,
+    container: Container,
     callContext: Extra,
     withMiddleware = declaration[MIDDLEWARE_ENABLED]
   ) {
-    let middlewars = this.findMiddlewares(name)
+    let middlewars = withMiddleware ? this.findMiddlewares(name) : undefined
     const { dependencies, procedure } = declaration
     const call = (declaration, payload) =>
       this.call(name, declaration, payload, container, callContext, false)
     const context = await container.context(dependencies, { call }, callContext)
-    const handle = (payload) => {
-      const middleware: Middleware | undefined = middlewars.next().value
+    const handleProcedure = async (payload) => {
+      const middleware: Middleware | undefined = middlewars?.next()?.value
       if (middleware) {
         const options = { name, context, procedure, container }
-        const next = (newPayload = payload) => handle(newPayload)
+        const next = (newPayload = payload) => handleProcedure(newPayload)
         return middleware(options, payload, next)
       } else {
-        return procedure.handle(context, payload)
+        // TODO: maybe disable schema handling for nested calls?
+        const data = await this.handleInput(procedure, context, payload)
+        return procedure.handle(context, data)
       }
     }
 
     try {
-      return await (withMiddleware
-        ? handle(payload)
-        : procedure.handle(context, payload))
+      const response = await handleProcedure(payload)
+      return this.handleOutput(procedure, context, response)
     } catch (error) {
       throw this.handleFilters(error)
     }
+  }
+
+  declareProcedure<Deps extends Dependencies, Input, Response, Output>(
+    procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>,
+    dependencies?: Deps,
+    enableMiddleware = true
+  ): ProcedureDeclaration<Deps, Options, Context, Input, Response, Output> {
+    const declaration = { procedure, dependencies }
+    declaration[MIDDLEWARE_ENABLED] = enableMiddleware
+    return declaration
+  }
+
+  registerProcedure(name: string, declaration: T, enableHooks = true) {
+    // prevent override of original declaration, e.g if it was made by declareProcedure method
+    declaration = merge(declaration, { [MIDDLEWARE_ENABLED]: enableHooks })
+    this.modules.set(name, declaration)
   }
 
   private findMiddlewares(name: string) {
@@ -97,12 +125,7 @@ export class Api<
       for (const [errorType, filter] of this.filters.entries()) {
         if (error instanceof errorType) {
           const handledError = filter(error)
-          if (!handledError || !(handledError instanceof ApiError)) {
-            this.logger.warn(
-              `Error handler for ${error.constructor.name} did not return an ApiError instance, therefore is ignored.`
-            )
-            break
-          }
+          if (!handledError || !(handledError instanceof ApiError)) continue
           return handledError
         }
       }
@@ -110,19 +133,22 @@ export class Api<
     return error
   }
 
-  declareProcedure<Deps extends Dependencies, Data, Response>(
-    procedure: BaseProcedure<Deps, Options, Context, Data, Response>,
-    dependencies?: Deps,
-    enableMiddleware = true
-  ): ProcedureDeclaration<Deps, Options, Context, Data, Response> {
-    const declaration = { procedure, dependencies }
-    declaration[MIDDLEWARE_ENABLED] = enableMiddleware
-    return declaration
+  private async handleInput(procedure, context, payload) {
+    if (!this.parser) return payload
+    const schema = await this.getProcedureSchema(procedure, context, 'input')
+    if (!schema) return payload
+    return this.parser.parse(schema, payload)
   }
 
-  registerProcedure(name: string, declaration: T, enableHooks = true) {
-    // prevent override of original declaration, e.g if it was made by declareProcedure method
-    declaration = merge(declaration, { [MIDDLEWARE_ENABLED]: enableHooks })
-    this.modules.set(name, declaration)
+  private async handleOutput(procedure, context, response) {
+    if (!this.parser) return response
+    const schema = await this.getProcedureSchema(procedure, context, 'output')
+    return this.parser.parse(schema, response)
+  }
+
+  getProcedureSchema(procedure, context, type: 'input' | 'output') {
+    return typeof procedure[type] === 'function'
+      ? procedure[type](context)
+      : procedure[type]
   }
 }

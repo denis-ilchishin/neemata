@@ -1,11 +1,11 @@
 import { Container, Logger, createLogger } from '@neemata/application'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import { Tasks } from '.'
-import { TaskDeclaration, WorkerEvent } from './types'
+import { WorkerEvent } from './types'
 
 export class TaskWorker {
   logger: Logger
-  container: Container<TaskDeclaration<any, any, any>>
+  container: Container<Tasks>
 
   constructor(
     readonly tasks: Tasks,

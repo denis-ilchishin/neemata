@@ -55,15 +55,22 @@ importers:
 
   packages/application:
     dependencies:
-      '@neemata/common':
-        specifier: workspace:*
-        version: link:../common
       pino:
         specifier: ^8.15.1
         version: 8.15.1
       pino-pretty:
         specifier: ^10.2.0
         version: 10.2.0
+    devDependencies:
+      '@neemata/common':
+        specifier: workspace:*
+        version: link:../common
+      '@sinclair/typebox':
+        specifier: ^0.31.23
+        version: 0.31.23
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
 
   packages/cli:
     dependencies:
@@ -111,15 +118,39 @@ importers:
 
   packages/extensions:
     dependencies:
+      json-schema-to-typescript:
+        specifier: ^13.1.1
+        version: 13.1.1
+    devDependencies:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
       '@neemata/common':
         specifier: workspace:*
         version: link:../common
-      json-schema-to-typescript:
-        specifier: ^13.1.1
-        version: 13.1.1
+
+  packages/parser-typebox:
+    dependencies:
+      '@neemata/application':
+        specifier: workspace:*
+        version: link:../application
+    devDependencies:
+      '@sinclair/typebox':
+        specifier: ^0.31.23
+        version: 0.31.23
+
+  packages/parser-zod:
+    dependencies:
+      zod-to-json-schema:
+        specifier: ^3.21.4
+        version: 3.21.4(zod@3.22.4)
+    devDependencies:
+      '@neemata/application':
+        specifier: workspace:*
+        version: link:../application
+      zod:
+        specifier: ^3.22.4
+        version: 3.22.4
 
 packages:
 
@@ -373,6 +404,10 @@ packages:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.15.0
+    dev: true
+
+  /@sinclair/typebox@0.31.23:
+    resolution: {integrity: sha512-ZzrzE8yCrWWU4mcBstBgdlBMjB8My3ESY9nZ/v996GptIJb4+MU1p7s1Qxrc2xvZeOiDDnAheLLmdHjPgZV79g==}
     dev: true
 
   /@types/amqplib@0.10.4:
@@ -1537,6 +1572,17 @@ packages:
     resolution: {integrity: sha512-N/lyzTPaJasoDmfV7YTrYCI0G/3ivm/9wdG0aHuheKowWQwGTsK0Eoiw6utmzAnI6pkJa0DUVygvp3spqqEKXg==}
     engines: {node: '>= 14'}
     dev: true
+
+  /zod-to-json-schema@3.21.4(zod@3.22.4):
+    resolution: {integrity: sha512-fjUZh4nQ1s6HMccgIeE0VP4QG/YRGPmyjO9sAh890aQKPEk3nqbfUXhMFaC+Dr5KvYBm8BCyvfpZf2jY9aGSsw==}
+    peerDependencies:
+      zod: ^3.21.4
+    dependencies:
+      zod: 3.22.4
+    dev: false
+
+  /zod@3.22.4:
+    resolution: {integrity: sha512-iC+8Io04lddc+mVqQ9AZ7OQ2MrUKGN+oIQyq1vemgt46jwCwLfhq7/pwnBnNXXXZb8VTVLKwp9EDkx+ryxIWmg==}
 
   github.com/uNetworking/uWebSockets.js/c10b47c350cc97c299c6b4a07a98abb628704c71:
     resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/c10b47c350cc97c299c6b4a07a98abb628704c71}

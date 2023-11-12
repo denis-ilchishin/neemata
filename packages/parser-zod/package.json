@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/extensions",
+  "name": "@neemata/parser-zod",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -19,19 +19,14 @@
     "node": ">=18.0.0 <21"
   },
   "dependencies": {
-    "json-schema-to-typescript": "^13.1.1"
+    "zod-to-json-schema": "^3.21.4"
   },
   "peerDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@neemata/application": {
-      "optional": true
-    }
+    "zod": "^3.22.4"
   }
 }

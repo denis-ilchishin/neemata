@@ -19,7 +19,9 @@ const ScopeStrictness = {
 }
 
 export class Container<
-  T extends Depender<Dependencies>,
+  T extends LoaderInterface<Depender<Dependencies>> = LoaderInterface<
+    Depender<Dependencies>
+  >,
   Context extends Extra = {}
 > {
   readonly instances = new Map<ProviderDeclaration, any>()
@@ -29,7 +31,7 @@ export class Container<
     private readonly options: {
       context: Extra
       logger: Logger
-      loader: LoaderInterface<T>
+      loader: T
     },
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},

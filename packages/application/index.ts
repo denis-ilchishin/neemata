@@ -1,5 +1,5 @@
 export { BaseAdapter } from './lib/adapter'
-export { Api } from './lib/api'
+export { Api, BaseParser } from './lib/api'
 export { Application } from './lib/application'
 export { Container } from './lib/container'
 export { BaseExtension } from './lib/extension'

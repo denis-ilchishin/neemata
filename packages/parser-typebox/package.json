@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/extensions",
+  "name": "@neemata/parser-typebox",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -18,20 +18,11 @@
   "engines": {
     "node": ">=18.0.0 <21"
   },
-  "dependencies": {
-    "json-schema-to-typescript": "^13.1.1"
-  },
   "peerDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@sinclair/typebox": "^0.31.23"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@neemata/application": {
-      "optional": true
-    }
+    "@sinclair/typebox": "^0.31.23"
   }
 }

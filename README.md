@@ -12,7 +12,7 @@ Lightweight Node.js RPC-like application server
 #### First-party adapters and clients:
 
 - **[μWebSockets](https://github.com/uNetworking/uWebSockets.js)** with both websockets and http transports support, and binary data streaming over websockets
-- **[rabbitmq](https://www.rabbitmq.com/)**
+- **[RabbitMQ](https://www.rabbitmq.com/)**
 
 #### First-party extensions:
 

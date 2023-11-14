@@ -19,6 +19,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "cron-parser": "^4.9.0",
     "json-schema-to-typescript": "^13.1.1"
   },
   "peerDependencies": {

@@ -7,57 +7,62 @@ import {
 
 import cronParser, { type CronExpression } from 'cron-parser'
 
+type CronHandler = () => any
+
 type CronOptions = {
-  cron: string
-  provider: ProviderDeclaration<() => any>
+  expression: string
+  provider?: ProviderDeclaration<CronHandler>
+  handler?: CronHandler
 }
 
 type Cron = {
-  expression: CronExpression
+  cron: CronExpression
   timer?: ReturnType<typeof setTimeout>
-  handler: () => any
+  handler: CronHandler
 }
 
 export class CronExtension extends BaseExtension {
   name = 'Cron'
 
-  registered!: Map<string, CronOptions>
-  crons!: Map<string, Cron>
+  crons!: Map<string, CronOptions & Cron>
   application!: ExtensionInstallOptions<{}, {}>
 
   constructor() {
     super()
-    this.registered = new Map()
     this.crons = new Map()
   }
 
   install(application: ExtensionInstallOptions<{}, {}>) {
     this.application = application
-    this.application.registerHook(Hook.OnStart, async () => {
-      for (const [name, { cron, provider }] of this.registered) {
-        const expression = cronParser.parseExpression(cron)
-        const handler = await this.application.container.resolve(provider)
-        this.crons.set(name, { handler, expression })
+    const { logger, registerHook, container } = this.application
+    registerHook(Hook.OnStart, async () => {
+      for (const [name, cron] of this.crons) {
+        logger.info('Registering cron [%s] (%s)', name, cron.expression)
+        cron.cron = cronParser.parseExpression(cron.expression)
+        cron.handler = cron.provider
+          ? await container.resolve(cron.provider)
+          : cron.handler
         this.run(name)
       }
     })
 
-    this.application.registerHook(Hook.OnStop, async () => {
-      for (const cron of this.crons.values()) {
-        cron.expression.reset()
-        if (cron.timer) clearTimeout(cron.timer)
+    registerHook(Hook.OnStop, async () => {
+      for (const { cron, timer } of this.crons.values()) {
+        cron.reset()
+        if (timer) clearTimeout(timer)
       }
     })
   }
 
   registerCron(name: string, cron: CronOptions) {
-    this.registered.set(name, cron)
+    this.crons.set(name, cron as any)
   }
 
   private run(name: string) {
     const cron = this.crons.get(name)
-    const next = cron.expression.next()
+    const next = cron.cron.next()
     const timeout = next.getTime() - Date.now()
+
     cron.timer = setTimeout(async () => {
       this.application.logger.info('Running cron [%s]', name)
       try {

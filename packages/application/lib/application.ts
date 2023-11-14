@@ -60,6 +60,7 @@ export class Application<
       this.middlewares,
       this.filters
     )
+
     this.container = new Container({
       context: this.context,
       logger: this.logger,

@@ -44,7 +44,7 @@ export class Pool<T = unknown> {
   }
 
   private getNextFree() {
-    //TODO: maybe just better use indexed array instead of set here??
+    //TODO: maybe just better use indexed array instead of set+iterator here??
     const { value, done } = this.#current.next()
     if (done) {
       this.#current = this.#free.values()

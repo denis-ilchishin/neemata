@@ -83,7 +83,7 @@ export class WsTransport {
           remoteAddress,
           transport: Transport.Ws,
         }
-        const container = this.adapter.application.container.copy(
+        const container = this.adapter.application.container.createScope(
           Scope.Connection,
           {
             request: context,
@@ -92,7 +92,7 @@ export class WsTransport {
         const wsData = {
           id: randomUUID(),
           streams,
-          container: container,
+          container,
           context,
         }
         try {
@@ -197,7 +197,7 @@ export class WsTransport {
   async [MessageType.Rpc](ws: WebSocket, payloadBuf: ArrayBuffer) {
     //TODO: refactor this mess
 
-    const { streams } = ws.getUserData()
+    const data = ws.getUserData()
     const streamDataLength = decodeNumber(payloadBuf, 'Uint32')
 
     const streamsData = fromJSON(
@@ -221,12 +221,12 @@ export class WsTransport {
         this.logger.trace('Stream [%s] error: [%s]', id, error.message)
         send(ws, MessageType.StreamTerminate, encodeNumber(id, 'Uint16'))
       })
-      streams.set(id, stream)
+      data.streams.set(id, stream)
     }
 
     const streamsReplacer = (key, value) => {
       if (typeof value === 'string' && value.startsWith(STREAM_ID_PREFIX)) {
-        return streams.get(parseInt(value.slice(STREAM_ID_PREFIX.length)))
+        return data.streams.get(parseInt(value.slice(STREAM_ID_PREFIX.length)))
       }
       return value
     }
@@ -239,14 +239,16 @@ export class WsTransport {
     )
 
     const type = MessageType.Rpc
-    const data = ws.getUserData()
+
     const { procedure, payload, callId } = rpcPayload
     const context: AdapterCallContext = {
       ...data.context,
       procedure,
       websocket: this.adapter.websockets.get(data.id),
     }
-    const container = data.container.copy(Scope.Call, { request: context })
+    const container = data.container.createScope(Scope.Call, {
+      request: context,
+    })
 
     try {
       const response = await this.adapter.handleRPC(

@@ -55,7 +55,7 @@ export class Container<
     await Promise.all(declarations.map(this.resolve.bind(this)))
   }
 
-  copy(scope: Scope, params: any = {}) {
+  createScope(scope: Scope, params: any = {}) {
     return new Container(this.options, scope, params, this)
   }
 

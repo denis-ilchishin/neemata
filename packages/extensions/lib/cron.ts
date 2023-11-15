@@ -10,13 +10,14 @@ import cronParser, { type CronExpression } from 'cron-parser'
 type CronHandler = () => any
 
 type CronOptions = {
-  expression: string
+  expression: string | number
   provider?: ProviderDeclaration<CronHandler>
   handler?: CronHandler
 }
 
 type Cron = {
-  cron: CronExpression
+  cron?: CronExpression
+  interval?: number
   timer?: ReturnType<typeof setTimeout>
   handler: CronHandler
 }
@@ -38,7 +39,9 @@ export class CronExtension extends BaseExtension {
     registerHook(Hook.OnStart, async () => {
       for (const [name, cron] of this.crons) {
         logger.info('Registering cron [%s] (%s)', name, cron.expression)
-        cron.cron = cronParser.parseExpression(cron.expression)
+        if (typeof cron.expression === 'string')
+          cron.cron = cronParser.parseExpression(cron.expression)
+        else cron.interval = cron.expression
         cron.handler = cron.provider
           ? await container.resolve(cron.provider)
           : cron.handler
@@ -48,7 +51,7 @@ export class CronExtension extends BaseExtension {
 
     registerHook(Hook.OnStop, async () => {
       for (const { cron, timer } of this.crons.values()) {
-        cron.reset()
+        cron?.reset()
         if (timer) clearTimeout(timer)
       }
     })
@@ -60,8 +63,14 @@ export class CronExtension extends BaseExtension {
 
   private run(name: string) {
     const cron = this.crons.get(name)
-    const next = cron.cron.next()
-    const timeout = next.getTime() - Date.now()
+    let timeout: number
+
+    if (cron.cron) {
+      const next = cron.cron.next().getTime()
+      timeout = next - Date.now()
+    } else {
+      timeout = cron.interval!
+    }
 
     cron.timer = setTimeout(async () => {
       this.application.logger.info('Running cron [%s]', name)

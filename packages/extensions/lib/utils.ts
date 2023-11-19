@@ -1,3 +1,5 @@
+import { isPromise } from 'node:util/types'
+
 interface PoolOptions {
   timeout?: number
 }
@@ -25,7 +27,7 @@ export class Pool<T = unknown> {
     this.queue = []
   }
 
-  async next(timeout = this.defaultTimeout): Promise<T> {
+  next(timeout = this.defaultTimeout): T | Promise<T> {
     if (this.#items.size === 0) throw new PoolError('Pool is empty')
     if (this.#free.size === 0) {
       return new Promise((resolve, reject) => {
@@ -40,17 +42,7 @@ export class Pool<T = unknown> {
         this.queue.push(waiting)
       })
     }
-    return this.getNextFree()
-  }
-
-  private getNextFree() {
-    //TODO: maybe just better use indexed array instead of set+iterator here??
-    const { value, done } = this.#current.next()
-    if (done) {
-      this.#current = this.#free.values()
-      return this.getNextFree()
-    }
-    return value
+    return this.#current.next().value
   }
 
   public add(item: T): void {
@@ -62,7 +54,8 @@ export class Pool<T = unknown> {
   }
 
   public async capture(timeout = this.defaultTimeout): Promise<T> {
-    const item = await this.next(timeout)
+    let item = this.next(timeout)
+    if (isPromise(item)) item = await item
     this.#free.delete(item)
     return item
   }

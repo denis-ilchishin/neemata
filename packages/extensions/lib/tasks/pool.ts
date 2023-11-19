@@ -59,7 +59,7 @@ export class TaskWorkerPool {
     return { result, taskId, abort }
   }
 
-  private runTask(
+  private async runTask(
     taskId: string,
     taskName: string,
     options: InvokeOptions,
@@ -71,36 +71,37 @@ export class TaskWorkerPool {
     if (!task) reject(new Error('Task not found'))
     const capture = options.capture ?? this.options.capture
     const method = capture ? 'capture' : 'next'
-    this.workerPool[method](options.poolTimeout)
-      .then((worker) => {
-        const abortionHander = () => {
-          reject(new Error(signal.reason))
-          worker.postMessage({
-            event: WorkerEvent.Abort,
-            payload: {
-              taskId,
-              reason: signal.reason,
-            },
-          })
-        }
-        signal.addEventListener('abort', abortionHander, { once: true })
+    try {
+      const worker = await this.workerPool[method](options.poolTimeout)
 
+      const abortionHander = () => {
+        reject(new Error(signal.reason))
         worker.postMessage({
-          event: WorkerEvent.Invoke,
+          event: WorkerEvent.Abort,
           payload: {
             taskId,
-            taskName,
-            args,
+            reason: signal.reason,
           },
         })
+      }
+
+      signal.addEventListener('abort', abortionHander, { once: true })
+
+      worker.postMessage({
+        event: WorkerEvent.Invoke,
+        payload: {
+          taskId,
+          taskName,
+          args,
+        },
       })
-      .catch((error) => {
-        if (error instanceof PoolError) {
-          reject(new Error('Pool timeout'))
-        } else {
-          reject(error)
-        }
-      })
+    } catch (error) {
+      if (error instanceof PoolError) {
+        reject(new Error('Pool timeout'))
+      } else {
+        reject(error)
+      }
+    }
   }
 
   private async createWorker(i: number) {

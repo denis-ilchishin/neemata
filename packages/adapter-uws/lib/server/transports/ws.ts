@@ -1,4 +1,4 @@
-import { ApiError, Scope } from '@neemata/application'
+import { ApiError, Scope, merge } from '@neemata/application'
 import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import qs from 'qs'
@@ -217,10 +217,9 @@ export class WsTransport {
         meta,
         this.adapter.options.maxStreamChunkLength
       )
-      stream.once('error', (error) => {
-        this.logger.trace('Stream [%s] error: [%s]', id, error.message)
-        send(ws, MessageType.StreamTerminate, encodeNumber(id, 'Uint16'))
-      })
+      stream.on('error', (cause) =>
+        this.logger.trace(new Error('Stream error', { cause }))
+      )
       data.streams.set(id, stream)
     }
 
@@ -238,14 +237,13 @@ export class WsTransport {
       streamsReplacer
     )
 
-    const type = MessageType.Rpc
+    const msgType = MessageType.Rpc
 
     const { procedure, payload, callId } = rpcPayload
-    const context: AdapterCallContext = {
-      ...data.context,
+    const context: AdapterCallContext = merge(data.context, {
       procedure,
       websocket: this.adapter.websockets.get(data.id),
-    }
+    })
     const container = data.container.createScope(Scope.Call, {
       request: context,
     })
@@ -257,13 +255,16 @@ export class WsTransport {
         payload,
         context
       )
-      sendPayload(ws, type, { callId, payload: { response } })
+      sendPayload(ws, msgType, { callId, payload: { response } })
     } catch (error) {
       if (error instanceof ApiError) {
-        sendPayload(ws, type, { callId, payload: { error } })
+        sendPayload(ws, msgType, { callId, payload: { error } })
       } else {
         this.logger.error(new Error('Unexpected error', { cause: error }))
-        sendPayload(ws, type, { callId, payload: { error: InternalError() } })
+        sendPayload(ws, msgType, {
+          callId,
+          payload: { error: InternalError() },
+        })
       }
     } finally {
       this.adapter.handleDisposal(container)
@@ -306,6 +307,9 @@ export class Stream extends Readable {
     highWaterMark?: number
   ) {
     super({ highWaterMark })
+    this.once('error', () => {
+      send(ws, MessageType.StreamTerminate, encodeNumber(id, 'Uint16'))
+    })
   }
 
   _read(size: number): void {

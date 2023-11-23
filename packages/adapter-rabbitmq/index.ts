@@ -1,6 +1,7 @@
 import {
   ApiError,
   BaseAdapter,
+  ErrorCode,
   ExtensionInstallOptions,
   Hook,
 } from '@neemata/application'
@@ -50,9 +51,10 @@ export class Adapter extends BaseAdapter<
     this.application.logger.debug('Creating a channel...')
     this.channel = await this.connection.createChannel()
     await this.channel.assertQueue(requestQueue, { durable: false })
-
     this.application.logger.info('Listening on [%s] queue', requestQueue)
-    await this.channel.consume(requestQueue, this.handleRPC.bind(this))
+    await this.channel.consume(requestQueue, this.handleRPC.bind(this), {
+      noAck: true,
+    })
   }
 
   async stop() {
@@ -61,10 +63,10 @@ export class Adapter extends BaseAdapter<
   }
 
   private async handleRPC(msg: amqplib.ConsumeMessage) {
-    const { correlationId } = msg.properties
-    const { procedure, payload, queue } = this.deserialize(msg.content)
+    const { correlationId, replyTo } = msg.properties
+    const { procedure, payload } = this.deserialize(msg.content)
     const respond = (data: any) =>
-      this.channel.sendToQueue(queue, this.serialize(data), {
+      this.channel.sendToQueue(replyTo, this.serialize(data), {
         correlationId,
         contentType: 'application/json',
       })
@@ -80,14 +82,15 @@ export class Adapter extends BaseAdapter<
       )
       respond({ response })
     } catch (error) {
-      if (error instanceof ApiError) {
-        respond({ error })
-      } else {
-        this.application.logger.error(
-          new Error('Unexpected error', { cause: error })
+      if (!(error instanceof ApiError)) {
+        this.application.logger.error(error)
+        error = new ApiError(
+          ErrorCode.InternalServerError,
+          'Internal server error'
         )
-        respond({ error: new ApiError('InternalError', 'Internal error') })
       }
+
+      respond({ error })
     }
   }
 

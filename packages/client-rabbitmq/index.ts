@@ -4,7 +4,6 @@ import {
   ErrorCode,
   ResolveProcedureApiType,
 } from '@neemata/common'
-import { randomUUID } from 'node:crypto'
 
 import amqplib from 'amqplib'
 
@@ -13,7 +12,6 @@ export { ApiError, Client, ErrorCode }
 type Options = {
   connection: amqplib.Options.Connect
   requestQueue: string
-  responseQueue: string
   debug?: boolean
   timeout?: number
 }
@@ -25,27 +23,26 @@ type RPCOptions = {
 class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   private connection!: amqplib.Connection
   private channel!: amqplib.Channel
-  private responseQueue: string
+  private queue!: string
 
   constructor(private readonly options: Options) {
     super()
-    this.responseQueue = `${this.options.responseQueue}:${randomUUID()}`
   }
 
   async connect() {
     this.connection = await amqplib.connect(this.options.connection)
     this.channel = await this.connection.createChannel()
 
-    await Promise.all([
-      this.channel.assertQueue(this.options.requestQueue, { durable: false }),
-      this.channel.assertQueue(this.responseQueue, {
-        durable: false,
-        autoDelete: true,
-      }),
-    ])
+    const { queue } = await this.channel.assertQueue('', {
+      durable: false,
+      autoDelete: true,
+      exclusive: true,
+    })
+
+    this.queue = queue
 
     this.channel.consume(
-      this.responseQueue,
+      this.queue,
       (msg) => {
         const { correlationId } = msg.properties
         const call = this._calls.get(correlationId)
@@ -65,9 +62,16 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
       },
       { noAck: true }
     )
+
+    this.connection.once('error', (error) => {
+      console.error(error)
+      this.clear(new ApiError('Connection error', 'Connection error'))
+      this.connect()
+    })
   }
 
   async disconnect() {
+    this.clear(new ApiError('Connection closed', 'Connection closed'))
     await this.channel?.close()
     await this.connection?.close()
   }
@@ -85,17 +89,16 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     const [payload, options = {}] = args
     // TODO: implement RabbitMQ message timeout
     const correlationId = (this._nextCallId++).toString()
-    const queue = this.responseQueue
     this.channel.sendToQueue(
       this.options.requestQueue,
       this.serialize({
         procedure,
         payload,
-        queue,
       }),
       {
         contentType: 'application/json',
         correlationId,
+        replyTo: this.queue,
       }
     )
 
@@ -104,6 +107,7 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
       const timer = timeout
         ? setTimeout(() => {
             reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
+            this._calls.delete(correlationId)
           }, timeout)
         : null
       this._calls.set(correlationId, [resolve, reject, timer])
@@ -116,5 +120,10 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
 
   private deserialize(data: Buffer) {
     return JSON.parse(data.toString())
+  }
+
+  private clear(error) {
+    for (const [_, reject] of this._calls.values()) reject(error)
+    this._calls.clear()
   }
 }

@@ -44,9 +44,9 @@ export class SchemaExtension extends BaseExtension {
       registerHook(Hook.AfterStart, () => this.export(this.options.export))
     }
 
-    registerCommand('typescript', async ({ args: [output] }) => {
+    registerCommand('typescript', async ({ args: output }) => {
       await this.application.api.load()
-      await this.export({ typescript: [output] })
+      await this.export({ typescript: output })
     })
   }
 

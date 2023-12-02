@@ -7,14 +7,15 @@
   "scripts": {
     "clean": "pnpm -r exec rm -rf node_modules dist",
     "watch": "pnpm run --parallel --filter \"*\" watch",
-    "build": "pnpm run --filter common build && pnpm run --filter application build && pnpm run --filter !common --filter !application build"
+    "build": "pnpm run --filter common build && pnpm run --filter application build && pnpm run --filter !common --filter !application build",
+    "type-check": "pnpm run --parallel --filter \"*\" type-check"
   },
   "engines": {
     "pnpm": ">=8.0.0"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
-    "tsup": "^7.2.0",
+    "tsup": "^8.0.1",
     "typescript": "^5.2.2"
   },
   "workspaces": [

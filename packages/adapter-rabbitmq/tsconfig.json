@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext"],
+    "lib": [
+      "ESNext"
+    ],
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "target": "ESNext",
@@ -9,12 +11,13 @@
     "checkJs": true,
     "esModuleInterop": true,
     "noEmit": false,
-    "declaration": true,
-    "emitDeclarationOnly": false,
+    "declaration": false,
     "skipLibCheck": true,
     "strict": false,
     "sourceMap": true,
     "outDir": "./dist"
   },
-  "include": ["./index.ts"]
+  "include": [
+    "./index.ts"
+  ]
 }

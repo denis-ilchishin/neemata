@@ -5,9 +5,11 @@
   "description": "Nodejs application server",
   "scripts": {
     "watch": "tsc --watch",
-    "build": "rm -rf ./dist && tsc"
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
   },
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "dependencies": {
     "@neemata/common": "workspace:*",
     "amqplib": "^0.10.3"

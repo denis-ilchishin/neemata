@@ -5,12 +5,11 @@
   "description": "Nodejs application server",
   "scripts": {
     "watch": "tsc --watch",
-    "build": "rm -rf ./dist && tsc"
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
   },
-  "files": [
-    "dist"
-  ],
   "main": "./dist/index.js",
+  "types": "./index.ts",
   "os": [
     "darwin",
     "linux"

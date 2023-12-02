@@ -8,6 +8,6 @@ export class ZodParser extends BaseParser {
   }
 
   toJsonSchema(schema: ZodSchema) {
-    return zodToJsonSchema(schema ?? any().optional())
+    return zodToJsonSchema(schema ?? any().optional(), { $refStrategy: 'seen' })
   }
 }

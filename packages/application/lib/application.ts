@@ -36,7 +36,7 @@ export class Application<
 > {
   api: Api<Options, Context>
   logger: import('pino').Logger
-  container: Container<this['api'], Context>
+  container: Container<this['api']>
   context: Context = {} as Context
 
   hooks: Hooks

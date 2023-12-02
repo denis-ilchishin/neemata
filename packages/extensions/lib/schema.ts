@@ -2,6 +2,7 @@ import {
   BaseExtension,
   ExtensionInstallOptions,
   Hook,
+  declareProcedure,
   match,
 } from '@neemata/application'
 import { JSONSchema, compile } from 'json-schema-to-typescript'
@@ -34,7 +35,7 @@ export class SchemaExtension extends BaseExtension {
     if (this.options.procedureName) {
       api.registerProcedure(
         this.options.procedureName,
-        api.declareProcedure({ handle: this.jsonSchema.bind(this) }),
+        declareProcedure({ handle: this.jsonSchema.bind(this) }),
         false
       )
     }

@@ -39,8 +39,7 @@ export type WebSocketUserData = {
         any,
         any
       >
-    >,
-    AdapterContext
+    >
   >
   context: AdapterConnectionContext
 }

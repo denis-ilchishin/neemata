@@ -9,6 +9,8 @@ import {
   BaseProcedure,
   Dependencies,
   Extra,
+  ExtractAppContext,
+  ExtractAppOptions,
   Filters,
   Middleware,
   Middlewares,
@@ -91,16 +93,6 @@ export class Api<
     }
   }
 
-  declareProcedure<Deps extends Dependencies, Input, Response, Output>(
-    procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>,
-    dependencies?: Deps,
-    enableMiddleware = true
-  ): ProcedureDeclaration<Deps, Options, Context, Input, Response, Output> {
-    const declaration = { procedure, dependencies }
-    declaration[MIDDLEWARE_ENABLED] = enableMiddleware
-    return declaration
-  }
-
   registerProcedure(name: string, declaration: T, enableHooks = true) {
     // prevent override of original declaration, e.g if it was made by declareProcedure method
     declaration = merge(declaration, { [MIDDLEWARE_ENABLED]: enableHooks })
@@ -153,3 +145,28 @@ export class Api<
     return this.parser.parse(schema, response)
   }
 }
+
+export const declareProcedure = (
+  procedure: BaseProcedure<any, any, any, any, any, any>,
+  dependencies?: Dependencies,
+  enableMiddleware = true
+) => {
+  const declaration = { procedure, dependencies }
+  declaration[MIDDLEWARE_ENABLED] = enableMiddleware
+  return declaration
+}
+
+export const createTypedDeclareProcedure =
+  <
+    App,
+    Options extends ExtractAppOptions<App> = ExtractAppOptions<App>,
+    Context extends ExtractAppContext<App> = ExtractAppContext<App>
+  >() =>
+  <Deps extends Dependencies, Input, Response, Output>(
+    procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>,
+    dependencies?: Deps,
+    enableMiddleware = true
+  ): ProcedureDeclaration<Deps, Options, Context, Input, Response, Output> => {
+    // @ts-expect-error
+    return declareProcedure(procedure, dependencies, enableMiddleware)
+  }

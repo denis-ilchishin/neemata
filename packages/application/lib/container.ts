@@ -4,6 +4,7 @@ import {
   Dependencies,
   Depender,
   Extra,
+  ExtractAppContext,
   LoaderInterface,
   Provider,
   ProviderDeclaration,
@@ -18,11 +19,21 @@ const ScopeStrictness = {
   [Scope.Call]: 2,
 }
 
+function getProviderScope(declaration: ProviderDeclaration) {
+  let scope = declaration.provider.scope ?? Scope.Global
+  for (const dependency of Object.values(declaration.dependencies ?? {})) {
+    const dependencyScope = getProviderScope(dependency)
+    if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
+      scope = dependencyScope
+    }
+  }
+  return scope
+}
+
 export class Container<
   T extends LoaderInterface<Depender<Dependencies>> = LoaderInterface<
     Depender<Dependencies>
-  >,
-  Context extends Extra = {}
+  >
 > {
   readonly instances = new Map<ProviderDeclaration, any>()
   private readonly resolvers = new Map<ProviderDeclaration, Promise<any>>()
@@ -84,7 +95,7 @@ export class Container<
     const declarations: ProviderDeclaration[] = []
 
     for (const provider of this.providers) {
-      if (this.getProviderScope(provider) === this.scope) {
+      if (getProviderScope(provider) === this.scope) {
         declarations.push(provider)
       }
     }
@@ -92,23 +103,14 @@ export class Container<
     return declarations
   }
 
-  private getProviderScope(declaration: ProviderDeclaration) {
-    let scope = declaration.provider.scope ?? Scope.Global
-    for (const dependency of Object.values(declaration.dependencies ?? {})) {
-      const dependencyScope = this.getProviderScope(dependency)
-      if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
-        scope = dependencyScope
-      }
-    }
-    return scope
-  }
-
   async resolve<T extends ProviderDeclaration>(
     declaration: T
   ): Promise<ResolvedDependencyInjection<T>> {
     const { factory, scope } = declaration.provider
-    const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
-    if (this.parent && isStricter) return this.parent.resolve(declaration)
+    const isCurrentStricter =
+      ScopeStrictness[this.scope] > ScopeStrictness[scope]
+    if (this.parent && isCurrentStricter)
+      return this.parent.resolve(declaration)
     if (this.instances.has(declaration)) {
       return this.instances.get(declaration)
     } else if (this.resolvers.has(declaration)) {
@@ -150,21 +152,28 @@ export class Container<
     })
     return Object.freeze(context)
   }
+}
 
-  declareProvider<
-    Type,
-    Deps extends Dependencies,
-    S extends Scope = (typeof Scope)['Global']
-  >(
+export const declareProvider = (
+  provider:
+    | ProviderFactory<any, Extra, Extra>
+    | Provider<any, Extra, Extra, Scope>,
+  dependencies?: Dependencies
+) => {
+  provider = typeof provider === 'function' ? { factory: provider } : provider
+  const declaration = { provider, dependencies }
+  declaration.provider.scope = getProviderScope(declaration)
+  return declaration
+}
+
+export const createTypedDeclareProvider =
+  <App, Context extends ExtractAppContext<App> = ExtractAppContext<App>>() =>
+  <Type, Deps extends Dependencies, S extends Scope = (typeof Scope)['Global']>(
     provider:
       | ProviderFactory<Type, Context, Deps>
       | Provider<Type, Context, Deps, S>,
     dependencies?: Deps
-  ): ProviderDeclaration<Type, Context, Deps, S> {
-    provider = typeof provider === 'function' ? { factory: provider } : provider
-    const declaration = { provider, dependencies }
+  ): ProviderDeclaration<Type, Context, Deps, S> => {
     // @ts-expect-error
-    declaration.provider.scope = this.getProviderScope(declaration)
-    return declaration
+    return declareProvider(provider, dependencies)
   }
-}

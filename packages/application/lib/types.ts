@@ -1,5 +1,6 @@
 import { Scope } from '@neemata/common'
 import { Api, BaseParser } from './api'
+import { Application } from './application'
 import { Container } from './container'
 import { Logger } from './logger'
 
@@ -121,7 +122,7 @@ export type ExtensionMiddlewareOptions<
 > = {
   name: string
   context: DependencyContext<Extra, {}>
-  container: Container<LoaderInterface<Depender<Dependencies>>, Context>
+  container: Container<LoaderInterface<Depender<Dependencies>>>
   procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
 }
 
@@ -148,7 +149,7 @@ export interface ExtensionInstallOptions<
   Context extends Extra = {}
 > {
   api: Api<Options, Context>
-  container: Container<this['api'], Context>
+  container: Container<this['api']>
   logger: Logger
 
   fireHook: FireHook<keyof HooksInterface>
@@ -242,3 +243,20 @@ export interface ProcedureDeclaration<
 > extends Depender<Deps> {
   procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
 }
+
+export type ExtractAppOptions<App> = App extends Application<
+  any,
+  any,
+  infer AppOptions
+>
+  ? AppOptions
+  : never
+
+export type ExtractAppContext<App> = App extends Application<
+  any,
+  any,
+  any,
+  infer AppContext
+>
+  ? AppContext
+  : never

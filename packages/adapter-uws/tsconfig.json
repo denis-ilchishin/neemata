@@ -11,7 +11,7 @@
     "checkJs": true,
     "esModuleInterop": true,
     "noEmit": false,
-    "declaration": false,
+    "declaration": true,
     "skipLibCheck": true,
     "strict": true,
     "strictNullChecks": false,

@@ -9,7 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "main": "./dist/index.js",
-  "types": "./index.ts",
+  "types": "./dist/index.d.ts",
   "os": [
     "darwin",
     "linux"

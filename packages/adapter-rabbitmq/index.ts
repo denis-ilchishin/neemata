@@ -23,7 +23,7 @@ export class Adapter extends BaseAdapter<
 > {
   name = 'RabbitMQ'
 
-  application!: ExtensionInstallOptions
+  application!: ExtensionInstallOptions<AdapterProcedureOptions, AdapterContext>
   connection!: amqplib.Connection
   channel!: amqplib.Channel
 

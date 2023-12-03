@@ -43,10 +43,9 @@ const KEYS = {
   [MessageType.Rpc]: Symbol(),
   [MessageType.StreamPull]: Symbol(),
   [MessageType.StreamEnd]: Symbol(),
-  [MessageType.StreamPull]: Symbol(),
   [MessageType.StreamTerminate]: Symbol(),
   [MessageType.Event]: Symbol(),
-}
+} as const
 
 class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   private readonly httpUrl: URL
@@ -92,12 +91,12 @@ class Client<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     this._ws.onmessage = (event) => {
       const buffer: ArrayBuffer = event.data
       const type = decodeNumber(buffer, 'Uint8')
-      if (this.options.debug)
-        console.log(
-          'Neemata: received message',
-          Object.keys(MessageType).find((key) => MessageType[key] === type)
-        )
-      this[KEYS[type]](this._ws, buffer.slice(Uint8Array.BYTES_PER_ELEMENT))
+      const isValidKey = type in KEYS
+      if (isValidKey) {
+        // @ts-ignore
+        const handler = this[KEYS[type]].bind(this)
+        handler(this._ws, buffer.slice(Uint8Array.BYTES_PER_ELEMENT))
+      }
     }
     this._ws.onopen = (event) => {
       this._isConnected = true
@@ -340,7 +339,7 @@ class Stream extends EventEmitter {
         )
         this.emit('progress', this.meta.size, this.sentBytes)
       }
-    } catch (e) {
+    } catch (e: any) {
       this._client._sendViaWs(
         MessageType.StreamTerminate,
         encodeNumber(this.id, 'Uint16')

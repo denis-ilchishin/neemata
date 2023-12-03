@@ -54,7 +54,7 @@ export const createLogger = (level: Level, $group) =>
         return `\x1b[0m${thread} ${group} ${msg}`
       },
       customPrettifiers: {
-        level: (level: string) => bg(levelLabels[level], levelColors[level]),
+        level: (level: any) => bg(levelLabels[level], levelColors[level]),
       },
       sync: true,
     })

@@ -13,7 +13,8 @@
     "noEmit": false,
     "declaration": false,
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
+    "strictNullChecks": false,
     "sourceMap": true,
     "outDir": "./dist"
   },

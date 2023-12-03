@@ -42,7 +42,7 @@ const send = (ws: WebSocket, type: number, ...buffers: ArrayBuffer[]) => {
       concat(encodeNumber(type, 'Uint8'), ...buffers.filter(Boolean)),
       true
     )
-  } catch (error) {
+  } catch (error: any) {
     if (error.message !== CLOSED_SOCKET_MESSAGE) throw error
   }
 }

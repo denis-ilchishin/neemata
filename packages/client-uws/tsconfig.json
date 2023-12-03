@@ -1,13 +1,18 @@
 {
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "module": "esnext",
     "target": "esnext",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "noEmit": true,
-    "strict": false,
+    "strict": true,
+    "strictNullChecks": false,
     "skipLibCheck": true,
+    "noImplicitAny": false,
     "allowSyntheticDefaultImports": true
   }
 }

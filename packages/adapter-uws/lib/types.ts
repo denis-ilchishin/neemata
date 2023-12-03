@@ -1,15 +1,16 @@
-export const AdapterHook = Object.freeze({
-  Connection: 'Connection',
-})
-export type AdapterHook = (typeof AdapterHook)[keyof typeof AdapterHook]
+export enum AdapterHook {
+  Connection = 'Connection',
+}
 
-export const Transport = Object.freeze({
-  Ws: 'Ws',
-  Http: 'Http',
-})
-export type Transport = (typeof Transport)[keyof typeof Transport]
+export enum Transport {
+  Ws = 'Ws',
+  Http = 'Http',
+}
 
-export type HttpMethod = 'get' | 'post'
+export enum HttpMethod {
+  Get = 'get',
+  Post = 'post',
+}
 
 export type WebSocketInterface = {
   id: string

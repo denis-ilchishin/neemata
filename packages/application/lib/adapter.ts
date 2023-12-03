@@ -13,6 +13,6 @@ export abstract class BaseAdapter<
   abstract start(): any
   abstract stop(): any
   abstract install(
-    options: ExtensionInstallOptions<ProcedureOptions, Context>
+    application: ExtensionInstallOptions<ProcedureOptions, Context>
   ): any
 }

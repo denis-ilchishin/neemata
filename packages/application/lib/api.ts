@@ -8,6 +8,7 @@ import {
   ApplicationOptions,
   BaseProcedure,
   Dependencies,
+  ExtensionMiddlewareOptions,
   Extra,
   ExtractAppContext,
   ExtractAppOptions,
@@ -48,9 +49,9 @@ export class Api<
     private readonly logger: Logger,
     private readonly middlewares: Middlewares,
     private readonly filters: Filters,
-    readonly parser: BaseParser = options?.parser
+    readonly parser: BaseParser | undefined = options?.parser
   ) {
-    super(options?.path)
+    super(options?.path ?? '')
   }
 
   async find(name: string) {
@@ -75,7 +76,12 @@ export class Api<
     const handleProcedure = async (payload) => {
       const middleware: Middleware | undefined = middlewars?.next()?.value
       if (middleware) {
-        const options = { name, context, procedure, container }
+        const options: ExtensionMiddlewareOptions<any, any> = {
+          name,
+          context,
+          procedure,
+          container,
+        }
         const next = (newPayload = payload) => handleProcedure(newPayload)
         return middleware(options, payload, next)
       } else {

@@ -8,9 +8,11 @@ import {
   Command,
   Commands,
   ErrorClass,
+  ExtensionInterface,
   Extra,
   Filter,
   Filters,
+  FireHook,
   Hook,
   Hooks,
   HooksInterface,
@@ -154,13 +156,13 @@ export class Application<
     const { api, container } = this
     for (const [name, extension] of installations) {
       if (!extension.install) continue
-      const fireHook = this.fireHook.bind(this)
+      const fireHook: FireHook<any> = this.fireHook.bind(this)
       const registerHook = this.registerHook.bind(this)
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
       const logger = this.logger.child({ $group: extension.name })
-      extension.install({
+      ;(extension as ExtensionInterface<any, any>).install({
         logger,
         api,
         container,

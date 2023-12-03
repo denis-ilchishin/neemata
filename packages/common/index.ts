@@ -1,26 +1,24 @@
 import { EventEmitter } from 'events'
 
-export const ErrorCode = Object.freeze({
-  ValidationError: 'VALIDATION_ERROR',
-  BadRequest: 'BAD_REQUEST',
-  NotFound: 'NOT_FOUND',
-  Forbidden: 'FORBIDDEN',
-  Unauthorized: 'UNAUTHORIZED',
-  InternalServerError: 'INTERNAL_SERVER_ERROR',
-  NotAcceptable: 'NOT_ACCEPTABLE',
-  RequestTimeout: 'REQUEST_TIMEOUT',
-  GatewayTimeout: 'GATEWAY_TIMEOUT',
-  ServiceUnavailable: 'SERVICE_UNAVAILABLE',
-  ClientRequestError: 'CLIENT_REQUEST_ERROR',
-})
-export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
+export enum ErrorCode {
+  ValidationError = 'ValidationError',
+  BadRequest = 'BadRequest',
+  NotFound = 'NotFound',
+  Forbidden = 'Forbidden',
+  Unauthorized = 'Unauthorized',
+  InternalServerError = 'InternalServerError',
+  NotAcceptable = 'NotAcceptable',
+  RequestTimeout = 'RequestTimeout',
+  GatewayTimeout = 'GatewayTimeout',
+  ServiceUnavailable = 'ServiceUnavailable',
+  ClientRequestError = 'ClientRequestError',
+}
 
-export const Scope = Object.freeze({
-  Global: 'global',
-  Connection: 'connection',
-  Call: 'call',
-})
-export type Scope = (typeof Scope)[keyof typeof Scope]
+export enum Scope {
+  Global = 'Global',
+  Connection = 'Connection',
+  Call = 'Call',
+}
 
 export class ApiError extends Error {
   code: string

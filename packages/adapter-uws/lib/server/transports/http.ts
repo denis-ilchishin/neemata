@@ -1,7 +1,7 @@
 import { ApiError, ErrorCode, Scope } from '@neemata/application'
 import qs from 'qs'
 import { Readable } from 'stream'
-import { AdapterCallContext, Transport } from '../../types'
+import { AdapterCallContext, HttpMethod, Transport } from '../../types'
 import {
   CONTENT_TYPE_HEADER,
   Headers,
@@ -100,7 +100,7 @@ export class HttpTransport {
         remoteAddress,
         transport: Transport.Http,
         procedure: procedureName,
-        method: method as 'post' | 'get',
+        method: method as HttpMethod,
         setResponseHeader,
       }
 
@@ -145,7 +145,7 @@ export class HttpTransport {
   }
 
   private async bodyHandler(req: Req, res: Res, method: string, query: any) {
-    if (method === 'post') {
+    if (method === HttpMethod.Post) {
       if (!req.getHeader('content-type').startsWith(JSON_CONTENT_TYPE_MIME))
         throw new ApiError(ErrorCode.NotAcceptable, 'Unsupported body type')
       try {

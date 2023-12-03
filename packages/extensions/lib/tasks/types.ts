@@ -33,11 +33,10 @@ export type TaskInterface<Res> = {
   abort: () => void
 }
 
-export const WorkerEvent = Object.freeze({
-  Ready: 'ready',
-  Stop: 'stop',
-  Error: 'error',
-  Invoke: 'invoke',
-  Abort: 'abort',
-})
-export type WorkerEvent = (typeof WorkerEvent)[keyof typeof WorkerEvent]
+export enum WorkerEvent {
+  Ready = 'Ready',
+  Stop = 'Stop',
+  Error = 'Error',
+  Invoke = 'Invoke',
+  Abort = 'Abort',
+}

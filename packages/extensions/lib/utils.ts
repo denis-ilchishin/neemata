@@ -5,8 +5,8 @@ interface PoolOptions {
 }
 
 interface QueueItem {
-  resolve: Function
-  timer: NodeJS.Timer | null
+  resolve?: Function
+  timer?: ReturnType<typeof setTimeout>
 }
 
 export class PoolError extends Error {}

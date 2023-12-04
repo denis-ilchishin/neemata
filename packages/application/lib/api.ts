@@ -1,9 +1,7 @@
 import { ApiError, ErrorCode } from '@neemata/common'
 import { Container } from './container'
-
 import { Loader } from './loader'
 import { Logger } from './logger'
-
 import {
   ApplicationOptions,
   BaseProcedure,
@@ -17,7 +15,7 @@ import {
   Middlewares,
   ProcedureDeclaration,
 } from './types'
-import { match, merge } from './utils'
+import { match, merge } from './utils/functions'
 
 const NotFound = (name: string) =>
   new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
@@ -70,22 +68,24 @@ export class Api<
   ) {
     let middlewars = withMiddleware ? this.findMiddlewares(name) : undefined
     const { dependencies, procedure } = declaration
-    const call = (declaration, payload) =>
+    const nestedCall = (declaration, payload) =>
       this.call(name, declaration, payload, container, callContext, false)
-    const context = await container.context(dependencies, callContext, { call })
+    const context = await container.createContext(dependencies, callContext, {
+      call: nestedCall,
+    })
+    const options: ExtensionMiddlewareOptions<any, any> = {
+      name,
+      context,
+      procedure,
+      container,
+    }
     const handleProcedure = async (payload) => {
-      const middleware: Middleware | undefined = middlewars?.next()?.value
+      const middleware: Middleware | undefined = middlewars?.next().value
       if (middleware) {
-        const options: ExtensionMiddlewareOptions<any, any> = {
-          name,
-          context,
-          procedure,
-          container,
-        }
         const next = (newPayload = payload) => handleProcedure(newPayload)
         return middleware(options, payload, next)
       } else {
-        // TODO: maybe disable schema handling for nested calls?
+        // TODO: maybe disable schema handling for nested calls or make it optional at least?
         const data = await this.handleInput(procedure, context, payload)
         return procedure.handle(context, data)
       }

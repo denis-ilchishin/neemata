@@ -3,8 +3,10 @@ import { BaseAdapter } from './adapter'
 import { Api } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
+import { Tasks } from './tasks'
 import {
   ApplicationOptions,
+  CallHook,
   Command,
   Commands,
   ErrorClass,
@@ -12,7 +14,7 @@ import {
   Extra,
   Filter,
   Filters,
-  FireHook,
+  GlobalContext,
   Hook,
   Hooks,
   HooksInterface,
@@ -34,11 +36,13 @@ export class Application<
   Context extends Extra = UnionToIntersection<
     ResolveExtensionContext<Extensions[keyof Extensions]>
   > &
-    ResolveExtensionContext<Adapter>
+    ResolveExtensionContext<Adapter> &
+    GlobalContext
 > {
   api: Api<Options, Context>
+  tasks: Tasks
   logger: import('pino').Logger
-  container: Container<this['api']>
+  container: Container
   context: Context = {} as Context
 
   hooks: Hooks
@@ -51,10 +55,20 @@ export class Application<
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
-    this.extensions = extensions ?? ({} as Extensions)
-    this.logger = createLogger(options.logging?.level || 'info', 'Neemata')
+    this.logger = createLogger(options.logging?.level || 'info', 'App')
 
-    this.init()
+    this.middlewares = new Map()
+    this.filters = new Map()
+    this.hooks = new Map()
+    this.commands = new Map()
+
+    for (const hook of Object.values(Hook)) {
+      this.hooks.set(hook, new Set())
+    }
+
+    for (const extension in this.extensions) {
+      this.commands.set(extension, new Map())
+    }
 
     this.api = new Api(
       this.options.api,
@@ -63,31 +77,41 @@ export class Application<
       this.filters
     )
 
+    this.tasks = new Tasks(this.options.tasks)
+
     this.container = new Container({
       context: this.context,
       logger: this.logger,
-      loader: this.api,
+      loaders: [this.api, this.tasks],
     })
 
     this.initExtensions()
   }
 
-  async start() {
-    await this.fireHook(Hook.BeforeStart)
+  async initialize() {
+    await this.callHook(Hook.BeforeInitialize)
     await this.api.load()
     await this.container.load()
+    await this.callHook(Hook.AfterInitialize)
     this.initContext()
-    await this.fireHook(Hook.OnStart)
+  }
+
+  async start() {
+    await this.callHook(Hook.BeforeStart)
     await this.adapter.start()
-    await this.fireHook(Hook.AfterStart)
+    await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
-    await this.fireHook(Hook.BeforeStop)
+    await this.callHook(Hook.BeforeStop)
     await this.adapter.stop()
-    await this.fireHook(Hook.OnStop)
+    await this.callHook(Hook.AfterStop)
+  }
+
+  async terminate() {
+    await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    await this.fireHook(Hook.AfterStop)
+    await this.callHook(Hook.AfterTerminate)
   }
 
   registerHook<T extends string>(
@@ -115,25 +139,10 @@ export class Application<
     middlewares.add(middleware)
   }
 
-  private async fireHook(hook: Hook, ...args: any[]) {
+  private async callHook(hook: Hook, ...args: any[]) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
     for (const hook of hooks) await hook(...args)
-  }
-
-  private init() {
-    this.middlewares = new Map()
-    this.filters = new Map()
-    this.hooks = new Map()
-    this.commands = new Map()
-
-    for (const hook of Object.values(Hook)) {
-      this.hooks.set(hook, new Set())
-    }
-
-    for (const extension in this.extensions) {
-      this.commands.set(extension, new Map())
-    }
   }
 
   private initContext() {
@@ -144,19 +153,19 @@ export class Application<
         mixins.push(extension.context())
       }
     }
-    Object.assign(this.context, ...mixins)
+    Object.assign(this.context, ...mixins, { logger: this.logger })
   }
 
   private initExtensions() {
     const installations = [
-      [undefined, this.adapter],
       ...Object.entries(this.extensions),
+      ['adapter', this.adapter],
     ] as const
 
     const { api, container } = this
     for (const [name, extension] of installations) {
       if (!extension.install) continue
-      const fireHook: FireHook<any> = this.fireHook.bind(this)
+      const callHook: CallHook<any> = this.callHook.bind(this)
       const registerHook = this.registerHook.bind(this)
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
@@ -170,7 +179,7 @@ export class Application<
         registerHook,
         registerFilter,
         registerMiddleware,
-        fireHook,
+        callHook,
       })
     }
   }

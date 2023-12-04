@@ -15,19 +15,40 @@ export type ApplicationOptions = {
     parser?: BaseParser
     path?: string
   }
+  tasks?: {
+    path?: string
+    runner?: Callback
+  }
 }
 
-export const Hook = {
-  BeforeStart: 'BeforeStart',
-  OnStart: 'OnStart',
-  AfterStart: 'AfterStart',
-  BeforeStop: 'BeforeStop',
-  OnStop: 'OnStop',
-  AfterStop: 'AfterStop',
-} as const
-export type Hook = (typeof Hook)[keyof typeof Hook]
+export enum Hook {
+  BeforeInitialize = 'BeforeInitialize',
+  AfterInitialize = 'AfterInitialize',
+  BeforeStart = 'BeforeStart',
+  AfterStart = 'AfterStart',
+  BeforeStop = 'BeforeStop',
+  AfterStop = 'AfterStop',
+  BeforeTerminate = 'BeforeTerminate',
+  AfterTerminate = 'AfterTerminate',
+}
 
-export type Pattern = RegExp | string | ((name: string) => boolean)
+export enum WorkerMessageType {
+  Ready = 'Ready',
+  Start = 'Start',
+  Stop = 'Stop',
+  ExecuteInvoke = 'ExecuteInvoke',
+  ExecuteResult = 'ExecuteResult',
+  ExecuteAbort = 'ExecuteAbort',
+}
+
+export enum WorkerType {
+  Api = 'Api',
+  Task = 'Task',
+}
+
+export type Callback = (...args: any[]) => any
+
+export type Pattern = RegExp | string | ((value: string) => boolean)
 
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
   ? U
@@ -122,22 +143,24 @@ export type ExtensionMiddlewareOptions<
 > = {
   name: string
   context: DependencyContext<Extra, {}>
-  container: Container<LoaderInterface<Depender<Dependencies>>>
+  container: Container
   procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
 }
 
 export type Next = (payload?: any) => any
 
 export interface HooksInterface {
+  [Hook.BeforeInitialize]: () => any
+  [Hook.AfterInitialize]: () => any
   [Hook.BeforeStart]: () => any
-  [Hook.OnStart]: () => any
   [Hook.AfterStart]: () => any
   [Hook.BeforeStop]: () => any
-  [Hook.OnStop]: () => any
   [Hook.AfterStop]: () => any
+  [Hook.BeforeTerminate]: () => any
+  [Hook.AfterTerminate]: () => any
 }
 
-export type FireHook<T extends string> = (
+export type CallHook<T extends string> = (
   hook: T,
   ...args: T extends keyof HooksInterface
     ? Parameters<HooksInterface[T]>
@@ -149,10 +172,10 @@ export interface ExtensionInstallOptions<
   Context extends Extra = {}
 > {
   api: Api<Options, Context>
-  container: Container<this['api']>
+  container: Container
   logger: Logger
 
-  fireHook: FireHook<keyof HooksInterface>
+  callHook: CallHook<keyof HooksInterface>
   registerHook<T extends string>(
     hookName: T,
     hook: T extends keyof HooksInterface
@@ -190,16 +213,17 @@ export type UnionToIntersection<U> = (
 export type ResolvedDependencyInjection<T extends ProviderDeclaration> =
   Awaited<T extends ProviderDeclaration<infer Type> ? Type : never>
 
+export type GlobalContext = { logger: Logger }
+
 export type DependencyContext<
   Context extends Extra,
   Deps extends Dependencies
-> = {
+> = Context & {
   injections: {
     [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
   }
-  logger: Logger
   scope: Scope
-} & Context
+} & GlobalContext
 
 export type ProviderFactory<
   Type,
@@ -228,9 +252,9 @@ export interface ProviderDeclaration<
   Type = any,
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
-  Skope extends Scope = Scope
+  _Scope extends Scope = Scope
 > extends Depender<Deps> {
-  provider: Provider<Type, Context, Deps, Skope>
+  provider: Provider<Type, Context, Deps, _Scope>
 }
 
 export interface ProcedureDeclaration<
@@ -260,3 +284,9 @@ export type ExtractAppContext<App> = App extends Application<
 >
   ? AppContext
   : never
+
+export type ApplicationWorkerOptions = {
+  applicationPath: string
+  type: WorkerType
+  options: any
+}

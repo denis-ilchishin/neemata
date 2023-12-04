@@ -19,7 +19,7 @@ const ScopeStrictness = {
   [Scope.Call]: 2,
 }
 
-function getProviderScope(declaration: ProviderDeclaration) {
+export function getProviderScope(declaration: ProviderDeclaration) {
   let scope = declaration.provider.scope ?? Scope.Global
   for (const dependency of Object.values(declaration.dependencies ?? {})) {
     const dependencyScope = getProviderScope(dependency)

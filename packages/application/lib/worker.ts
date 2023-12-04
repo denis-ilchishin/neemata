@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
 import { Application } from './application'
 import {
@@ -6,22 +7,29 @@ import {
   WorkerType,
 } from './types'
 import { importDefault } from './utils/functions'
+import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
 
 async function run() {
-  const { options, applicationPath, type }: ApplicationWorkerOptions =
-    workerData
+  const {
+    id,
+    applicationOptions,
+    workerOptions,
+    applicationPath,
+    type,
+  }: ApplicationWorkerOptions = workerData
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
-  options.runner = isApiWorker ? taskRunner : undefined
-  const bootstrap = await importDefault(applicationPath)
-  const app: Application = await bootstrap(options)
+  applicationOptions.tasks.runner = isApiWorker ? taskRunner : undefined
 
-  parentPort.on('message', (message) => {
-    if (message && typeof message === 'object') {
-      const { type, payload } = message
-      parentPort.emit(type, payload)
-    }
+  const bootstrap = await importDefault(applicationPath)
+  const app: Application = await bootstrap({
+    id,
+    type,
+    workerOptions,
+    applicationOptions,
   })
+
+  bindPortMessageHandler(parentPort)
 
   parentPort.on(WorkerMessageType.Start, async () => {
     await app.initialize()
@@ -37,52 +45,59 @@ async function run() {
 
   if (isTaskWorker) {
     parentPort.on(WorkerMessageType.ExecuteInvoke, async (payload) => {
-      const { port, name, args } = payload
+      const { id, name, args } = payload
+      const bc = createBroadcastChannel(id)
       try {
         const task = app.tasks.execute(app.container, name, ...args)
-        port.abort(WorkerMessageType.ExecuteAbort, (payload) => {
+
+        bc.emitter.on(WorkerMessageType.ExecuteAbort, (payload) => {
           const { reason } = payload
           task.abort(reason)
         })
         const result = await task.result
-        port.postMessage({
+        bc.channel.postMessage({
           type: WorkerMessageType.ExecuteResult,
           payload: { result },
         })
       } catch (error) {
-        port.postMessage({
+        app.logger.error(error)
+        bc.channel.postMessage({
           type: WorkerMessageType.ExecuteResult,
           payload: { error },
         })
+      } finally {
+        bc.close()
       }
     })
   }
 
   async function taskRunner(signal: AbortSignal, name: string, ...args: any[]) {
-    // TODO: need to measure performance between creating new MessageChannel for each task invocation
-    // and sending messages through the parentPort with correlation ids
-    const { port1, port2 } = new MessageChannel()
+    const id = randomUUID()
+
+    // TODO: performance is 15-17% worse than passing events via the main thread manually
+    // mini bench (node v20.9.0, M1 mbp): 21-22k vs 25-26k
+    // need to investigate further and see if there's a way to improve this
+    const bc = createBroadcastChannel(id)
 
     const result = new Promise((resolve, reject) => {
       signal.addEventListener('abort', reject, { once: true })
-      port1.once(WorkerMessageType.ExecuteResult, (payload) => {
+      bc.emitter.once(WorkerMessageType.ExecuteResult, (payload) => {
         const { error, result } = payload
         if (error) reject(error)
         else resolve(result)
+        bc.close()
       })
-      port1.close()
     })
 
     parentPort.postMessage({
       type: WorkerMessageType.ExecuteInvoke,
-      payload: { port: port2, name, args },
+      payload: { id, name, args },
     })
 
-    signal.addEventListener(
-      'abort',
-      () => port2.postMessage({ type: WorkerMessageType.ExecuteAbort }),
-      { once: true }
-    )
+    const abort = () =>
+      bc.channel.postMessage({ type: WorkerMessageType.ExecuteAbort })
+
+    signal.addEventListener('abort', abort, { once: true })
 
     return result
   }

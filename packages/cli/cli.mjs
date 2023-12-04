@@ -13,6 +13,7 @@ const { values, positionals } = parseArgs({
     env: {
       type: 'string',
       short: 'e',
+      multiple: true,
     },
   },
 })
@@ -20,8 +21,10 @@ const { values, positionals } = parseArgs({
 let { env, applicationPath, ...kwargs } = values
 
 if (env) {
-  const { error } = dotenv.config({ path: resolve(env) })
-  if (error) throw error
+  for (const path of env) {
+    const { error } = dotenv.config({ path: resolve(path) })
+    if (error) throw error
+  }
 }
 
 applicationPath = resolve(

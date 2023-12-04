@@ -3,7 +3,7 @@ import { BaseAdapter } from './adapter'
 import { Api } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
-import { Tasks } from './tasks'
+import { TaskDeclaration, Tasks } from './tasks'
 import {
   ApplicationOptions,
   CallHook,
@@ -90,6 +90,7 @@ export class Application<
 
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
+    await this.tasks.load()
     await this.api.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
@@ -112,6 +113,10 @@ export class Application<
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
     await this.callHook(Hook.AfterTerminate)
+  }
+
+  execute(declaration: TaskDeclaration, ...args: any[]) {
+    return this.tasks.execute(this.container, declaration.name, ...args)
   }
 
   registerHook<T extends string>(
@@ -153,7 +158,10 @@ export class Application<
         mixins.push(extension.context())
       }
     }
-    Object.assign(this.context, ...mixins, { logger: this.logger })
+    Object.assign(this.context, ...mixins, {
+      logger: this.logger,
+      execute: this.execute.bind(this),
+    })
   }
 
   private initExtensions() {

@@ -47,7 +47,7 @@ export class Pool<T = unknown> {
   }
 
   async next(exclusive = false, timeout = this.options.timeout): Promise<T> {
-    if (this.#size === 0) return null
+    if (this.#size === 0) throw new PoolError('Pool is empty')
     if (this.#available === 0) {
       return new Promise((resolve, reject) => {
         const waiting = {
@@ -99,7 +99,7 @@ export class Pool<T = unknown> {
     return this.#free[index]
   }
 
-  items() {
+  get items() {
     return [...this.#items]
   }
 

@@ -5,9 +5,10 @@ import {
   ErrorCode,
   ExtensionMiddlewareOptions,
   Pattern,
+  Semaphore,
+  SemaphoreError,
   match,
 } from '@neemata/application'
-import { Semaphore, SemaphoreError } from './utils'
 
 export type QueueOptions = {
   concurrency: number

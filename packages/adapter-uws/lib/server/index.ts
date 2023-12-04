@@ -1,11 +1,8 @@
 import {
   ApiError,
   Container,
-  Dependencies,
   ErrorCode,
   ExtensionInstallOptions,
-  LoaderInterface,
-  ProcedureDeclaration,
   defer,
 } from '@neemata/application'
 import { resolve } from 'node:path'
@@ -29,18 +26,7 @@ export type Res = uws.HttpResponse
 export type WebSocketUserData = {
   id: string
   streams: Map<number, Readable>
-  container: Container<
-    LoaderInterface<
-      ProcedureDeclaration<
-        Dependencies,
-        AdapterProcedureOptions,
-        AdapterContext,
-        any,
-        any,
-        any
-      >
-    >
-  >
+  container: Container
   context: AdapterConnectionContext
 }
 

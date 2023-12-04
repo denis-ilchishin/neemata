@@ -1,4 +1,4 @@
-import { Scope } from '@neemata/common'
+import { Scope as ProviderScope } from '@neemata/common'
 import { Api, BaseParser } from './api'
 import { Application } from './application'
 import { Container } from './container'
@@ -222,7 +222,7 @@ export type DependencyContext<
   injections: {
     [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
   }
-  scope: Scope
+  scope: ProviderScope
 } & GlobalContext
 
 export type ProviderFactory<
@@ -241,20 +241,20 @@ export type Provider<
   Type,
   Context extends Extra,
   Deps extends Dependencies,
-  Skope extends Scope
+  Scope extends ProviderScope
 > = {
   factory: ProviderFactory<Type, Context, Deps>
   dispose?: ProviderDispose<Type, Context, Deps>
-  scope?: Skope
+  scope?: Scope
 }
 
 export interface ProviderDeclaration<
   Type = any,
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
-  _Scope extends Scope = Scope
+  Scope extends ProviderScope = ProviderScope
 > extends Depender<Deps> {
-  provider: Provider<Type, Context, Deps, _Scope>
+  provider: Provider<Type, Context, Deps, Scope>
 }
 
 export interface ProcedureDeclaration<
@@ -287,6 +287,8 @@ export type ExtractAppContext<App> = App extends Application<
 
 export type ApplicationWorkerOptions = {
   applicationPath: string
+  id: number
   type: WorkerType
-  options: any
+  applicationOptions: ApplicationOptions
+  workerOptions: any
 }

@@ -1,12 +1,14 @@
 import { Scope } from '@neemata/common'
-import { Container } from './container'
+import { Container, getProviderScope } from './container'
 import { Loader } from './loader'
 import { Logger } from './logger'
 import {
   ApplicationOptions,
+  Dependencies,
+  DependencyContext,
   Depender,
   Extra,
-  ProviderDeclaration,
+  ExtractAppContext,
 } from './types'
 import { defer } from './utils/functions'
 
@@ -17,20 +19,20 @@ export type TaskContext = {
 
 export type Task = (...args: any[]) => any
 
-export type TaskProvider<Context extends Extra> = (
-  context: Context
+export type TaskProvider<Context extends Extra, Deps extends Dependencies> = (
+  context: DependencyContext<Context, Deps>
 ) => Task | Promise<Task>
 
-export type TaskDependencies = Record<
-  string,
-  ProviderDeclaration<any, any, TaskDependencies, Scope.Global>
->
+// export type TaskDependencies = Record<
+//   string,
+//   ProviderDeclaration<any, any, TaskDependencies, Scope>
+// >
 
 export interface TaskDeclaration<
-  Deps extends TaskDependencies = TaskDependencies,
+  Deps extends Dependencies = Dependencies,
   Context extends Extra = Extra
 > extends Depender<Deps> {
-  provider: TaskProvider<Context>
+  provider: TaskProvider<Context, Deps>
   name?: string
   parse?: Function
 }
@@ -78,3 +80,31 @@ export class Tasks extends Loader<TaskDeclaration> {
     return { abort, result }
   }
 }
+
+export const declareTask = (
+  provider: TaskProvider<any, any>,
+  dependencies?: Dependencies,
+  name?: string
+) => {
+  for (const dep of Object.values(dependencies ?? {})) {
+    const scope = getProviderScope(dep)
+    if (scope !== Scope.Global)
+      throw new Error('Task cannot depend on non-global providers')
+  }
+  return {
+    provider,
+    dependencies,
+    name,
+  }
+}
+
+export const createTypedDeclareTask =
+  <App, Context extends ExtractAppContext<App> = ExtractAppContext<App>>() =>
+  <Deps extends Dependencies>(
+    provider: TaskProvider<Context, Deps>,
+    dependencies?: Deps,
+    name?: string
+  ): TaskDeclaration<Deps, Context> => {
+    // @ts-expect-error
+    return declareTask(provider, dependencies, name)
+  }

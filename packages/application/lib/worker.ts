@@ -1,8 +1,12 @@
 import { randomUUID } from 'crypto'
+//@ts-expect-error
+import { register } from 'node:module'
+import { MessageChannel } from 'node:worker_threads'
+import { pathToFileURL } from 'url'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
 import { Application } from './application'
 import { ApplicationWorkerData, WorkerMessageType, WorkerType } from './types'
-import { importDefault } from './utils/functions'
+import { debounce, importDefault } from './utils/functions'
 import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
 
 async function start() {
@@ -14,11 +18,34 @@ async function start() {
     type,
     hasTaskRunners,
   }: ApplicationWorkerData = workerData
+
+  // This example demonstrates how a message channel can be used to
+  // communicate with the hooks, by sending `port2` to the hooks.
+  const { port1, port2 } = new MessageChannel()
+
+  register('./utils/loader.mjs', {
+    parentURL: pathToFileURL(__filename),
+    data: {
+      port: port2,
+      paths: [applicationOptions.api?.path, applicationOptions.tasks?.path],
+    },
+    transferList: [port2],
+  })
+
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
   applicationOptions.tasks.runner =
     isApiWorker && hasTaskRunners ? customTaskRunner : undefined
   applicationOptions.type = type
+
+  let restarting = false
+  const restart = debounce(async () => {
+    if (restarting) return
+    restarting = true
+    await app.terminate()
+    await app.initialize()
+    restarting = false
+  }, 500)
 
   const bootstrap = await importDefault(applicationPath)
   const app: Application = await bootstrap({
@@ -28,17 +55,20 @@ async function start() {
     applicationOptions,
   })
 
+  port1.on('message', () => {
+    app.logger.info('Changes detected. Restarting...')
+    restart()
+  })
+
   bindPortMessageHandler(parentPort)
 
   parentPort.on(WorkerMessageType.Start, async () => {
-    await app.initialize()
-    if (isApiWorker) await app.start()
+    await app.start()
     parentPort.postMessage({ type: WorkerMessageType.Ready })
   })
 
   parentPort.on(WorkerMessageType.Stop, async () => {
-    if (isApiWorker) await app.stop()
-    await app.terminate()
+    await app.stop()
     process.exit(0)
   })
 

@@ -55,3 +55,13 @@ export const range = (count: number, start = 0) => {
     },
   }
 }
+
+export const debounce = (cb: Callback, delay: number) => {
+  let timer: ReturnType<typeof setTimeout>
+  const clear = () => timer && clearTimeout(timer)
+  const fn = (...args: any[]) => {
+    clear()
+    timer = setTimeout(cb, delay, ...args)
+  }
+  return Object.assign(fn, { clear })
+}

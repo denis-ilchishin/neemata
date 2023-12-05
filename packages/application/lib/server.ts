@@ -12,13 +12,14 @@ import {
 import { Pool } from './utils/pool'
 import { bindPortMessageHandler } from './utils/threads'
 
-const IGNORE_ARGS = ['--inspect-brk', '--inspect', '--inspect-port', '--watch']
+const IGNORE_ARGS = ['--inspect-brk', '--inspect', '--inspect-port']
 
 export type ApplicationServerOptions = {
   applicationPath: string | URL
   applicationOptions: ApplicationOptions
   taskWorkers: number | object[]
   apiWorkers: number | object[]
+  schedules?: []
 }
 
 export class ApplicationServer {
@@ -86,15 +87,16 @@ export class ApplicationServer {
     const execArgv = process.execArgv.filter(
       (arg) => !IGNORE_ARGS.includes(arg)
     )
+    const { applicationPath, applicationOptions, taskWorkers } = this.options
+
     const workerData: ApplicationWorkerData = {
-      applicationPath: this.options.applicationPath.toString(),
+      applicationPath: applicationPath.toString(),
       id,
       type,
-      applicationOptions: this.options.applicationOptions,
+      applicationOptions: applicationOptions,
       workerOptions: options,
-      hasTaskRunners: !!this.options.taskWorkers,
+      hasTaskRunners: !!taskWorkers,
     }
-
     const worker = new Worker(join(__dirname, 'worker'), {
       name: type,
       execArgv,
@@ -110,15 +112,17 @@ export class ApplicationServer {
       this.workers.delete(worker)
       if (isTaskWorker && this.taskRunners.items.includes(worker))
         this.taskRunners.remove(worker)
+
       if (code !== 0) {
         this.logger.fatal(`Worker ${threadId} crashed with code ${code}`)
-        if (!this.#exiting) {
-          this.createWorker(type, id, options) // restart the worker on crash
-          if (isTaskWorker) this.taskRunners.add(worker)
-        }
       } else {
         this.logger.info(`Worker ${threadId} exited gracefully`)
       }
+
+      // if (!this.#exiting) {
+      //   const worker = this.createWorker(type, id, options)
+      //   worker.postMessage({ type: WorkerMessageType.Start })
+      // }
     })
 
     this.workers.add(worker)

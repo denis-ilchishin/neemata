@@ -30,6 +30,8 @@ export class Tasks extends Loader<
     if (!declaration.task.name) declaration.task.name = name
     this.logger.info('Resolve [%s] task', declaration.task.name, path)
     super.set(declaration.task.name, path, declaration)
+
+    this.logger.warn(declaration.task.name)
   }
 
   registerTask(declaration: TaskDeclaration<any, any, any[], any>) {
@@ -42,7 +44,9 @@ export class Tasks extends Loader<
     ...args: any[]
   ): TaskInterface<any> {
     const ac = new AbortController()
-    const abort = (reason = new Error('Aborted')) => ac.abort(reason)
+    const abort = (reason) => ac.abort(reason ?? new Error('Aborted'))
+
+    this.logger.warn(name)
 
     const result = defer(async () => {
       if (!this.modules.has(name)) throw new Error('Task not found')

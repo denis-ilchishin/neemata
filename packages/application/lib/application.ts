@@ -104,26 +104,29 @@ export class Application<
   }
 
   async start() {
-    if (!this.api) throw new Error('Unable to start non-api worker')
+    await this.initialize()
     await this.callHook(Hook.BeforeStart)
-    await this.adapter.start()
+    if (this.api) await this.adapter.start()
     await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
-    if (!this.api) throw new Error('Unable to stop non-api worker')
     await this.callHook(Hook.BeforeStop)
-    await this.adapter.stop()
+    if (this.api) await this.adapter.stop()
     await this.callHook(Hook.AfterStop)
+    await this.terminate()
   }
 
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
+    if (this.isApi) this.api.modules.clear()
+    this.tasks.modules.clear()
     await this.callHook(Hook.AfterTerminate)
   }
 
   execute(declaration: TaskDeclaration<any, any, any[], any>, ...args: any[]) {
+    console.log(declaration)
     return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 
@@ -159,6 +162,7 @@ export class Application<
   }
 
   private initContext() {
+    for (const key in this.context) delete this.context[key]
     const mixins = []
     const extensions = [...Object.values(this.extensions), this.adapter]
     for (const extension of extensions) {

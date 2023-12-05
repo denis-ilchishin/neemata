@@ -37,7 +37,7 @@ const levelLabels = {
   [Infinity]: 'SILENT',
 }
 
-export const createLogger = (level: Level, $group) =>
+export const createLogger = (level: Level, $group: string) =>
   pino(
     {
       timestamp: stdTimeFunctions.isoTime,

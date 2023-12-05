@@ -3,7 +3,7 @@ import { BaseAdapter } from './adapter'
 import { Api } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
-import { TaskDeclaration, Tasks } from './tasks'
+import { Tasks } from './tasks'
 import {
   ApplicationOptions,
   CallHook,
@@ -23,7 +23,9 @@ import {
   Pattern,
   ResolveExtensionContext,
   ResolveExtensionOptions,
+  TaskDeclaration,
   UnionToIntersection,
+  WorkerType,
 } from './types'
 
 export class Application<
@@ -55,7 +57,11 @@ export class Application<
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
-    this.logger = createLogger(options.logging?.level || 'info', 'App')
+    this.options.type = this.options.type ?? WorkerType.Api
+    this.logger = createLogger(
+      options.logging?.level || 'info',
+      this.options.type + 'Worker'
+    )
 
     this.middlewares = new Map()
     this.filters = new Map()
@@ -72,17 +78,17 @@ export class Application<
 
     this.api = new Api(
       this.options.api,
-      this.logger.child({ $group: 'Api' }),
+      this.logger,
       this.middlewares,
       this.filters
     )
 
-    this.tasks = new Tasks(this.options.tasks)
+    this.tasks = new Tasks(this.options.tasks, this.logger)
 
     this.container = new Container({
       context: this.context,
       logger: this.logger,
-      loaders: [this.api, this.tasks],
+      loaders: this.isApi ? [this.api, this.tasks] : [this.tasks],
     })
 
     this.initExtensions()
@@ -91,19 +97,21 @@ export class Application<
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
     await this.tasks.load()
-    await this.api.load()
+    if (this.isApi) await this.api.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
     this.initContext()
   }
 
   async start() {
+    if (!this.api) throw new Error('Unable to start non-api worker')
     await this.callHook(Hook.BeforeStart)
     await this.adapter.start()
     await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
+    if (!this.api) throw new Error('Unable to stop non-api worker')
     await this.callHook(Hook.BeforeStop)
     await this.adapter.stop()
     await this.callHook(Hook.AfterStop)
@@ -115,8 +123,8 @@ export class Application<
     await this.callHook(Hook.AfterTerminate)
   }
 
-  execute(declaration: TaskDeclaration, ...args: any[]) {
-    return this.tasks.execute(this.container, declaration.name, ...args)
+  execute(declaration: TaskDeclaration<any, any, any[], any>, ...args: any[]) {
+    return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 
   registerHook<T extends string>(
@@ -178,7 +186,7 @@ export class Application<
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
-      const logger = this.logger.child({ $group: extension.name })
+      const logger = this.logger
       ;(extension as ExtensionInterface<any, any>).install({
         logger,
         api,
@@ -190,5 +198,9 @@ export class Application<
         callHook,
       })
     }
+  }
+
+  private get isApi() {
+    return this.options.type === WorkerType.Api
   }
 }

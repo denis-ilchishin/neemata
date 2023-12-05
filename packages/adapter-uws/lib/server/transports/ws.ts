@@ -55,7 +55,7 @@ export class WsTransport {
   }
 
   bind() {
-    this.adapter.httpAdapter.ws(this.adapter.basePath('api'), {
+    this.adapter.httpServer.ws(this.adapter.basePath('api'), {
       maxPayloadLength: this.adapter.options.maxPayloadLength,
       sendPingsAutomatically: true,
       upgrade: async (res, req, socket) => {

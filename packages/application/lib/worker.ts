@@ -1,25 +1,24 @@
 import { randomUUID } from 'crypto'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
 import { Application } from './application'
-import {
-  ApplicationWorkerOptions,
-  WorkerMessageType,
-  WorkerType,
-} from './types'
+import { ApplicationWorkerData, WorkerMessageType, WorkerType } from './types'
 import { importDefault } from './utils/functions'
 import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
 
-async function run() {
+async function start() {
   const {
     id,
     applicationOptions,
     workerOptions,
     applicationPath,
     type,
-  }: ApplicationWorkerOptions = workerData
+    hasTaskRunners,
+  }: ApplicationWorkerData = workerData
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
-  applicationOptions.tasks.runner = isApiWorker ? taskRunner : undefined
+  applicationOptions.tasks.runner =
+    isApiWorker && hasTaskRunners ? customTaskRunner : undefined
+  applicationOptions.type = type
 
   const bootstrap = await importDefault(applicationPath)
   const app: Application = await bootstrap({
@@ -60,7 +59,6 @@ async function run() {
           payload: { result },
         })
       } catch (error) {
-        app.logger.error(error)
         bc.channel.postMessage({
           type: WorkerMessageType.ExecuteResult,
           payload: { error },
@@ -71,7 +69,8 @@ async function run() {
     })
   }
 
-  async function taskRunner(signal: AbortSignal, name: string, ...args: any[]) {
+  function customTaskRunner(signal: AbortSignal, name: string, ...args: any[]) {
+    if (!name) throw new Error('Task name is required')
     const id = randomUUID()
 
     // TODO: performance is 15-17% worse than passing events via the main thread manually
@@ -103,4 +102,5 @@ async function run() {
   }
 }
 
-if (!isMainThread) run()
+if (!isMainThread) start()
+else console.error(new Error('Worker should not be used in the main thread'))

@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads'
 import { Logger, createLogger } from './logger'
 import {
   ApplicationOptions,
+  ApplicationWorkerData,
   ApplicationWorkerOptions,
   WorkerMessageType,
   WorkerType,
@@ -23,7 +24,9 @@ export type ApplicationServerOptions = {
 export class ApplicationServer {
   logger: Logger
   workers: Set<Worker> = new Set()
-  pool: Pool<Worker> = new Pool()
+  taskRunners: Pool<Worker> = new Pool()
+
+  #exiting = false
 
   constructor(private readonly options: ApplicationServerOptions) {
     this.logger = createLogger(
@@ -33,27 +36,41 @@ export class ApplicationServer {
   }
 
   async start() {
+    this.logger.info('Starting application server...')
     const { apiWorkers, taskWorkers } = this.options
 
+    this.logger.debug('Spinning up task workers...')
     this.createWorkers(WorkerType.Task, taskWorkers)
+
+    this.logger.debug('Spinning up task api workers...')
     this.createWorkers(WorkerType.Api, apiWorkers)
 
     for (const worker of this.workers) {
-      await new Promise((resolve, reject) => {
-        worker.once(WorkerMessageType.Ready, resolve)
-        worker.once('error', reject)
+      await new Promise<void>((resolve, reject) => {
+        const onError = (err) => {
+          this.logger.fatal(err)
+          this.stop()
+        }
+        worker.once(WorkerMessageType.Ready, () => {
+          worker.off('error', onError)
+          resolve()
+        })
+        worker.once('error', onError)
         worker.postMessage({ type: WorkerMessageType.Start })
       })
     }
   }
 
   async stop() {
+    this.logger.info('Stopping application server...')
+    this.#exiting = true
     for (const worker of this.workers) {
       await new Promise((resolve) => {
         worker.once('exit', resolve)
         worker.postMessage({ type: WorkerMessageType.Stop })
       })
     }
+    this.#exiting = false
   }
 
   private createWorkers(type: WorkerType, workers: number | object[]) {
@@ -69,12 +86,13 @@ export class ApplicationServer {
     const execArgv = process.execArgv.filter(
       (arg) => !IGNORE_ARGS.includes(arg)
     )
-    const workerData: ApplicationWorkerOptions = {
+    const workerData: ApplicationWorkerData = {
       applicationPath: this.options.applicationPath.toString(),
       id,
       type,
       applicationOptions: this.options.applicationOptions,
       workerOptions: options,
+      hasTaskRunners: !!this.options.taskWorkers,
     }
 
     const worker = new Worker(join(__dirname, 'worker'), {
@@ -83,19 +101,23 @@ export class ApplicationServer {
       workerData,
     })
 
+    const threadId = worker.threadId
+
     bindPortMessageHandler(worker)
 
     worker.on('error', (error) => this.logger.error(error))
     worker.on('exit', (code) => {
       this.workers.delete(worker)
-      if (isTaskWorker && this.pool.items.includes(worker))
-        this.pool.remove(worker)
+      if (isTaskWorker && this.taskRunners.items.includes(worker))
+        this.taskRunners.remove(worker)
       if (code !== 0) {
-        this.logger.fatal(`Worker ${worker.threadId} crashed with code ${code}`)
-        // this.createWorker(type, options) // restart the worker on crash
-        // if (isTaskWorker) this.pool.add(worker)
+        this.logger.fatal(`Worker ${threadId} crashed with code ${code}`)
+        if (!this.#exiting) {
+          this.createWorker(type, id, options) // restart the worker on crash
+          if (isTaskWorker) this.taskRunners.add(worker)
+        }
       } else {
-        this.logger.info(`Worker ${worker.threadId} exited gracefully`)
+        this.logger.info(`Worker ${threadId} exited gracefully`)
       }
     })
 
@@ -103,20 +125,20 @@ export class ApplicationServer {
 
     if (!isTaskWorker) {
       worker.on(WorkerMessageType.ExecuteInvoke, async (payload) => {
-        const worker = await this.pool.next()
+        const worker = await this.taskRunners.next()
         worker.postMessage({
           type: WorkerMessageType.ExecuteInvoke,
           payload,
         })
       })
     } else {
-      this.pool.add(worker)
+      this.taskRunners.add(worker)
     }
 
     return worker
   }
 }
 
-export const createApp = <T extends any>(
-  callback: (options: Omit<ApplicationWorkerOptions, 'applicationPath'>) => T
+export const declareApplication = <T extends any>(
+  callback: (options: ApplicationWorkerOptions, ...args: any[]) => T
 ) => callback

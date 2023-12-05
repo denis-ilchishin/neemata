@@ -57,7 +57,7 @@ export const RequestTimeoutError = (message = 'Request Timeout') =>
   new ApiError(ErrorCode.RequestTimeout, message)
 
 export class Server {
-  httpAdapter: uws.TemplatedApp
+  httpServer: uws.TemplatedApp
   httpSocket!: uws.us_listen_socket
 
   readonly websockets = new Map<string, WebSocketInterface>()
@@ -70,7 +70,7 @@ export class Server {
       AdapterContext
     >
   ) {
-    this.httpAdapter = options.https ? uws.SSLApp(options.https) : uws.App()
+    this.httpServer = options.https ? uws.SSLApp(options.https) : uws.App()
     new HttpTransport(this).bind()
     new WsTransport(this).bind()
   }
@@ -127,9 +127,9 @@ export class Server {
     const { hostname, port, https } = this.options
     this.httpSocket = await new Promise((r) => {
       if (hostname.startsWith('unix:')) {
-        this.httpAdapter.listen_unix(r, resolve(hostname.slice(5)))
+        this.httpServer.listen_unix(r, resolve(hostname.slice(5)))
       } else if (typeof port !== 'string') {
-        this.httpAdapter.listen(hostname, port, r)
+        this.httpServer.listen(hostname, port, r)
       }
     })
     this.logger.info(
@@ -141,8 +141,7 @@ export class Server {
   }
 
   async stop() {
-    if (!this.httpSocket) return
-    uws.us_listen_socket_close(this.httpSocket)
+    this.httpServer.close()
     this.httpSocket = undefined
   }
 }

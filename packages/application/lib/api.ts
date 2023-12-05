@@ -43,13 +43,13 @@ export class Api<
   > = ProcedureDeclaration<Dependencies, Options, Context, any, any, any>
 > extends Loader<T> {
   constructor(
-    private readonly options: ApplicationOptions['api'],
+    private readonly options: ApplicationOptions['api'] = {},
     private readonly logger: Logger,
     private readonly middlewares: Middlewares,
     private readonly filters: Filters,
-    readonly parser: BaseParser | undefined = options?.parser
+    readonly parser: BaseParser | undefined = options.parser
   ) {
-    super(options?.path ?? '')
+    super(options.path ?? '')
   }
 
   async find(name: string) {

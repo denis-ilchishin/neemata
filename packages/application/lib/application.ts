@@ -3,8 +3,10 @@ import { BaseAdapter } from './adapter'
 import { Api } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
+import { Tasks } from './tasks'
 import {
   ApplicationOptions,
+  CallHook,
   Command,
   Commands,
   ErrorClass,
@@ -12,7 +14,6 @@ import {
   Extra,
   Filter,
   Filters,
-  FireHook,
   Hook,
   Hooks,
   HooksInterface,
@@ -21,7 +22,9 @@ import {
   Pattern,
   ResolveExtensionContext,
   ResolveExtensionOptions,
+  TaskDeclaration,
   UnionToIntersection,
+  WorkerType,
 } from './types'
 
 export class Application<
@@ -37,8 +40,9 @@ export class Application<
     ResolveExtensionContext<Adapter>
 > {
   api: Api<Options, Context>
+  tasks: Tasks
   logger: import('pino').Logger
-  container: Container<this['api']>
+  container: Container
   context: Context = {} as Context
 
   hooks: Hooks
@@ -51,43 +55,85 @@ export class Application<
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
-    this.extensions = extensions ?? ({} as Extensions)
-    this.logger = createLogger(options.logging?.level || 'info', 'Neemata')
+    this.options.type = this.options.type ?? WorkerType.Api
 
-    this.init()
+    this.logger = createLogger(
+      options.logging?.level || 'info',
+      this.options.type + 'Worker'
+    )
+
+    this.middlewares = new Map()
+    this.filters = new Map()
+    this.hooks = new Map()
+    this.commands = new Map()
+
+    for (const hook of Object.values(Hook)) {
+      this.hooks.set(hook, new Set())
+    }
+
+    this.commands.set(undefined, new Map())
+    for (const extension in this.extensions) {
+      this.commands.set(extension, new Map())
+    }
 
     this.api = new Api(
       this.options.api,
-      this.logger.child({ $group: 'Api' }),
+      this.logger,
       this.middlewares,
       this.filters
     )
 
+    this.tasks = new Tasks(this.options.tasks, this.logger)
+
     this.container = new Container({
       context: this.context,
       logger: this.logger,
-      loader: this.api,
+      loaders: this.isApi ? [this.api, this.tasks] : [this.tasks],
     })
 
     this.initExtensions()
+
+    const taskCommand = this.tasks.command.bind(this.tasks, this.container)
+    this.registerCommand(undefined, 'task', taskCommand)
+  }
+
+  async initialize() {
+    await this.callHook(Hook.BeforeInitialize)
+    await this.tasks.load()
+    if (this.isApi) await this.api.load()
+    await this.container.load()
+    await this.callHook(Hook.AfterInitialize)
+    this.initContext()
   }
 
   async start() {
-    await this.fireHook(Hook.BeforeStart)
-    await this.api.load()
-    await this.container.load()
-    this.initContext()
-    await this.fireHook(Hook.OnStart)
-    await this.adapter.start()
-    await this.fireHook(Hook.AfterStart)
+    await this.initialize()
+    if (this.api) {
+      await this.callHook(Hook.BeforeStart)
+      await this.adapter.start()
+      await this.callHook(Hook.AfterStart)
+    }
   }
 
   async stop() {
-    await this.fireHook(Hook.BeforeStop)
-    await this.adapter.stop()
-    await this.fireHook(Hook.OnStop)
+    if (this.api) {
+      await this.callHook(Hook.BeforeStop)
+      await this.adapter.stop()
+      await this.callHook(Hook.AfterStop)
+    }
+    await this.terminate()
+  }
+
+  async terminate() {
+    await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    await this.fireHook(Hook.AfterStop)
+    if (this.isApi) this.api.modules.clear()
+    this.tasks.modules.clear()
+    await this.callHook(Hook.AfterTerminate)
+  }
+
+  execute(declaration: TaskDeclaration<any, any, any[], any>, ...args: any[]) {
+    return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 
   registerHook<T extends string>(
@@ -115,28 +161,14 @@ export class Application<
     middlewares.add(middleware)
   }
 
-  private async fireHook(hook: Hook, ...args: any[]) {
+  private async callHook(hook: Hook, ...args: any[]) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
     for (const hook of hooks) await hook(...args)
   }
 
-  private init() {
-    this.middlewares = new Map()
-    this.filters = new Map()
-    this.hooks = new Map()
-    this.commands = new Map()
-
-    for (const hook of Object.values(Hook)) {
-      this.hooks.set(hook, new Set())
-    }
-
-    for (const extension in this.extensions) {
-      this.commands.set(extension, new Map())
-    }
-  }
-
   private initContext() {
+    for (const key in this.context) delete this.context[key]
     const mixins = []
     const extensions = [...Object.values(this.extensions), this.adapter]
     for (const extension of extensions) {
@@ -144,24 +176,27 @@ export class Application<
         mixins.push(extension.context())
       }
     }
-    Object.assign(this.context, ...mixins)
+    Object.assign(this.context, ...mixins, {
+      logger: this.logger,
+      execute: this.execute.bind(this),
+    })
   }
 
   private initExtensions() {
     const installations = [
-      [undefined, this.adapter],
       ...Object.entries(this.extensions),
+      ['adapter', this.adapter],
     ] as const
 
     const { api, container } = this
     for (const [name, extension] of installations) {
       if (!extension.install) continue
-      const fireHook: FireHook<any> = this.fireHook.bind(this)
+      const callHook: CallHook<any> = this.callHook.bind(this)
       const registerHook = this.registerHook.bind(this)
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
-      const logger = this.logger.child({ $group: extension.name })
+      const logger = this.logger
       ;(extension as ExtensionInterface<any, any>).install({
         logger,
         api,
@@ -170,8 +205,12 @@ export class Application<
         registerHook,
         registerFilter,
         registerMiddleware,
-        fireHook,
+        callHook,
       })
     }
+  }
+
+  private get isApi() {
+    return this.options.type === WorkerType.Api
   }
 }

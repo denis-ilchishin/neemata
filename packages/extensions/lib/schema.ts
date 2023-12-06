@@ -74,7 +74,7 @@ export class SchemaExtension extends BaseExtension {
       const getJsonSchema = async (type: 'input' | 'output') => {
         let context
         if (procedure[type] === 'function') {
-          context = await container.context(dependencies)
+          context = await container.createContext(dependencies)
         }
         const schema = await this.application.api.getProcedureSchema(
           procedure,

@@ -11,7 +11,7 @@ import {
   ProviderFactory,
   ResolvedDependencyInjection,
 } from './types'
-import { merge } from './utils'
+import { merge } from './utils/functions'
 
 const ScopeStrictness = {
   [Scope.Global]: 0,
@@ -19,7 +19,7 @@ const ScopeStrictness = {
   [Scope.Call]: 2,
 }
 
-function getProviderScope(declaration: ProviderDeclaration) {
+export function getProviderScope(declaration: ProviderDeclaration) {
   let scope = declaration.provider.scope ?? Scope.Global
   for (const dependency of Object.values(declaration.dependencies ?? {})) {
     const dependencyScope = getProviderScope(dependency)
@@ -30,11 +30,7 @@ function getProviderScope(declaration: ProviderDeclaration) {
   return scope
 }
 
-export class Container<
-  T extends LoaderInterface<Depender<Dependencies>> = LoaderInterface<
-    Depender<Dependencies>
-  >
-> {
+export class Container {
   readonly instances = new Map<ProviderDeclaration, any>()
   private readonly resolvers = new Map<ProviderDeclaration, Promise<any>>()
   private readonly providers = new Set<ProviderDeclaration>()
@@ -43,11 +39,11 @@ export class Container<
     private readonly options: {
       context: Extra
       logger: Logger
-      loader: T
+      loaders: LoaderInterface<Depender<Dependencies>>[]
     },
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},
-    private readonly parent?: Container<T>
+    private readonly parent?: Container
   ) {}
 
   async load() {
@@ -59,11 +55,15 @@ export class Container<
         traverse(depender.dependencies)
       }
     }
-    for (const depender of this.options.loader.modules.values())
-      traverse(depender.dependencies)
 
-    const declarations = this.findScopeDeclarations()
-    await Promise.all(declarations.map(this.resolve.bind(this)))
+    for (const loader of this.options.loaders) {
+      for (const depender of loader.modules.values()) {
+        traverse(depender.dependencies)
+      }
+    }
+
+    const declarations = this.findCurrentScopeDeclarations()
+    await Promise.all(declarations.map(this.resolve.bind(this))) // probably allSettled would be better here
   }
 
   createScope(scope: Scope, params: any = {}) {
@@ -79,7 +79,7 @@ export class Container<
       try {
         const { dispose, scope } = provider
         if (scope === this.scope && dispose) {
-          const ctx = await this.context(dependencies)
+          const ctx = await this.createContext(dependencies)
           await dispose(merge(ctx, this.params), value)
         }
       } catch (cause) {
@@ -91,15 +91,13 @@ export class Container<
     this.instances.clear()
   }
 
-  private findScopeDeclarations() {
+  private findCurrentScopeDeclarations() {
     const declarations: ProviderDeclaration[] = []
-
     for (const provider of this.providers) {
       if (getProviderScope(provider) === this.scope) {
         declarations.push(provider)
       }
     }
-
     return declarations
   }
 
@@ -107,9 +105,9 @@ export class Container<
     declaration: T
   ): Promise<ResolvedDependencyInjection<T>> {
     const { factory, scope } = declaration.provider
-    const isCurrentStricter =
+    const isCurrentScopeStricter =
       ScopeStrictness[this.scope] > ScopeStrictness[scope]
-    if (this.parent && isCurrentStricter)
+    if (this.parent && isCurrentScopeStricter)
       return this.parent.resolve(declaration)
     if (this.instances.has(declaration)) {
       return this.instances.get(declaration)
@@ -117,7 +115,7 @@ export class Container<
       return this.resolvers.get(declaration)
     } else {
       const resolution = new Promise<T>((resolve, reject) => {
-        this.context(declaration.dependencies)
+        this.createContext(declaration.dependencies)
           .then((ctx) => factory(merge(this.params, ctx)))
           .then((instance) => {
             if (this.scope === scope) this.instances.set(declaration, instance)
@@ -143,12 +141,11 @@ export class Container<
     return Object.freeze(injections)
   }
 
-  async context(dependencies: Dependencies, ...extra: Extra[]) {
+  async createContext(dependencies: Dependencies, ...extra: Extra[]) {
     const injections = await this.resolveDependecies(dependencies)
     const context = merge(...extra, this.options.context, {
       injections,
       scope: this.scope,
-      logger: this.options.logger,
     })
     return Object.freeze(context)
   }
@@ -168,7 +165,7 @@ export const declareProvider = (
 
 export const createTypedDeclareProvider =
   <App, Context extends ExtractAppContext<App> = ExtractAppContext<App>>() =>
-  <Type, Deps extends Dependencies, S extends Scope = (typeof Scope)['Global']>(
+  <Type, Deps extends Dependencies, S extends Scope = Scope.Global>(
     provider:
       | ProviderFactory<Type, Context, Deps>
       | Provider<Type, Context, Deps, S>,

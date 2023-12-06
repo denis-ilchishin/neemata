@@ -15,5 +15,12 @@ export {
 export { BaseExtension } from './lib/extension'
 export { Loader } from './lib/loader'
 export { Logger, createLogger } from './lib/logger'
+export {
+  ApplicationServer,
+  declareApplication as createApp,
+} from './lib/server'
+export { createTypedDeclareTask } from './lib/tasks'
 export * from './lib/types'
-export * from './lib/utils'
+export * from './lib/utils/functions'
+export * from './lib/utils/pool'
+export * from './lib/utils/semaphore'

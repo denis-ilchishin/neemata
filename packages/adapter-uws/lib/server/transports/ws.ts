@@ -55,7 +55,7 @@ export class WsTransport {
   }
 
   bind() {
-    this.adapter.httpAdapter.ws(this.adapter.basePath('api'), {
+    this.adapter.httpServer.ws(this.adapter.basePath('api'), {
       maxPayloadLength: this.adapter.options.maxPayloadLength,
       sendPingsAutomatically: true,
       upgrade: async (res, req, socket) => {
@@ -110,7 +110,7 @@ export class WsTransport {
         this.logger.trace('Open new websocket [%s]', id)
         const websocket = new AdapterWebSocket(id, ws, this.adapter.rooms)
         this.adapter.websockets.set(id, websocket)
-        this.adapter.application.fireHook(
+        this.adapter.application.callHook(
           AdapterHook.Connection,
           context,
           websocket

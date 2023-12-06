@@ -27,25 +27,22 @@ export class HttpTransport {
   }
 
   bind() {
-    this.adapter.httpAdapter.post(
+    this.adapter.httpServer.post(
       this.adapter.basePath('api', '*'),
       this.handle.bind(this)
     )
-    this.adapter.httpAdapter.get(
+    this.adapter.httpServer.get(
       this.adapter.basePath('api', '*'),
       this.handle.bind(this)
     )
-    this.adapter.httpAdapter.get(
-      this.adapter.basePath('health'),
-      (res, req) => {
-        if (!this.adapter.httpSocket) return void res.close()
-        const headers = getRequestHeaders(req)
-        setDefaultHeaders(res)
-        this.adapter.setCors(res, headers)
-        res.end('OK')
-      }
-    )
-    this.adapter.httpAdapter.options(this.adapter.basePath('*'), (res, req) => {
+    this.adapter.httpServer.get(this.adapter.basePath('health'), (res, req) => {
+      if (!this.adapter.httpSocket) return void res.close()
+      const headers = getRequestHeaders(req)
+      setDefaultHeaders(res)
+      this.adapter.setCors(res, headers)
+      res.end('OK')
+    })
+    this.adapter.httpServer.options(this.adapter.basePath('*'), (res, req) => {
       if (!this.adapter.httpSocket) return void res.close()
       const headers = getRequestHeaders(req)
       setDefaultHeaders(res)
@@ -55,7 +52,7 @@ export class HttpTransport {
       res.writeStatus('204 No Content')
       res.endWithoutBody()
     })
-    this.adapter.httpAdapter.any('/*', (res, req) => {
+    this.adapter.httpServer.any('/*', (res, req) => {
       if (!this.adapter.httpSocket) return void res.close()
       const headers = getRequestHeaders(req)
       setDefaultHeaders(res)

@@ -1,13 +1,13 @@
-import { Scope } from '@neemata/common'
+import { Scope as ProviderScope } from '@neemata/common'
+import { Static, TSchema } from '@sinclair/typebox'
+import { TypeOf, ZodSchema } from 'zod'
 import { Api, BaseParser } from './api'
 import { Application } from './application'
 import { Container } from './container'
 import { Logger } from './logger'
 
-import { Static, TSchema } from '@sinclair/typebox'
-import { TypeOf, ZodSchema } from 'zod'
-
 export type ApplicationOptions = {
+  type?: WorkerType
   logging?: {
     level: import('pino').Level
   }
@@ -15,19 +15,40 @@ export type ApplicationOptions = {
     parser?: BaseParser
     path?: string
   }
+  tasks?: {
+    path?: string
+    runner?: TasksRunner
+  }
 }
 
-export const Hook = {
-  BeforeStart: 'BeforeStart',
-  OnStart: 'OnStart',
-  AfterStart: 'AfterStart',
-  BeforeStop: 'BeforeStop',
-  OnStop: 'OnStop',
-  AfterStop: 'AfterStop',
-} as const
-export type Hook = (typeof Hook)[keyof typeof Hook]
+export enum Hook {
+  BeforeInitialize = 'BeforeInitialize',
+  AfterInitialize = 'AfterInitialize',
+  BeforeStart = 'BeforeStart',
+  AfterStart = 'AfterStart',
+  BeforeStop = 'BeforeStop',
+  AfterStop = 'AfterStop',
+  BeforeTerminate = 'BeforeTerminate',
+  AfterTerminate = 'AfterTerminate',
+}
 
-export type Pattern = RegExp | string | ((name: string) => boolean)
+export enum WorkerMessageType {
+  Ready = 'Ready',
+  Start = 'Start',
+  Stop = 'Stop',
+  ExecuteInvoke = 'ExecuteInvoke',
+  ExecuteResult = 'ExecuteResult',
+  ExecuteAbort = 'ExecuteAbort',
+}
+
+export enum WorkerType {
+  Api = 'Api',
+  Task = 'Task',
+}
+
+export type Callback = (...args: any[]) => any
+
+export type Pattern = RegExp | string | ((value: string) => boolean)
 
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
   ? U
@@ -61,13 +82,16 @@ export type ProcedureContext = {
   >(
     declaration: Declaration,
     ...args: OmitFirstItem<Parameters<Declaration['procedure']['handle']>>
-  ) => Promise<ReturnType<Declaration['procedure']['handle']>>
+  ) => TaskInterface<Awaited<ReturnType<Declaration['procedure']['handle']>>>
 }
 
-export type Command = (options: {
-  args: any[]
-  kwargs: Record<string, string>
-}) => any
+export type Command = (
+  options: {
+    args: string[]
+    kwargs: Record<string, string | string[]>
+  },
+  ...args: any[]
+) => any
 
 export type Middleware = (
   options: ExtensionMiddlewareOptions,
@@ -122,22 +146,24 @@ export type ExtensionMiddlewareOptions<
 > = {
   name: string
   context: DependencyContext<Extra, {}>
-  container: Container<LoaderInterface<Depender<Dependencies>>>
+  container: Container
   procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
 }
 
 export type Next = (payload?: any) => any
 
 export interface HooksInterface {
+  [Hook.BeforeInitialize]: () => any
+  [Hook.AfterInitialize]: () => any
   [Hook.BeforeStart]: () => any
-  [Hook.OnStart]: () => any
   [Hook.AfterStart]: () => any
   [Hook.BeforeStop]: () => any
-  [Hook.OnStop]: () => any
   [Hook.AfterStop]: () => any
+  [Hook.BeforeTerminate]: () => any
+  [Hook.AfterTerminate]: () => any
 }
 
-export type FireHook<T extends string> = (
+export type CallHook<T extends string> = (
   hook: T,
   ...args: T extends keyof HooksInterface
     ? Parameters<HooksInterface[T]>
@@ -149,10 +175,10 @@ export interface ExtensionInstallOptions<
   Context extends Extra = {}
 > {
   api: Api<Options, Context>
-  container: Container<this['api']>
+  container: Container
   logger: Logger
 
-  fireHook: FireHook<keyof HooksInterface>
+  callHook: CallHook<keyof HooksInterface>
   registerHook<T extends string>(
     hookName: T,
     hook: T extends keyof HooksInterface
@@ -190,16 +216,23 @@ export type UnionToIntersection<U> = (
 export type ResolvedDependencyInjection<T extends ProviderDeclaration> =
   Awaited<T extends ProviderDeclaration<infer Type> ? Type : never>
 
+export type GlobalContext = {
+  logger: Logger
+  execute: <T extends TaskDeclaration<any, any, any, any>>(
+    task: T,
+    ...args: OmitFirstItem<Parameters<T['task']['handle']>>
+  ) => TaskInterface<Awaited<ReturnType<T['task']['handle']>>>
+}
+
 export type DependencyContext<
   Context extends Extra,
   Deps extends Dependencies
-> = {
+> = Context & {
   injections: {
     [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
   }
-  logger: Logger
-  scope: Scope
-} & Context
+  scope: ProviderScope
+} & GlobalContext
 
 export type ProviderFactory<
   Type,
@@ -217,20 +250,20 @@ export type Provider<
   Type,
   Context extends Extra,
   Deps extends Dependencies,
-  Skope extends Scope
+  Scope extends ProviderScope
 > = {
   factory: ProviderFactory<Type, Context, Deps>
   dispose?: ProviderDispose<Type, Context, Deps>
-  scope?: Skope
+  scope?: Scope
 }
 
 export interface ProviderDeclaration<
   Type = any,
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
-  Skope extends Scope = Scope
+  Scope extends ProviderScope = ProviderScope
 > extends Depender<Deps> {
-  provider: Provider<Type, Context, Deps, Skope>
+  provider: Provider<Type, Context, Deps, Scope>
 }
 
 export interface ProcedureDeclaration<
@@ -260,3 +293,59 @@ export type ExtractAppContext<App> = App extends Application<
 >
   ? AppContext
   : never
+
+export type ApplicationWorkerData = {
+  applicationPath: string
+  hasTaskRunners: boolean
+} & ApplicationWorkerOptions
+
+export type ApplicationWorkerOptions = {
+  id: number
+  type: WorkerType
+  applicationOptions: ApplicationOptions
+  workerOptions: any
+}
+
+export type Task<
+  Context extends Extra,
+  Deps extends Dependencies,
+  Args extends any[],
+  Response
+> = (
+  ctx: DependencyContext<Context, Deps> & { signal: AbortSignal },
+  ...args: Args
+) => Response
+
+export interface TaskProvider<
+  Context extends Extra = Extra,
+  Deps extends Dependencies = Dependencies,
+  Args extends any[] = any[],
+  Response = any
+> {
+  handle: Task<Context, Deps, Args, Response>
+  name?: string
+  parse?: (
+    args: string[],
+    kwargs: Record<string, string | string[]>
+  ) => Args | Readonly<Args>
+}
+
+export interface TaskDeclaration<
+  Context extends Extra,
+  Deps extends Dependencies,
+  Args extends any[],
+  Response
+> extends Depender<Deps> {
+  task: TaskProvider<Context, Deps, Args, Response>
+}
+
+export type TaskInterface<Res = any> = {
+  result: Promise<Res>
+  abort: (reason?: any) => void
+}
+
+export type TasksRunner = (
+  signal: AbortSignal,
+  name: string,
+  ...args: any[]
+) => Promise<any>

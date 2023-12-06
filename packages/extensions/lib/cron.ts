@@ -36,7 +36,7 @@ export class CronExtension extends BaseExtension {
   install(application: ExtensionInstallOptions<{}, {}>) {
     this.application = application
     const { logger, registerHook, container } = this.application
-    registerHook(Hook.OnStart, async () => {
+    registerHook(Hook.AfterInitialize, async () => {
       for (const [name, cron] of this.crons) {
         logger.info('Registering cron [%s] (%s)', name, cron.expression)
         if (typeof cron.expression === 'string')
@@ -49,7 +49,7 @@ export class CronExtension extends BaseExtension {
       }
     })
 
-    registerHook(Hook.OnStop, async () => {
+    registerHook(Hook.BeforeTerminate, async () => {
       for (const { cron, timer } of this.crons.values()) {
         cron?.reset()
         if (timer) clearTimeout(timer)

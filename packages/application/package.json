@@ -4,7 +4,7 @@
   "license": "MIT",
   "description": "Nodejs application adapter",
   "scripts": {
-    "watch": "tsc --watch",
+    "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
     "build": "rm -rf ./dist && tsc",
     "type-check": "tsc --noEmit"
   },

@@ -41,7 +41,7 @@ export class SchemaExtension extends BaseExtension {
     }
 
     if (this.options.export) {
-      registerHook(Hook.AfterStart, () => this.export(this.options.export))
+      registerHook(Hook.AfterInitialize, () => this.export(this.options.export))
     }
 
     registerCommand('typescript', async ({ args: output }) => {

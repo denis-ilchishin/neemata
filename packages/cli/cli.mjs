@@ -1,14 +1,16 @@
+import { Application, ApplicationServer } from '@neemata/application'
 import dotenv from 'dotenv'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-const { values, positionals } = parseArgs({
+const { values, positionals: args } = parseArgs({
   allowPositionals: true,
   strict: false,
   options: {
-    applicationPath: {
+    entry: {
       type: 'string',
       short: 'a',
+      multiple: false,
     },
     env: {
       type: 'string',
@@ -18,7 +20,7 @@ const { values, positionals } = parseArgs({
   },
 })
 
-let { env, applicationPath, ...kwargs } = values
+const { env, ...kwargs } = values
 
 if (env) {
   for (const path of env) {
@@ -27,20 +29,7 @@ if (env) {
   }
 }
 
-applicationPath = resolve(
-  applicationPath || process.env.NEEMATA_APPLICATION_PATH
-)
-
-const args = positionals
-
-const application = await import(applicationPath).then(
-  (module) => module.default
-)
-
-const { logger } = application
-
-process.on('uncaughtException', (error) => logger.error(error))
-process.on('unhandledRejection', (error) => logger.error(error))
+const entry = resolve(values.entry || process.env.NEEMATA_ENTRY)
 
 let exitTimeout
 
@@ -61,4 +50,22 @@ const tryExit = async (cb) => {
   }
 }
 
-export { application, args, kwargs, tryExit }
+const entryModule = await import(entry).then((module) => module.default)
+
+if (
+  !(
+    entryModule instanceof ApplicationServer ||
+    entryModule instanceof Application
+  )
+) {
+  throw new Error(
+    'Invalid entry module. Must be an instance of Application or ApplicationServer'
+  )
+}
+
+const { logger } = entryModule
+
+process.on('uncaughtException', (error) => logger.error(error))
+process.on('unhandledRejection', (error) => logger.error(error))
+
+export { args, entryModule, kwargs, tryExit }

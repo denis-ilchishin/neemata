@@ -1,6 +1,6 @@
-import { Application } from '@neemata/application'
+import { Application, ApplicationServer } from '@neemata/application'
 
-export const application: Application
+export const entryModule: ApplicationServer | Application
 export const kwargs: Record<string, string>
 export const args: string[]
 export const tryExit: (cb: () => any) => void

@@ -85,10 +85,13 @@ export type ProcedureContext = {
   ) => TaskInterface<Awaited<ReturnType<Declaration['procedure']['handle']>>>
 }
 
-export type Command = (options: {
-  args: any[]
-  kwargs: Record<string, string>
-}) => any
+export type Command = (
+  options: {
+    args: string[]
+    kwargs: Record<string, string | string[]>
+  },
+  ...args: any[]
+) => any
 
 export type Middleware = (
   options: ExtensionMiddlewareOptions,
@@ -215,10 +218,10 @@ export type ResolvedDependencyInjection<T extends ProviderDeclaration> =
 
 export type GlobalContext = {
   logger: Logger
-  execute: <T extends TaskProvider>(
+  execute: <T extends TaskDeclaration<any, any, any, any>>(
     task: T,
-    ...args: OmitFirstItem<Parameters<T['handle']>>
-  ) => TaskInterface<Awaited<ReturnType<T['handle']>>>
+    ...args: OmitFirstItem<Parameters<T['task']['handle']>>
+  ) => TaskInterface<Awaited<ReturnType<T['task']['handle']>>>
 }
 
 export type DependencyContext<
@@ -309,28 +312,31 @@ export type Task<
   Args extends any[],
   Response
 > = (
-  context: DependencyContext<Context, Deps> & { signal: AbortSignal },
+  ctx: DependencyContext<Context, Deps> & { signal: AbortSignal },
   ...args: Args
 ) => Response
 
 export interface TaskProvider<
-  Deps extends Dependencies = Dependencies,
   Context extends Extra = Extra,
+  Deps extends Dependencies = Dependencies,
   Args extends any[] = any[],
   Response = any
 > {
   handle: Task<Context, Deps, Args, Response>
   name?: string
-  parse?: (args: string[], kwargs: Record<string, string[]>) => any
+  parse?: (
+    args: string[],
+    kwargs: Record<string, string | string[]>
+  ) => Args | Readonly<Args>
 }
 
 export interface TaskDeclaration<
-  Deps extends Dependencies,
   Context extends Extra,
+  Deps extends Dependencies,
   Args extends any[],
   Response
 > extends Depender<Deps> {
-  task: TaskProvider<Deps, Context, Args, Response>
+  task: TaskProvider<Context, Deps, Args, Response>
 }
 
 export type TaskInterface<Res = any> = {

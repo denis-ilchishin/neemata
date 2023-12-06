@@ -1,10 +1,10 @@
 #!/usr/bin/env node --loader tsx/esm --no-warnings
 
-import { application, tryExit } from './cli.mjs'
+import { entryModule, tryExit } from './cli.mjs'
 
-const terminate = () => tryExit(() => application.stop())
+const terminate = () => tryExit(() => entryModule.stop())
 
 process.on('SIGTERM', terminate)
 process.on('SIGINT', terminate)
 
-await application.start()
+await entryModule.start()

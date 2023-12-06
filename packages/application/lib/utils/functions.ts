@@ -36,8 +36,8 @@ export const match = (name: string, pattern: Pattern) => {
   }
 }
 
-export const importDefault = (specifier: string) =>
-  import(specifier).then((m) => m.default)
+export const importDefault = (specifier: any) =>
+  import(`${specifier}`).then((m) => m.default)
 
 export const range = (count: number, start = 0) => {
   let current = start

@@ -30,8 +30,6 @@ export class Tasks extends Loader<
     if (!declaration.task.name) declaration.task.name = name
     this.logger.info('Resolve [%s] task', declaration.task.name, path)
     super.set(declaration.task.name, path, declaration)
-
-    this.logger.warn(declaration.task.name)
   }
 
   registerTask(declaration: TaskDeclaration<any, any, any[], any>) {
@@ -45,16 +43,15 @@ export class Tasks extends Loader<
   ): TaskInterface<any> {
     const ac = new AbortController()
     const abort = (reason) => ac.abort(reason ?? new Error('Aborted'))
-
-    this.logger.warn(name)
-
     const result = defer(async () => {
       if (!this.modules.has(name)) throw new Error('Task not found')
       if (!this.options.runner) {
         return new Promise((resolve, reject) => {
           const { dependencies, task } = this.modules.get(name)
           const extra = { signal: ac.signal }
-          ac.signal.addEventListener('abort', reject, { once: true })
+          ac.signal.addEventListener('abort', () => reject(ac.signal.reason), {
+            once: true,
+          })
           defer(async () => {
             ac.signal.throwIfAborted()
             const context = await container.createContext(dependencies, extra)
@@ -69,6 +66,15 @@ export class Tasks extends Loader<
     })
 
     return { abort, result }
+  }
+
+  command(container: Container, { args, kwargs }) {
+    const [name, ...taskArgs] = args
+    const task = this.modules.get(name)
+    if (!task) throw new Error('Task not found')
+    const { parse } = task.task
+    const parsedArgs = parse ? parse(taskArgs, kwargs) : []
+    return this.execute(container, name, ...parsedArgs)
   }
 }
 
@@ -92,7 +98,7 @@ export const createTypedDeclareTask =
   <Deps extends Dependencies, Args extends any[], Response>(
     task: TaskProvider<Context, Deps, Args, Response>,
     dependencies?: Deps
-  ): TaskProvider<Deps, Context, Args, Response> => {
+  ): TaskDeclaration<Context, Deps, Args, Response> => {
     // @ts-expect-error
     return declareTask(task, dependencies)
   }

@@ -2,16 +2,17 @@ import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { FSWatcher, watch } from 'node:fs'
 import { isBuiltin } from 'node:module'
-import { delimiter } from 'node:path'
+import { sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { MessagePort } from 'node:worker_threads'
+import { debounce } from './functions.js'
 
 let port: MessagePort
-let hrtime = process.hrtime.bigint()
+let tsmp = Date.now()
 const watchers = new Map<string, FSWatcher>()
 const cwd = process.cwd()
 
-async function isIgnored(path) {
+async function checkIgnore(path) {
   if (
     !path.startsWith(cwd) ||
     path.includes('/node_modules/') ||
@@ -30,17 +31,10 @@ async function isIgnored(path) {
   return result === path
 }
 
-function onChange() {
-  hrtime = process.hrtime.bigint()
-  console.log('restart')
+const onChange = debounce(() => {
+  tsmp = Date.now()
   port.postMessage('restart')
-}
-
-process.once('beforeExit', () => {
-  for (const watcher of watchers.values()) {
-    watcher.close()
-  }
-})
+}, 250)
 
 export async function initialize(data) {
   port = data.port
@@ -55,34 +49,46 @@ export async function initialize(data) {
   }
 }
 
-export function fileUrl(val: string) {
+export function fileUrl(val: string | URL, parentURL?: string | URL) {
+  if (val instanceof URL) return val
   try {
-    return new URL(val)
+    return new URL(val, parentURL)
   } catch (error) {
     return pathToFileURL(val)
   }
 }
 
-export function isLib(val: URL) {
-  return (
-    isBuiltin(val.toString()) || ![delimiter, '.'].includes(val.pathname[0])
-  )
+export function isLib(val: URL | string) {
+  const isPath = (path: string) => [sep, '.'].includes(path[0])
+
+  if (val instanceof URL) {
+    return val.protocol === 'file:'
+  } else {
+    if (isBuiltin(val)) return true
+    else if (val.startsWith('file:')) return false
+    return !isPath(val)
+  }
 }
 
-export async function load(url, context, nextLoad) {
-  url = fileUrl(url)
-
-  // Take a resolved URL and return the source code to be evaluated.
-  if (!isLib(url) && !(await isIgnored(fileURLToPath(url)))) {
-    const watcher = watch(fileURLToPath(url), { persistent: false }, onChange)
-    watchers.set(url, watcher)
+export async function resolve(specifier, context, nextResolve) {
+  if (!isLib(specifier)) {
+    const url = fileUrl(specifier, context.parentURL)
+    url.searchParams.set('t', `${tsmp}`)
+    specifier = `${url}`
   }
+  return nextResolve(specifier, context)
+}
 
-  if (!isLib(url)) {
-    url.searchParams.set('t', hrtime.toString())
+export async function load(specifier, context, nextLoad) {
+  if (!isLib(specifier)) {
+    const url = fileUrl(specifier, context.parentURL)
+    url.searchParams.delete('t')
+    const pathToWatch = fileURLToPath(url)
+    const ignored = await checkIgnore(pathToWatch)
+    if (!ignored) {
+      const watcher = watch(pathToWatch, { persistent: false }, onChange)
+      watchers.set(pathToWatch, watcher)
+    }
   }
-
-  const res = await nextLoad(url.toString(), context)
-
-  return res
+  return nextLoad(specifier, context)
 }

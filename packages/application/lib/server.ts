@@ -17,8 +17,8 @@ const IGNORE_ARGS = ['--inspect-brk', '--inspect', '--inspect-port']
 export type ApplicationServerOptions = {
   applicationPath: string | URL
   applicationOptions: ApplicationOptions
-  taskWorkers: number | object[]
-  apiWorkers: number | object[]
+  taskWorkers: number | any[]
+  apiWorkers: number | any[]
   schedules?: []
 }
 
@@ -29,7 +29,7 @@ export class ApplicationServer {
 
   #exiting = false
 
-  constructor(private readonly options: ApplicationServerOptions) {
+  constructor(readonly options: ApplicationServerOptions) {
     this.logger = createLogger(
       options.applicationOptions.logging?.level || 'info',
       'Neemata'
@@ -77,7 +77,7 @@ export class ApplicationServer {
   private createWorkers(type: WorkerType, workers: number | object[]) {
     const count = typeof workers === 'number' ? workers : workers.length
     for (let id = 0; id < count; id++) {
-      const options = typeof workers === 'number' ? {} : workers[id]
+      const options = typeof workers === 'number' ? undefined : workers[id]
       this.createWorker(type, id, options)
     }
   }
@@ -97,6 +97,7 @@ export class ApplicationServer {
       workerOptions: options,
       hasTaskRunners: !!taskWorkers,
     }
+
     const worker = new Worker(join(__dirname, 'worker'), {
       name: type,
       execArgv,
@@ -115,14 +116,14 @@ export class ApplicationServer {
 
       if (code !== 0) {
         this.logger.fatal(`Worker ${threadId} crashed with code ${code}`)
+        if (!this.#exiting) {
+          // restart on unexpected crash
+          const worker = this.createWorker(type, id, options)
+          worker.postMessage({ type: WorkerMessageType.Start })
+        }
       } else {
         this.logger.info(`Worker ${threadId} exited gracefully`)
       }
-
-      // if (!this.#exiting) {
-      //   const worker = this.createWorker(type, id, options)
-      //   worker.postMessage({ type: WorkerMessageType.Start })
-      // }
     })
 
     this.workers.add(worker)

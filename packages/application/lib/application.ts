@@ -14,7 +14,6 @@ import {
   Extra,
   Filter,
   Filters,
-  GlobalContext,
   Hook,
   Hooks,
   HooksInterface,
@@ -38,8 +37,7 @@ export class Application<
   Context extends Extra = UnionToIntersection<
     ResolveExtensionContext<Extensions[keyof Extensions]>
   > &
-    ResolveExtensionContext<Adapter> &
-    GlobalContext
+    ResolveExtensionContext<Adapter>
 > {
   api: Api<Options, Context>
   tasks: Tasks
@@ -58,6 +56,7 @@ export class Application<
     readonly extensions: Extensions = {} as Extensions
   ) {
     this.options.type = this.options.type ?? WorkerType.Api
+
     this.logger = createLogger(
       options.logging?.level || 'info',
       this.options.type + 'Worker'
@@ -72,6 +71,7 @@ export class Application<
       this.hooks.set(hook, new Set())
     }
 
+    this.commands.set(undefined, new Map())
     for (const extension in this.extensions) {
       this.commands.set(extension, new Map())
     }
@@ -92,6 +92,9 @@ export class Application<
     })
 
     this.initExtensions()
+
+    const taskCommand = this.tasks.command.bind(this.tasks, this.container)
+    this.registerCommand(undefined, 'task', taskCommand)
   }
 
   async initialize() {
@@ -105,15 +108,19 @@ export class Application<
 
   async start() {
     await this.initialize()
-    await this.callHook(Hook.BeforeStart)
-    if (this.api) await this.adapter.start()
-    await this.callHook(Hook.AfterStart)
+    if (this.api) {
+      await this.callHook(Hook.BeforeStart)
+      await this.adapter.start()
+      await this.callHook(Hook.AfterStart)
+    }
   }
 
   async stop() {
-    await this.callHook(Hook.BeforeStop)
-    if (this.api) await this.adapter.stop()
-    await this.callHook(Hook.AfterStop)
+    if (this.api) {
+      await this.callHook(Hook.BeforeStop)
+      await this.adapter.stop()
+      await this.callHook(Hook.AfterStop)
+    }
     await this.terminate()
   }
 
@@ -126,7 +133,6 @@ export class Application<
   }
 
   execute(declaration: TaskDeclaration<any, any, any[], any>, ...args: any[]) {
-    console.log(declaration)
     return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 

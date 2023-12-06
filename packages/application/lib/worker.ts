@@ -1,6 +1,4 @@
 import { randomUUID } from 'crypto'
-//@ts-expect-error
-import { register } from 'node:module'
 import { MessageChannel } from 'node:worker_threads'
 import { pathToFileURL } from 'url'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
@@ -8,6 +6,9 @@ import { Application } from './application'
 import { ApplicationWorkerData, WorkerMessageType, WorkerType } from './types'
 import { debounce, importDefault } from './utils/functions'
 import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
+
+//@ts-expect-error
+import { register } from 'node:module'
 
 async function start() {
   const {
@@ -19,18 +20,35 @@ async function start() {
     hasTaskRunners,
   }: ApplicationWorkerData = workerData
 
-  // This example demonstrates how a message channel can be used to
-  // communicate with the hooks, by sending `port2` to the hooks.
-  const { port1, port2 } = new MessageChannel()
+  // workaround for watching to file changes
+  // until there's a better way to invalidate esm import cache
+  // see https://github.com/nodejs/node/issues/49442
+  // or --watch flag is supported in worker_threads
+  if (process.env.NEEMATA_WATCH) {
+    const { port1, port2 } = new MessageChannel()
+    register('./utils/loader.mjs', {
+      parentURL: pathToFileURL(__filename),
+      data: {
+        port: port2,
+        paths: [applicationOptions.api?.path, applicationOptions.tasks?.path],
+      },
+      transferList: [port2],
+    })
+    let restarting = false
+    const restart = debounce(async () => {
+      if (restarting) return
+      app.logger.info('Changes detected. Restarting...')
+      restarting = true
+      try {
+        await app.terminate()
+        await app.initialize()
+      } finally {
+        restarting = false
+      }
+    }, 500)
 
-  register('./utils/loader.mjs', {
-    parentURL: pathToFileURL(__filename),
-    data: {
-      port: port2,
-      paths: [applicationOptions.api?.path, applicationOptions.tasks?.path],
-    },
-    transferList: [port2],
-  })
+    port1.on('message', restart)
+  }
 
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
@@ -38,26 +56,12 @@ async function start() {
     isApiWorker && hasTaskRunners ? customTaskRunner : undefined
   applicationOptions.type = type
 
-  let restarting = false
-  const restart = debounce(async () => {
-    if (restarting) return
-    restarting = true
-    await app.terminate()
-    await app.initialize()
-    restarting = false
-  }, 500)
-
   const bootstrap = await importDefault(applicationPath)
   const app: Application = await bootstrap({
     id,
     type,
     workerOptions,
     applicationOptions,
-  })
-
-  port1.on('message', () => {
-    app.logger.info('Changes detected. Restarting...')
-    restart()
   })
 
   bindPortMessageHandler(parentPort)
@@ -109,7 +113,9 @@ async function start() {
     const bc = createBroadcastChannel(id)
 
     const result = new Promise((resolve, reject) => {
-      signal.addEventListener('abort', reject, { once: true })
+      signal.addEventListener('abort', () => reject(signal.reason), {
+        once: true,
+      })
       bc.emitter.once(WorkerMessageType.ExecuteResult, (payload) => {
         const { error, result } = payload
         if (error) reject(error)
@@ -130,7 +136,10 @@ async function start() {
 
     return result
   }
+
+  process.on('uncaughtException', (err) => app.logger.error(err))
+  process.on('unhandledRejection', (err) => app.logger.error(err))
 }
 
 if (!isMainThread) start()
-else console.error(new Error('Worker should not be used in the main thread'))
+else console.warn(new Error('Worker should not be used in the main thread'))

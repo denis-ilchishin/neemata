@@ -6,7 +6,11 @@ export {
   createTypedDeclareProcedure,
   declareProcedure,
 } from './lib/api'
-export { Application } from './lib/application'
+export {
+  Application,
+  ApplicationOptions,
+  declareApplication,
+} from './lib/application'
 export {
   Container,
   createTypedDeclareProvider,
@@ -14,11 +18,13 @@ export {
 } from './lib/container'
 export { BaseExtension } from './lib/extension'
 export { Loader } from './lib/loader'
-export { Logger, createLogger } from './lib/logger'
 export {
-  ApplicationServer,
-  declareApplication as createApp,
-} from './lib/server'
+  Logger,
+  LoggingOptions,
+  createConsoleDestination,
+  createLogger as createLogger,
+} from './lib/logger'
+export { ApplicationServer, ApplicationServerOptions } from './lib/server'
 export { createTypedDeclareTask } from './lib/tasks'
 export * from './lib/types'
 export * from './lib/utils/functions'

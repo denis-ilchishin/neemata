@@ -1,25 +1,19 @@
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
-import { Logger, createLogger } from './logger'
-import {
-  ApplicationOptions,
-  ApplicationWorkerData,
-  ApplicationWorkerOptions,
-  WorkerMessageType,
-  WorkerType,
-} from './types'
+import { Logger, LoggingOptions, createLogger } from './logger'
+import { WorkerMessageType, WorkerType } from './types'
 
 import { Pool } from './utils/pool'
 import { bindPortMessageHandler } from './utils/threads'
+import { ApplicationWorkerData } from './worker'
 
 const IGNORE_ARGS = ['--inspect-brk', '--inspect', '--inspect-port']
 
 export type ApplicationServerOptions = {
   applicationPath: string | URL
-  applicationOptions: ApplicationOptions
+  logging?: LoggingOptions
   taskWorkers: number | any[]
   apiWorkers: number | any[]
-  schedules?: []
 }
 
 export class ApplicationServer {
@@ -30,10 +24,7 @@ export class ApplicationServer {
   #exiting = false
 
   constructor(readonly options: ApplicationServerOptions) {
-    this.logger = createLogger(
-      options.applicationOptions.logging?.level || 'info',
-      'Neemata'
-    )
+    this.logger = createLogger(this.options.logging)
   }
 
   async start() {
@@ -87,13 +78,12 @@ export class ApplicationServer {
     const execArgv = process.execArgv.filter(
       (arg) => !IGNORE_ARGS.includes(arg)
     )
-    const { applicationPath, applicationOptions, taskWorkers } = this.options
+    const { applicationPath, taskWorkers } = this.options
 
     const workerData: ApplicationWorkerData = {
       applicationPath: applicationPath.toString(),
       id,
       type,
-      applicationOptions: applicationOptions,
       workerOptions: options,
       hasTaskRunners: !!taskWorkers,
     }
@@ -143,7 +133,3 @@ export class ApplicationServer {
     return worker
   }
 }
-
-export const declareApplication = <T extends any>(
-  callback: (options: ApplicationWorkerOptions, ...args: any[]) => T
-) => callback

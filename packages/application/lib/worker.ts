@@ -1,19 +1,25 @@
+//@ts-expect-error
+import { register } from 'node:module'
+
 import { randomUUID } from 'crypto'
 import { MessageChannel } from 'node:worker_threads'
 import { pathToFileURL } from 'url'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
-import { Application } from './application'
-import { ApplicationWorkerData, WorkerMessageType, WorkerType } from './types'
+import { Application, ApplicationWorkerOptions } from './application'
+import { WorkerMessageType, WorkerType } from './types'
 import { debounce, importDefault } from './utils/functions'
 import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
 
-//@ts-expect-error
-import { register } from 'node:module'
+export type ApplicationWorkerData = {
+  applicationPath: string
+  hasTaskRunners: boolean
+} & ApplicationWorkerOptions
+
+if (!isMainThread) start()
 
 async function start() {
   const {
     id,
-    applicationOptions,
     workerOptions,
     applicationPath,
     type,
@@ -28,10 +34,7 @@ async function start() {
     const { port1, port2 } = new MessageChannel()
     register('./utils/loader.mjs', {
       parentURL: pathToFileURL(__filename),
-      data: {
-        port: port2,
-        paths: [applicationOptions.api?.path, applicationOptions.tasks?.path],
-      },
+      data: { port: port2 },
       transferList: [port2],
     })
     let restarting = false
@@ -52,16 +55,15 @@ async function start() {
 
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
-  applicationOptions.tasks.runner =
+  const tasksRunner =
     isApiWorker && hasTaskRunners ? customTaskRunner : undefined
-  applicationOptions.type = type
 
   const bootstrap = await importDefault(applicationPath)
   const app: Application = await bootstrap({
     id,
     type,
     workerOptions,
-    applicationOptions,
+    tasksRunner,
   })
 
   bindPortMessageHandler(parentPort)
@@ -140,6 +142,3 @@ async function start() {
   process.on('uncaughtException', (err) => app.logger.error(err))
   process.on('unhandledRejection', (err) => app.logger.error(err))
 }
-
-if (!isMainThread) start()
-else console.warn(new Error('Worker should not be used in the main thread'))

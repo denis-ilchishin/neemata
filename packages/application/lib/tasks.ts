@@ -1,16 +1,60 @@
 import { Scope } from '@neemata/common'
+import { ApplicationOptions } from './application'
 import { Container, getProviderScope } from './container'
 import { Loader } from './loader'
 import { Logger } from './logger'
 import {
-  ApplicationOptions,
   Dependencies,
+  DependencyContext,
+  Depender,
+  Extra,
   ExtractAppContext,
-  TaskDeclaration,
-  TaskInterface,
-  TaskProvider,
 } from './types'
 import { defer } from './utils/functions'
+
+export type Task<
+  Context extends Extra,
+  Deps extends Dependencies,
+  Args extends any[],
+  Response
+> = (
+  ctx: DependencyContext<Context, Deps> & { signal: AbortSignal },
+  ...args: Args
+) => Response
+
+export interface TaskProvider<
+  Context extends Extra = Extra,
+  Deps extends Dependencies = Dependencies,
+  Args extends any[] = any[],
+  Response = any
+> {
+  handle: Task<Context, Deps, Args, Response>
+  name?: string
+  parse?: (
+    args: string[],
+    kwargs: Record<string, string | string[]>
+  ) => Args | Readonly<Args>
+}
+
+export interface TaskDeclaration<
+  Context extends Extra,
+  Deps extends Dependencies,
+  Args extends any[],
+  Response
+> extends Depender<Deps> {
+  task: TaskProvider<Context, Deps, Args, Response>
+}
+
+export type TaskInterface<Res = any> = {
+  result: Promise<Res>
+  abort: (reason?: any) => void
+}
+
+export type TasksRunner = (
+  signal: AbortSignal,
+  name: string,
+  ...args: any[]
+) => Promise<any>
 
 export class Tasks extends Loader<
   TaskDeclaration<any, any, any[], TaskProvider>

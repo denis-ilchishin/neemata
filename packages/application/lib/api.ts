@@ -1,9 +1,9 @@
 import { ApiError, ErrorCode } from '@neemata/common'
+import { ApplicationOptions } from './application'
 import { Container } from './container'
 import { Loader } from './loader'
 import { Logger } from './logger'
 import {
-  ApplicationOptions,
   BaseProcedure,
   Dependencies,
   ExtensionMiddlewareOptions,

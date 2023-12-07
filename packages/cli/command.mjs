@@ -12,18 +12,13 @@ import { args, entryModule, kwargs, tryExit } from './cli.mjs'
 let application
 
 if (entryModule instanceof ApplicationServer) {
-  const { applicationOptions, applicationPath } = entryModule.options
+  const { applicationPath } = entryModule.options
   const bootstrap = await importDefault(applicationPath)
   const type = WorkerType.Task
   /** @type {import('@neemata/application').ApplicationWorkerOptions} */
   const options = {
     id: 0,
-    applicationOptions: {
-      type,
-      ...applicationOptions,
-    },
     type,
-    workerOptions: {},
   }
 
   application = await bootstrap(options)

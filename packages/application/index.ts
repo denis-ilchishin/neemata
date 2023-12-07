@@ -9,6 +9,7 @@ export {
 export {
   Application,
   ApplicationOptions,
+  ApplicationWorkerOptions,
   declareApplication,
 } from './lib/application'
 export {
@@ -25,7 +26,7 @@ export {
   createLogger as createLogger,
 } from './lib/logger'
 export { ApplicationServer, ApplicationServerOptions } from './lib/server'
-export { createTypedDeclareTask } from './lib/tasks'
+export { TaskInterface, createTypedDeclareTask } from './lib/tasks'
 export * from './lib/types'
 export * from './lib/utils/functions'
 export * from './lib/utils/pool'

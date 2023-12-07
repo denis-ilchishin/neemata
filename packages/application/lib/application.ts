@@ -121,19 +121,15 @@ export class Application<
 
   async start() {
     await this.initialize()
-    if (this.api) {
-      await this.callHook(Hook.BeforeStart)
-      await this.adapter.start()
-      await this.callHook(Hook.AfterStart)
-    }
+    await this.callHook(Hook.BeforeStart)
+    if (this.api) await this.adapter.start()
+    await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
-    if (this.api) {
-      await this.callHook(Hook.BeforeStop)
-      await this.adapter.stop()
-      await this.callHook(Hook.AfterStop)
-    }
+    await this.callHook(Hook.BeforeStop)
+    if (this.api) await this.adapter.stop()
+    await this.callHook(Hook.AfterStop)
     await this.terminate()
   }
 

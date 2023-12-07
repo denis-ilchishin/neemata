@@ -46,7 +46,10 @@ export type Filter<T extends ErrorClass> = (error: InstanceType<T>) => Error
 
 export type Extra = Record<string, any>
 
-export type Dependencies = Record<string, ProviderDeclaration>
+export type Dependencies = Record<
+  string,
+  ProviderDeclaration | ProviderDeclarationWithOptions
+>
 
 export type Filters = Map<ErrorClass, Filter<ErrorClass>>
 export type Middlewares = Map<Pattern, Set<Middleware>>
@@ -174,7 +177,6 @@ export interface ExtensionInstallOptions<
   api: Api<Options, Context>
   container: Container
   logger: Logger
-
   callHook: CallHook<keyof HooksInterface>
   registerHook<T extends string>(
     hookName: T,
@@ -210,8 +212,15 @@ export type UnionToIntersection<U> = (
   ? I
   : never
 
-export type ResolvedDependencyInjection<T extends ProviderDeclaration> =
-  Awaited<T extends ProviderDeclaration<infer Type> ? Type : never>
+export type ResolvedDependencyInjection<
+  T extends ProviderDeclaration | ProviderDeclarationWithOptions
+> = Awaited<
+  T extends ProviderDeclaration<infer Type>
+    ? Type
+    : T extends ProviderDeclarationWithOptions<infer Type>
+    ? Type
+    : never
+>
 
 export type GlobalContext = {
   logger: Logger
@@ -234,8 +243,9 @@ export type DependencyContext<
 export type ProviderFactory<
   Type,
   Context extends Extra,
-  Deps extends Dependencies
-> = (ctx: DependencyContext<Context, Deps>) => Async<Type>
+  Deps extends Dependencies,
+  Options extends any
+> = (ctx: DependencyContext<Context, Deps>, options?: Options) => Async<Type>
 
 export type ProviderDispose<
   Type,
@@ -247,9 +257,10 @@ export type Provider<
   Type,
   Context extends Extra,
   Deps extends Dependencies,
-  Scope extends ProviderScope
+  Scope extends ProviderScope,
+  Options extends any
 > = {
-  factory: ProviderFactory<Type, Context, Deps>
+  factory: ProviderFactory<Type, Context, Deps, Options>
   dispose?: ProviderDispose<Type, Context, Deps>
   scope?: Scope
 }
@@ -258,9 +269,29 @@ export interface ProviderDeclaration<
   Type = any,
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
-  Scope extends ProviderScope = ProviderScope
+  Scope extends ProviderScope = ProviderScope,
+  Options extends any = any
 > extends Depender<Deps> {
-  provider: Provider<Type, Context, Deps, Scope>
+  (options: Options): ProviderDeclarationWithOptions<
+    Type,
+    Context,
+    Deps,
+    Scope,
+    Options
+  >
+  provider: Provider<Type, Context, Deps, Scope, Options>
+}
+
+export interface ProviderDeclarationWithOptions<
+  Type = any,
+  Context extends Extra = Extra,
+  Deps extends Dependencies = Dependencies,
+  Scope extends ProviderScope = ProviderScope,
+  Options extends any = any
+> extends Depender<Deps> {
+  provider?: Provider<Type, Context, Deps, Scope, Options>
+  options: Options
+  declaration?: ProviderDeclaration
 }
 
 export type ExtractAppOptions<App> = App extends Application<

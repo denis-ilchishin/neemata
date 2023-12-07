@@ -1,11 +1,10 @@
-import { createLogger } from '../lib/logger'
+import { LoggingOptions, createLogger } from '../lib/logger'
 import { BaseAdapter } from './adapter'
-import { Api } from './api'
+import { Api, BaseParser } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
-import { Tasks } from './tasks'
+import { TaskDeclaration, Tasks, TasksRunner } from './tasks'
 import {
-  ApplicationOptions,
   CallHook,
   Command,
   Commands,
@@ -22,10 +21,29 @@ import {
   Pattern,
   ResolveExtensionContext,
   ResolveExtensionOptions,
-  TaskDeclaration,
   UnionToIntersection,
   WorkerType,
 } from './types'
+
+export type ApplicationOptions = {
+  type: WorkerType
+  logging?: LoggingOptions
+  api?: {
+    parser?: BaseParser
+    path?: string
+  }
+  tasks?: {
+    path?: string
+    runner?: TasksRunner
+  }
+}
+
+export type ApplicationWorkerOptions = {
+  id: number
+  type: WorkerType
+  tasksRunner?: TasksRunner
+  workerOptions?: any
+}
 
 export class Application<
   Adapter extends BaseAdapter = BaseAdapter,
@@ -55,12 +73,7 @@ export class Application<
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
-    this.options.type = this.options.type ?? WorkerType.Api
-
-    this.logger = createLogger(
-      options.logging?.level || 'info',
-      this.options.type + 'Worker'
-    )
+    this.logger = createLogger(this.options.logging)
 
     this.middlewares = new Map()
     this.filters = new Map()
@@ -214,3 +227,7 @@ export class Application<
     return this.options.type === WorkerType.Api
   }
 }
+
+export const declareApplication = <T extends any>(
+  callback: (options: ApplicationWorkerOptions, ...args: any[]) => T
+) => callback

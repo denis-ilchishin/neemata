@@ -1,25 +1,11 @@
-import { Scope as ProviderScope } from '@neemata/common'
-import { Static, TSchema } from '@sinclair/typebox'
-import { TypeOf, ZodSchema } from 'zod'
-import { Api, BaseParser } from './api'
-import { Application } from './application'
-import { Container } from './container'
-import { Logger } from './logger'
-
-export type ApplicationOptions = {
-  type?: WorkerType
-  logging?: {
-    level: import('pino').Level
-  }
-  api?: {
-    parser?: BaseParser
-    path?: string
-  }
-  tasks?: {
-    path?: string
-    runner?: TasksRunner
-  }
-}
+import type { Scope as ProviderScope } from '@neemata/common'
+import type { Static, TSchema } from '@sinclair/typebox'
+import type { TypeOf, ZodSchema } from 'zod'
+import type { Api } from './api'
+import type { Application } from './application'
+import type { Container } from './container'
+import type { Logger } from './logger'
+import type { TaskDeclaration, TaskInterface } from './tasks'
 
 export enum Hook {
   BeforeInitialize = 'BeforeInitialize',
@@ -127,6 +113,17 @@ export type BaseProcedure<
         ctx: DependencyContext<Context, Deps>,
         data: Awaited<Response>
       ) => Output)
+}
+
+export interface ProcedureDeclaration<
+  Deps extends Dependencies,
+  Options extends Extra,
+  Context extends Extra,
+  Input,
+  Response,
+  Output
+> extends Depender<Deps> {
+  procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
 }
 
 export interface Depender<Deps extends Dependencies> {
@@ -266,17 +263,6 @@ export interface ProviderDeclaration<
   provider: Provider<Type, Context, Deps, Scope>
 }
 
-export interface ProcedureDeclaration<
-  Deps extends Dependencies,
-  Options extends Extra,
-  Context extends Extra,
-  Input,
-  Response,
-  Output
-> extends Depender<Deps> {
-  procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
-}
-
 export type ExtractAppOptions<App> = App extends Application<
   any,
   any,
@@ -293,59 +279,3 @@ export type ExtractAppContext<App> = App extends Application<
 >
   ? AppContext
   : never
-
-export type ApplicationWorkerData = {
-  applicationPath: string
-  hasTaskRunners: boolean
-} & ApplicationWorkerOptions
-
-export type ApplicationWorkerOptions = {
-  id: number
-  type: WorkerType
-  applicationOptions: ApplicationOptions
-  workerOptions: any
-}
-
-export type Task<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Args extends any[],
-  Response
-> = (
-  ctx: DependencyContext<Context, Deps> & { signal: AbortSignal },
-  ...args: Args
-) => Response
-
-export interface TaskProvider<
-  Context extends Extra = Extra,
-  Deps extends Dependencies = Dependencies,
-  Args extends any[] = any[],
-  Response = any
-> {
-  handle: Task<Context, Deps, Args, Response>
-  name?: string
-  parse?: (
-    args: string[],
-    kwargs: Record<string, string | string[]>
-  ) => Args | Readonly<Args>
-}
-
-export interface TaskDeclaration<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Args extends any[],
-  Response
-> extends Depender<Deps> {
-  task: TaskProvider<Context, Deps, Args, Response>
-}
-
-export type TaskInterface<Res = any> = {
-  result: Promise<Res>
-  abort: (reason?: any) => void
-}
-
-export type TasksRunner = (
-  signal: AbortSignal,
-  name: string,
-  ...args: any[]
-) => Promise<any>

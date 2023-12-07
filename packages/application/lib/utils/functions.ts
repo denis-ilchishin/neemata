@@ -1,6 +1,6 @@
 import { Callback, Pattern } from '../types'
 
-export const merge = (...objects: Object[]) => Object.assign({}, ...objects)
+export const merge = (...objects: object[]) => Object.assign({}, ...objects)
 
 export const defer = <T extends Callback>(
   cb: T,

@@ -38,7 +38,7 @@ export class Adapter extends BaseAdapter<
     >
   ) {
     this.application = application
-    this.application.registerHook(Hook.BeforeStart, async () => {
+    this.application.registerHook(Hook.AfterInitialize, async () => {
       // make connection before start
       // so it can be added to application context
       this.application.logger.debug('Connecting to RabbitMQ...')

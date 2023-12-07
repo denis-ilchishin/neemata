@@ -1,4 +1,4 @@
-#!/usr/bin/env node --loader tsx/esm --no-warnings
+#!/usr/bin/env node --import tsx/esm --no-warnings
 
 import {
   Application,

@@ -15,7 +15,7 @@
     "linux"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
   "dependencies": {
     "@neemata/common": "workspace:*",

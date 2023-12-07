@@ -64,7 +64,7 @@ export class Adapter extends BaseAdapter<
 
   private async handleRPC(msg: amqplib.ConsumeMessage) {
     const { correlationId, replyTo } = msg.properties
-    const { procedure, payload } = this.deserialize(msg.content)
+
     const respond = (data: any) =>
       this.channel.sendToQueue(replyTo, this.serialize(data), {
         correlationId,
@@ -72,6 +72,7 @@ export class Adapter extends BaseAdapter<
       })
 
     try {
+      const { procedure, payload } = this.deserialize(msg.content)
       const declaration = await this.application.api.find(procedure)
       const response = await this.application.api.call(
         procedure,

@@ -1,15 +1,26 @@
-import { Application, ApplicationServer } from '@neemata/application'
+import {
+  Application,
+  ApplicationServer,
+  WorkerType,
+  importDefault,
+  watchApp,
+} from '@neemata/application'
 import dotenv from 'dotenv'
+import { register } from 'node:module'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 
-const { values, positionals: args } = parseArgs({
+const { values, positionals } = parseArgs({
   allowPositionals: true,
   strict: false,
   options: {
     entry: {
       type: 'string',
       short: 'a',
+      multiple: false,
+    },
+    swc: {
+      type: 'boolean',
       multiple: false,
     },
     env: {
@@ -20,16 +31,27 @@ const { values, positionals: args } = parseArgs({
   },
 })
 
-const { env, ...kwargs } = values
+const [command, ...args] = positionals
+const { env, entry, swc, ...kwargs } = values
 
 if (env) {
   for (const path of env) {
-    const { error } = dotenv.config({ path: resolve(path) })
-    if (error) throw error
+    if (typeof path === 'string') {
+      const { error } = dotenv.config({ path: resolve(path) })
+      if (error) throw error
+    }
   }
 }
 
-const entry = resolve(values.entry || process.env.NEEMATA_ENTRY)
+const entryPath = resolve(
+  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.js')
+)
+
+if (swc) {
+  const url = new URL('./swc.mjs', import.meta.url)
+  process.env.NEEMATA_SWC = url.toString()
+  register(url)
+}
 
 let exitTimeout
 
@@ -50,22 +72,82 @@ const tryExit = async (cb) => {
   }
 }
 
-const entryModule = await import(entry).then((module) => module.default)
+const entryApp = await import(entryPath).then((module) => module.default)
 
 if (
-  !(
-    entryModule instanceof ApplicationServer ||
-    entryModule instanceof Application
-  )
+  !(entryApp instanceof ApplicationServer || entryApp instanceof Application)
 ) {
   throw new Error(
     'Invalid entry module. Must be an instance of Application or ApplicationServer'
   )
 }
 
-const { logger } = entryModule
+const { logger } = entryApp
 
 process.on('uncaughtException', (error) => logger.error(error))
 process.on('unhandledRejection', (error) => logger.error(error))
 
-export { args, entryModule, kwargs, tryExit }
+const commands = {
+  start() {
+    const terminate = () => tryExit(() => entryApp.stop())
+    process.on('SIGTERM', terminate)
+    process.on('SIGINT', terminate)
+    entryApp.start()
+  },
+  watch() {
+    const url = new URL('./watch.mjs', import.meta.url)
+    if (entryApp instanceof Application) {
+      watchApp(url.toString(), entryApp)
+    } else {
+      process.env.NEEMATA_WATCH = url.toString()
+    }
+    this.start()
+  },
+  async execute() {
+    /** @type {Application} */
+    let app
+
+    if (entryApp instanceof ApplicationServer) {
+      const { applicationPath } = entryApp.options
+      const bootstrap = await importDefault(applicationPath)
+      const type = WorkerType.Task
+      /** @type {import('@neemata/application').ApplicationWorkerOptions} */
+      const options = {
+        id: 0,
+        type,
+      }
+      app = await bootstrap(options)
+    } else if (entryApp instanceof Application) {
+      app = entryApp
+    }
+
+    const [inputCommand, ...commandArgs] = args
+
+    let [extension, commandName] = inputCommand.split(':')
+
+    if (!commandName) {
+      commandName = extension
+      extension = undefined
+    }
+
+    const command = app.commands.get(extension)?.get(commandName)
+    if (!command) throw new Error('Command not found')
+
+    const terminate = () =>
+      tryExit(async () => {
+        task.abort()
+        await task.result
+      })
+
+    process.on('SIGTERM', terminate)
+    process.on('SIGINT', terminate)
+
+    await app.initialize()
+
+    /** @type {import('@neemata/application').TaskInterface} */
+    const task = command({ args: commandArgs, kwargs })
+    task.result.finally(() => app.terminate())
+  },
+}
+
+commands[command]()

@@ -1,4 +1,8 @@
-import { BaseAdapter, ExtensionInstallOptions } from '@neemata/application'
+import {
+  BaseAdapter,
+  ExtensionInstallOptions,
+  Hook,
+} from '@neemata/application'
 import { Server } from './server'
 import {
   AdapterContext,
@@ -31,6 +35,14 @@ export class Adapter extends BaseAdapter<
   ) {
     this.application = application
     this.server = new Server(this.options, application)
+
+    application.registerHook(Hook.BeforeTerminate, async () => {
+      // Only for watch mode. In production, there won't be any opened sockets at this point
+      for (const ws of this.server.sockets) {
+        const { container } = ws.getUserData()
+        await this.server.handleDisposal(container)
+      }
+    })
   }
 
   async start() {

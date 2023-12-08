@@ -48,4 +48,8 @@ export class Loader<T> implements LoaderInterface<T> {
   protected set(name: string, path: string, module: any) {
     this.modules.set(name, module)
   }
+
+  clear() {
+    this.modules.clear()
+  }
 }

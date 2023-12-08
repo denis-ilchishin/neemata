@@ -1,5 +1,77 @@
-#!/usr/bin/env node --import tsx/esm --watch --no-warnings
+import { debounce } from '@neemata/application'
+import { watch } from 'node:fs'
+import { isBuiltin } from 'node:module'
+import { sep } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-process.env.NEEMATA_WATCH = '1'
+/** @type {import('node:worker_threads').MessagePort} */
+let port
+let tsmp = Date.now()
 
-import('./start.mjs')
+/** @type {Map<string, import('node:fs').FSWatcher>} */
+const watchers = new Map()
+const cwd = process.cwd()
+
+const isRelativePath = (path) => path.startsWith('.')
+const isFileUrl = (path) => path.startsWith('file://')
+
+async function isIgnored(path) {
+  if (
+    !path.startsWith(cwd) ||
+    path.includes('/node_modules/') ||
+    path.includes('/dist/') ||
+    watchers.has(path) ||
+    Array.from(watchers.keys()).some((p) => path.startsWith(p))
+  )
+    return true
+}
+
+const onChange = debounce(() => {
+  tsmp = Date.now()
+  port.postMessage('change')
+}, 250)
+
+export async function initialize(data) {
+  port = data.port
+}
+
+export function fileUrl(val, parentURL) {
+  if (val instanceof URL) return val
+  if (val.startsWith('file://')) return new URL(val)
+  return isRelativePath(val) ? new URL(val, parentURL) : pathToFileURL(val)
+}
+
+export function isLib(val) {
+  const isPath = (path) => [sep, '.'].includes(path[0])
+
+  if (val instanceof URL) {
+    return val.protocol === 'file:'
+  } else {
+    if (isBuiltin(val)) return true
+    else if (val.startsWith('file:')) return false
+    return !isPath(val)
+  }
+}
+
+export async function resolve(specifier, context, nextResolve) {
+  if (!isLib(specifier)) {
+    const url = fileUrl(specifier, context.parentURL)
+    url.searchParams.set('t', `${tsmp}`)
+    specifier = `${url}`
+  }
+  return nextResolve(specifier, context)
+}
+
+export async function load(specifier, context, nextLoad) {
+  if (!isLib(specifier)) {
+    const url = fileUrl(specifier, context.parentURL)
+    url.searchParams.delete('t')
+    const pathToWatch = fileURLToPath(url)
+    const ignored = await isIgnored(pathToWatch)
+    if (!ignored) {
+      const watcher = watch(pathToWatch, { persistent: false }, onChange)
+      watchers.set(pathToWatch, watcher)
+    }
+  }
+  return nextLoad(specifier, context)
+}

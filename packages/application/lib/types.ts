@@ -77,7 +77,7 @@ export type ProcedureContext = {
 export type Command = (
   options: {
     args: string[]
-    kwargs: Record<string, string | string[]>
+    kwargs: Record<string, any>
   },
   ...args: any[]
 ) => any

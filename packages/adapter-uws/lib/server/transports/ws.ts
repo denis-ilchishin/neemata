@@ -106,6 +106,7 @@ export class WsTransport {
         }
       },
       open: (ws: WebSocket) => {
+        this.adapter.sockets.add(ws)
         const { id, context } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
         const websocket = new AdapterWebSocket(id, ws, this.adapter.rooms)
@@ -179,6 +180,7 @@ export class WsTransport {
         }
       },
       close: async (ws, code, message) => {
+        this.adapter.sockets.delete(ws)
         const { id, container, streams } = ws.getUserData()
         this.logger.trace(
           'Close websocket [%s] with message [%s]',

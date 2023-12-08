@@ -1,57 +1,32 @@
-//@ts-expect-error
 import { register } from 'node:module'
 
 import { randomUUID } from 'crypto'
-import { MessageChannel } from 'node:worker_threads'
-import { pathToFileURL } from 'url'
 import { isMainThread, parentPort, workerData } from 'worker_threads'
 import { Application, ApplicationWorkerOptions } from './application'
 import { WorkerMessageType, WorkerType } from './types'
-import { debounce, importDefault } from './utils/functions'
+import { importDefault } from './utils/functions'
 import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
+import { watchApp } from './utils/watch'
 
 export type ApplicationWorkerData = {
   applicationPath: string
   hasTaskRunners: boolean
 } & ApplicationWorkerOptions
 
+const {
+  id,
+  workerOptions,
+  applicationPath,
+  type,
+  hasTaskRunners,
+}: ApplicationWorkerData = workerData
+
 if (!isMainThread) start()
 
 async function start() {
-  const {
-    id,
-    workerOptions,
-    applicationPath,
-    type,
-    hasTaskRunners,
-  }: ApplicationWorkerData = workerData
+  const { NEEMATA_SWC, NEEMATA_WATCH } = process.env
 
-  // workaround for watching to file changes
-  // until there's a better way to invalidate esm import cache
-  // see https://github.com/nodejs/node/issues/49442
-  // or --watch flag is supported in worker_threads
-  if (process.env.NEEMATA_WATCH) {
-    const { port1, port2 } = new MessageChannel()
-    register('./utils/loader.mjs', {
-      parentURL: pathToFileURL(__filename),
-      data: { port: port2 },
-      transferList: [port2],
-    })
-    let restarting = false
-    const restart = debounce(async () => {
-      if (restarting) return
-      app.logger.info('Changes detected. Restarting...')
-      restarting = true
-      try {
-        await app.terminate()
-        await app.initialize()
-      } finally {
-        restarting = false
-      }
-    }, 500)
-
-    port1.on('message', restart)
-  }
+  if (NEEMATA_SWC) register(NEEMATA_SWC)
 
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
@@ -65,6 +40,11 @@ async function start() {
     workerOptions,
     tasksRunner,
   })
+
+  process.on('uncaughtException', (err) => app.logger.error(err))
+  process.on('unhandledRejection', (err) => app.logger.error(err))
+
+  if (NEEMATA_WATCH) watchApp(NEEMATA_WATCH, app)
 
   bindPortMessageHandler(parentPort)
 
@@ -139,6 +119,5 @@ async function start() {
     return result
   }
 
-  process.on('uncaughtException', (err) => app.logger.error(err))
-  process.on('unhandledRejection', (err) => app.logger.error(err))
+  return app
 }

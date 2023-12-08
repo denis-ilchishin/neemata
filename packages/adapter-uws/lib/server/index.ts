@@ -60,6 +60,7 @@ export class Server {
   httpServer: uws.TemplatedApp
   httpSocket!: uws.us_listen_socket
 
+  readonly sockets = new Set<WebSocket>()
   readonly websockets = new Map<string, WebSocketInterface>()
   readonly rooms = new Map<string, Room>()
 
@@ -112,7 +113,7 @@ export class Server {
   }
 
   handleDisposal(container: Container) {
-    defer(() =>
+    return defer(() =>
       container.dispose().catch((cause) =>
         this.logger.error(
           new Error('Error while container disposal (potential memory leak)', {

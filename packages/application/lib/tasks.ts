@@ -30,10 +30,7 @@ export interface TaskProvider<
 > {
   handle: Task<Context, Deps, Args, Response>
   name?: string
-  parse?: (
-    args: string[],
-    kwargs: Record<string, string | string[]>
-  ) => Args | Readonly<Args>
+  parse?: (args: string[], kwargs: Record<string, any>) => Args | Readonly<Args>
 }
 
 export interface TaskDeclaration<

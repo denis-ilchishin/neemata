@@ -136,8 +136,8 @@ export class Application<
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    if (this.isApi) this.api.modules.clear()
-    this.tasks.modules.clear()
+    if (this.isApi) this.api.clear()
+    this.tasks.clear()
     await this.callHook(Hook.AfterTerminate)
   }
 

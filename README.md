@@ -11,7 +11,7 @@ Lightweight Node.js RPC application server
 - Modular and extendable transport-agnostic design
 - Dependency injection
 - [Application server mode](https://github.com/denis-ilchishin/neemata/pull/41) to run multiple instances of application with worker_threads under one process
-- Task workers over worker_threads to parallelize CPU-intensive workloads from API workers
+- Task workers over worker_threads to parallelize CPU-intensive workloads and prevent blocking of API workers 
 - CLI support
 - Typescript modules support without build process (runtime transpilation with [SWC](https://github.com/swc-project/swc))
 - Hot-reload without server restart (preserving all current connections)

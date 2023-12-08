@@ -104,7 +104,7 @@ export class Application<
     this.container = new Container({
       context: this.context,
       logger: this.logger,
-      loaders: this.isApi ? [this.api, this.tasks] : [this.tasks],
+      loaders: this.isApiWorker ? [this.api, this.tasks] : [this.tasks],
     })
 
     this.initExtensions()
@@ -116,7 +116,7 @@ export class Application<
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
     await this.tasks.load()
-    if (this.isApi) await this.api.load()
+    if (this.isApiWorker) await this.api.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
     this.initContext()
@@ -125,13 +125,13 @@ export class Application<
   async start() {
     await this.initialize()
     await this.callHook(Hook.BeforeStart)
-    if (this.api) await this.adapter.start()
+    if (this.isApiWorker) await this.adapter.start()
     await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
     await this.callHook(Hook.BeforeStop)
-    if (this.api) await this.adapter.stop()
+    if (this.isApiWorker) await this.adapter.stop()
     await this.callHook(Hook.AfterStop)
     await this.terminate()
   }
@@ -139,7 +139,7 @@ export class Application<
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    if (this.isApi) this.api.clear()
+    if (this.isApiWorker) this.api.clear()
     this.tasks.clear()
     await this.callHook(Hook.AfterTerminate)
   }
@@ -222,7 +222,7 @@ export class Application<
     }
   }
 
-  private get isApi() {
+  private get isApiWorker() {
     return this.options.type === WorkerType.Api
   }
 }

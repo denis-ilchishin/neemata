@@ -6,6 +6,7 @@ export class LoaderError extends Error {}
 
 export class Loader<T> implements LoaderInterface<T> {
   readonly modules = new Map<string, T>()
+  readonly paths = new Map<string, string>()
 
   constructor(protected readonly root: string) {}
 
@@ -30,7 +31,6 @@ export class Loader<T> implements LoaderInterface<T> {
             const path = join(dir, entry.name)
             try {
               const { default: module } = await import(path)
-
               if (typeof module !== 'undefined') this.set(name, path, module)
             } catch (cause) {
               throw new LoaderError(`Unable to import module ${path}`, {
@@ -47,9 +47,11 @@ export class Loader<T> implements LoaderInterface<T> {
 
   protected set(name: string, path: string, module: any) {
     this.modules.set(name, module)
+    this.paths.set(name, path)
   }
 
   clear() {
     this.modules.clear()
+    this.paths.clear()
   }
 }

@@ -1,7 +1,6 @@
 import {
   BaseExtension,
   ExtensionInstallOptions,
-  Hook,
   declareProcedure,
   match,
 } from '@neemata/application'
@@ -10,7 +9,6 @@ import fsp from 'node:fs/promises'
 
 export type SchemaExtensionOptions<> = {
   procedureName?: string
-  export?: { typescript: string[] }
   variants?: {
     typescript?: {
       interfaceName?: string
@@ -38,10 +36,6 @@ export class SchemaExtension extends BaseExtension {
         declareProcedure({ handle: this.jsonSchema.bind(this) }),
         false
       )
-    }
-
-    if (this.options.export) {
-      registerHook(Hook.AfterInitialize, () => this.export(this.options.export))
     }
 
     registerCommand('typescript', async ({ args: output }) => {

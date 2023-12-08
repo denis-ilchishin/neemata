@@ -174,6 +174,7 @@ export interface ExtensionInstallOptions<
   Options extends Extra = {},
   Context extends Extra = {}
 > {
+  type: WorkerType
   api: Api<Options, Context>
   container: Container
   logger: Logger
@@ -194,7 +195,9 @@ export interface ExtensionInterface<
   Context extends Extra = {}
 > {
   context?(): Context
-  install?(options: ExtensionInstallOptions<ProcedureOptions, Context>): void
+  install?(
+    application: ExtensionInstallOptions<ProcedureOptions, Context>
+  ): void
   _options: ProcedureOptions
 }
 

@@ -108,9 +108,7 @@ export class Application<
     })
 
     this.initExtensions()
-
-    const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(undefined, 'task', taskCommand)
+    this.initCommandsAndHooks()
   }
 
   async initialize() {
@@ -208,8 +206,10 @@ export class Application<
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
+      const type = this.options.type
       const logger = this.logger
       ;(extension as ExtensionInterface<any, any>).install({
+        type,
         logger,
         api,
         container,
@@ -220,6 +220,11 @@ export class Application<
         callHook,
       })
     }
+  }
+
+  private initCommandsAndHooks() {
+    const taskCommand = this.tasks.command.bind(this.tasks, this.container)
+    this.registerCommand(undefined, 'task', taskCommand)
   }
 
   private get isApiWorker() {

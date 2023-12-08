@@ -6,8 +6,9 @@ import {
   ProcedureDeclaration,
   WorkerType,
 } from '@neemata/application'
-import { readFile, writeFile } from 'node:fs/promises'
-import { dirname, relative, resolve } from 'node:path'
+import { writeFile } from 'node:fs/promises'
+import { dirname, relative } from 'node:path'
+import { name as packageName } from '../package.json'
 
 export class StaticApiAnnotations extends BaseExtension {
   name = 'Static API annotations'
@@ -33,18 +34,13 @@ export class StaticApiAnnotations extends BaseExtension {
   }
 
   private async generate() {
-    const packageJson = await readFile(
-      resolve(__dirname, '../package.json'),
-      'utf-8'
-    )
-    const { name } = JSON.parse(packageJson)
     const procedures: any = []
     for (const [name, filePath] of this.application.api.paths) {
       const path = relative(dirname(this.options.output), filePath)
       procedures.push(`"${name}": typeof import("${path}").default`)
     }
     const entries = `\n  ${procedures.join(',\n  ')}\n`
-    const dtsContent = `export declare type Api = import("${name}").ResolveApi<{${entries}}>`
+    const dtsContent = `export declare type Api = import("${packageName}").ResolveApi<{${entries}}>`
     await writeFile(this.options.output, dtsContent)
   }
 }

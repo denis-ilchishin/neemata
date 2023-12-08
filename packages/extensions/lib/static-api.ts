@@ -1,5 +1,4 @@
 import {
-  Api,
   BaseExtension,
   ExtensionInstallOptions,
   Hook,
@@ -13,24 +12,29 @@ import { dirname, relative } from 'node:path'
 export class StaticApiAnnotations extends BaseExtension {
   name = 'Static API annotations'
 
+  application!: ExtensionInstallOptions<{}, {}>
+
   constructor(private readonly options: { output: string }) {
     super()
   }
 
-  install({
-    type,
-    api,
-    registerHook,
-    registerCommand,
-  }: ExtensionInstallOptions<{}, {}>) {
-    const command = () => this.generate(api)
-    if (type === WorkerType.Api) registerHook(Hook.AfterInitialize, command)
-    registerCommand('generate', command)
+  install(application: ExtensionInstallOptions<{}, {}>) {
+    this.application = application
+
+    const { type, api, registerHook, registerCommand } = application
+
+    registerCommand('generate', async () => {
+      if (type !== WorkerType.Api) await api.load()
+      await this.generate()
+    })
+
+    if (type === WorkerType.Api)
+      registerHook(Hook.AfterInitialize, this.generate.bind(this))
   }
 
-  private generate = async (api: Api<any, any, any>) => {
+  private async generate() {
     const procedures: any = []
-    for (const [name, filePath] of api.paths) {
+    for (const [name, filePath] of this.application.api.paths) {
       const path = relative(dirname(this.options.output), filePath)
       procedures.push(`"${name}": typeof import("${path}").default`)
     }

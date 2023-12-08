@@ -9,6 +9,8 @@ import {
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
 
+const packageName = require('../package.json').name
+
 export class StaticApiAnnotations extends BaseExtension {
   name = 'Static API annotations'
 
@@ -39,7 +41,7 @@ export class StaticApiAnnotations extends BaseExtension {
       procedures.push(`"${name}": typeof import("${path}").default`)
     }
     const entries = `\n  ${procedures.join(',\n  ')}\n`
-    const dtsContent = `export declare type Api = import('@neemata/application').ResolveApi<{${entries}}>`
+    const dtsContent = `export declare type Api = import("${packageName}").ResolveApi<{${entries}}>`
     await writeFile(this.options.output, dtsContent)
   }
 }

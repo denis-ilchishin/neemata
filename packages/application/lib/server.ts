@@ -24,7 +24,7 @@ export class ApplicationServer {
   #exiting = false
 
   constructor(readonly options: ApplicationServerOptions) {
-    this.logger = createLogger(this.options.logging)
+    this.logger = createLogger(this.options.logging, 'Neemata')
   }
 
   async start() {

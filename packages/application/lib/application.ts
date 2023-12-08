@@ -73,7 +73,10 @@ export class Application<
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
-    this.logger = createLogger(this.options.logging)
+    this.logger = createLogger(
+      this.options.logging,
+      `${this.options.type}Worker`
+    )
 
     this.middlewares = new Map()
     this.filters = new Map()

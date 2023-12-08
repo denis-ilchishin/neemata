@@ -46,7 +46,7 @@ const levelLabels = {
   [Infinity]: 'SILENT',
 }
 
-export const createLogger = (options: LoggingOptions) => {
+export const createLogger = (options: LoggingOptions, $group: string) => {
   if (!options.destinations || !options.destinations.length) {
     options.destinations = [createConsoleDestination('info')]
   }
@@ -68,7 +68,7 @@ export const createLogger = (options: LoggingOptions) => {
       level,
     },
     pino.multistream(options.destinations)
-  )
+  ).child({ $group })
 }
 
 export const createConsoleDestination = (

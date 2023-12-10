@@ -139,15 +139,15 @@ export class Application<
     return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 
-  registerHook<T extends string>(
-    hookName: T,
-    hook: T extends keyof HooksInterface
-      ? HooksInterface[T]
-      : (...args: any[]) => any
-  ) {
+  // TODO: probably it make sense at this point just make Application to extend from EventEmitter ??
+  registerHook<T extends string>(hookName: T, hook: (...args: any[]) => any) {
     let hooks = this.hooks.get(hookName)
     if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
     hooks.add(hook)
+  }
+
+  unregisterHook<T extends string>(hookName: T, hook: Callback) {
+    this.hooks.get(hookName)?.delete(hook)
   }
 
   registerCommand(name: string, command: string, callback: Command) {

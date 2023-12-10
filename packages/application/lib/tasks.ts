@@ -1,14 +1,14 @@
 import { Scope } from '@neemata/common'
-import { ApplicationOptions } from './application'
+import { Application, ApplicationOptions } from './application'
 import { Container, getProviderScope } from './container'
 import { Loader } from './loader'
-import { Logger } from './logger'
 import {
   Dependencies,
   DependencyContext,
   Depender,
   Extra,
   ExtractAppContext,
+  Hook,
 } from './types'
 import { defer } from './utils/functions'
 
@@ -87,7 +87,7 @@ export class Tasks extends Loader<
     ...args: any[]
   ): TaskInterface<any> {
     const ac = new AbortController()
-    const abort = (reason) => ac.abort(reason ?? new Error('Aborted'))
+    const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const result = defer(async () => {
       if (!this.modules.has(name)) throw new Error('Task not found')
       if (!this.options.runner) {
@@ -110,6 +110,8 @@ export class Tasks extends Loader<
       }
     })
 
+    this.handleTermination(result, abort)
+
     return { abort, result }
   }
 
@@ -120,6 +122,21 @@ export class Tasks extends Loader<
     const { parse } = task.task
     const parsedArgs = parse ? parse(taskArgs, kwargs) : []
     return this.execute(container, name, ...parsedArgs)
+  }
+
+  private handleTermination(
+    result: Promise<any>,
+    abort: (reason?: any) => void
+  ) {
+    const abortExecution = async () => {
+      abort()
+      await result.finally(unregisterHook)
+    }
+    const unregisterHook = () => {
+      this.application.unregisterHook(Hook.BeforeTerminate, abortExecution)
+    }
+    this.application.registerHook(Hook.BeforeTerminate, abortExecution)
+    result.finally(unregisterHook)
   }
 }
 

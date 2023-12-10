@@ -57,8 +57,8 @@ export class Tasks extends Loader<
   TaskDeclaration<any, any, any[], TaskProvider>
 > {
   constructor(
-    private readonly options: ApplicationOptions['tasks'] = {},
-    private readonly logger: Logger
+    private readonly application: Application<any, any, any, any>,
+    private readonly options: ApplicationOptions['tasks'] = {}
   ) {
     super(options.path || '')
   }
@@ -69,7 +69,11 @@ export class Tasks extends Loader<
     declaration: TaskDeclaration<any, any, any[], any>
   ) {
     if (!declaration.task.name) declaration.task.name = name
-    this.logger.info('Resolve [%s] task', declaration.task.name, path)
+    this.application.logger.info(
+      'Resolve [%s] task',
+      declaration.task.name,
+      path
+    )
     super.set(declaration.task.name, path, declaration)
   }
 

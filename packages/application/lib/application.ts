@@ -6,6 +6,7 @@ import { BaseExtension } from './extension'
 import { TaskDeclaration, Tasks, TasksRunner } from './tasks'
 import {
   CallHook,
+  Callback,
   Command,
   Commands,
   ErrorClass,
@@ -15,7 +16,6 @@ import {
   Filters,
   Hook,
   Hooks,
-  HooksInterface,
   Middleware,
   Middlewares,
   Pattern,
@@ -92,20 +92,13 @@ export class Application<
       this.commands.set(extension, new Map())
     }
 
-    this.api = new Api(
-      this.options.api,
-      this.logger,
-      this.middlewares,
-      this.filters
+    this.api = new Api(this, this.options.api)
+    this.tasks = new Tasks(this, this.options.tasks)
+
+    this.container = new Container(
+      this,
+      this.isApiWorker ? [this.api, this.tasks] : [this.tasks]
     )
-
-    this.tasks = new Tasks(this.options.tasks, this.logger)
-
-    this.container = new Container({
-      context: this.context,
-      logger: this.logger,
-      loaders: this.isApiWorker ? [this.api, this.tasks] : [this.tasks],
-    })
 
     this.initExtensions()
     this.initCommandsAndHooks()

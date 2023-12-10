@@ -1,8 +1,7 @@
 import { ApiError, ErrorCode } from '@neemata/common'
-import { ApplicationOptions } from './application'
+import { Application, ApplicationOptions } from './application'
 import { Container } from './container'
 import { Loader } from './loader'
-import { Logger } from './logger'
 import {
   BaseProcedure,
   Dependencies,
@@ -10,9 +9,7 @@ import {
   Extra,
   ExtractAppContext,
   ExtractAppOptions,
-  Filters,
   Middleware,
-  Middlewares,
   ProcedureDeclaration,
 } from './types'
 import { match, merge } from './utils/functions'
@@ -43,10 +40,8 @@ export class Api<
   > = ProcedureDeclaration<Dependencies, Options, Context, any, any, any>
 > extends Loader<T> {
   constructor(
+    private readonly application: Application<any, any, any, any>,
     private readonly options: ApplicationOptions['api'] = {},
-    private readonly logger: Logger,
-    private readonly middlewares: Middlewares,
-    private readonly filters: Filters,
     readonly parser: BaseParser | undefined = options.parser
   ) {
     super(options.path ?? '')
@@ -112,21 +107,21 @@ export class Api<
   }
 
   protected set(name: string, path: string, module: any): void {
-    this.logger.info('Resolve [%s] procedure', name, path)
+    this.application.logger.info('Resolve [%s] procedure', name, path)
     super.set(name, path, module)
   }
 
   private findMiddlewares(name: string) {
     const set: Middleware[] = []
-    for (const [pattern, middlewares] of this.middlewares) {
+    for (const [pattern, middlewares] of this.application.middlewares) {
       if (match(name, pattern)) set.push(...middlewares)
     }
     return set[Symbol.iterator]()
   }
 
   private handleFilters(error: any) {
-    if (this.filters.size) {
-      for (const [errorType, filter] of this.filters.entries()) {
+    if (this.application.filters.size) {
+      for (const [errorType, filter] of this.application.filters.entries()) {
         if (error instanceof errorType) {
           const handledError = filter(error)
           if (!handledError || !(handledError instanceof ApiError)) continue

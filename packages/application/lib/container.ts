@@ -1,5 +1,5 @@
 import { Scope } from '@neemata/common'
-import { Logger } from './logger'
+import { Application } from './application'
 import {
   Dependencies,
   Depender,
@@ -44,11 +44,8 @@ export class Container {
   private readonly providers = new Set<DeclarationType>()
 
   constructor(
-    private readonly options: {
-      context: Extra
-      logger: Logger
-      loaders: LoaderInterface<Depender<Dependencies>>[]
-    },
+    private readonly application: Application<any, any, any, any>,
+    private readonly loaders: LoaderInterface<Depender<Dependencies>>[],
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},
     private readonly parent?: Container
@@ -64,7 +61,7 @@ export class Container {
       }
     }
 
-    for (const loader of this.options.loaders) {
+    for (const loader of this.loaders) {
       for (const depender of loader.modules.values()) {
         traverse(depender.dependencies)
       }
@@ -75,14 +72,14 @@ export class Container {
   }
 
   createScope(scope: Scope, params: any = {}) {
-    return new Container(this.options, scope, params, this)
+    return new Container(this.application, this.loaders, scope, params, this)
   }
 
   async dispose() {
     // TODO: here might need to find correct order of disposing
     // to prevent first disposal of a provider
     // that other disposing provider depends on
-    this.options.logger.debug('Disposing [%s] scope context...', this.scope)
+    this.application.logger.debug('Disposing [%s] scope context...', this.scope)
     for (const [key, value] of this.instances) {
       const declaration = getDeclaration(key)
       const { provider, dependencies } = declaration
@@ -93,7 +90,7 @@ export class Container {
           await dispose(merge(ctx, this.params), value)
         }
       } catch (cause) {
-        this.options.logger.error(
+        this.application.logger.error(
           new Error('Context disposal error. Potential memory leak', { cause })
         )
       }
@@ -163,7 +160,7 @@ export class Container {
 
   async createContext(dependencies: Dependencies, ...extra: Extra[]) {
     const injections = await this.resolveDependecies(dependencies)
-    const context = merge(...extra, this.options.context, {
+    const context = merge(...extra, this.application.context, {
       injections,
       scope: this.scope,
     })

@@ -133,20 +133,16 @@ const commands = {
     const command = app.commands.get(extension)?.get(commandName)
     if (!command) throw new Error('Command not found')
 
-    const terminate = () =>
-      tryExit(async () => {
-        task.abort()
-        await task.result
-      })
+    const terminate = () => tryExit(() => app.stop())
 
     process.on('SIGTERM', terminate)
     process.on('SIGINT', terminate)
 
     await app.initialize()
 
-    /** @type {import('@neemata/application').TaskInterface} */
-    const task = command({ args: commandArgs, kwargs })
-    task.result.finally(() => app.terminate())
+    await command({ args: commandArgs, kwargs })
+
+    terminate()
   },
 }
 

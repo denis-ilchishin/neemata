@@ -8,7 +8,7 @@ Lightweight Node.js RPC application server
 
 ### Features:
 
-- Modular and extendable [transport-agnostic](https://github.com/denis-ilchishin/neemata/issues/55) design
+- (in-progress) Modular and extendable [transport-agnostic](https://github.com/denis-ilchishin/neemata/issues/55) design
 - Dependency injection
 - [Application server mode](https://github.com/denis-ilchishin/neemata/pull/41) to run multiple instances of application with worker_threads under one process
 - Task workers over worker_threads to parallelize CPU-intensive workloads and prevent blocking of API workers 

@@ -2,6 +2,7 @@ import {
   Application,
   ApplicationServer,
   WorkerType,
+  defer,
   importDefault,
   watchApp,
 } from '@neemata/application'
@@ -133,16 +134,13 @@ const commands = {
     const command = app.commands.get(extension)?.get(commandName)
     if (!command) throw new Error('Command not found')
 
-    const terminate = () => tryExit(() => app.stop())
+    const terminate = () => tryExit(() => defer(() => app.stop()))
 
     process.on('SIGTERM', terminate)
     process.on('SIGINT', terminate)
 
     await app.initialize()
-
-    await command({ args: commandArgs, kwargs })
-
-    terminate()
+    await command({ args: commandArgs, kwargs }).finally(terminate)
   },
 }
 

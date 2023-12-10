@@ -217,7 +217,7 @@ export class Application<
 
   private initCommandsAndHooks() {
     const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(undefined, 'task', taskCommand)
+    this.registerCommand(undefined, 'task', (arg) => taskCommand(arg).result)
   }
 
   private get isApiWorker() {

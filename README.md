@@ -4,7 +4,7 @@ Lightweight Node.js RPC application server
 
 [Example](https://github.com/denis-ilchishin/neemata-starter)
 
-[Roadmap](https://github.com/denis-ilchishin/neemata/discussions/48)
+[Roadmap](https://github.com/denis-ilchishin/neemata/discussions/49)
 
 ### Features:
 

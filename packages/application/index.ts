@@ -1,5 +1,4 @@
 export { ApiError, ErrorCode, Scope } from '@neemata/common'
-export { BaseAdapter } from './lib/adapter'
 export {
   Api,
   BaseParser,
@@ -27,6 +26,7 @@ export {
 } from './lib/logger'
 export { ApplicationServer, ApplicationServerOptions } from './lib/server'
 export { TaskInterface, createTypedDeclareTask } from './lib/tasks'
+export { BaseTransport } from './lib/transport'
 export * from './lib/types'
 export * from './lib/utils/functions'
 export * from './lib/utils/pool'

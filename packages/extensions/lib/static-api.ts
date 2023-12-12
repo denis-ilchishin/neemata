@@ -52,10 +52,12 @@ export type ResolveApi<Input extends Record<string, any>> = {
     any,
     any,
     any,
+    any,
     any
   >
     ? K
     : never]: Input[K] extends ProcedureDeclaration<
+    any,
     any,
     any,
     any,

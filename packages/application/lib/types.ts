@@ -6,6 +6,7 @@ import type { Application } from './application'
 import type { Container } from './container'
 import type { Logger } from './logger'
 import type { TaskDeclaration, TaskInterface } from './tasks'
+import type { BaseTransport } from './transport'
 
 export enum Hook {
   BeforeInitialize = 'BeforeInitialize',
@@ -65,9 +66,10 @@ export type ProcedureOption<T, Context extends Extra = {}> =
   | T
   | ((context: Context) => Async<T>)
 
-export type ProcedureContext = {
+export type ProcedureContext<Client extends BaseClient> = {
+  client: Client
   call: <
-    Declaration extends ProcedureDeclaration<any, any, any, any, any, any>
+    Declaration extends ProcedureDeclaration<any, any, any, any, any, any, any>
   >(
     declaration: Declaration,
     ...args: OmitFirstItem<Parameters<Declaration['procedure']['handle']>>
@@ -101,13 +103,14 @@ export type BaseProcedure<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
+  Client extends BaseClient,
   Input,
   Response,
   Output
 > = AsProcedureOptions<Options, DependencyContext<Context, Deps>> & {
   input?: Input | ((ctx: DependencyContext<Context, Deps>) => Input)
   handle: (
-    ctx: DependencyContext<Context, Deps> & ProcedureContext,
+    ctx: DependencyContext<Context, Deps> & ProcedureContext<Client>,
     data: ProcedureDataType<Input>
   ) => Response
   output?:
@@ -122,11 +125,20 @@ export interface ProcedureDeclaration<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
+  Client extends BaseClient,
   Input,
   Response,
   Output
 > extends Depender<Deps> {
-  procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
+  procedure: BaseProcedure<
+    Deps,
+    Options,
+    Context,
+    Client,
+    Input,
+    Response,
+    Output
+  >
 }
 
 export interface Depender<Deps extends Dependencies> {
@@ -144,10 +156,19 @@ export type ExtensionMiddlewareOptions<
   Options extends Extra = {},
   Context extends Extra = {}
 > = {
+  client: BaseClient
   name: string
   context: DependencyContext<Extra, {}>
   container: Container
-  procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
+  procedure: BaseProcedure<
+    Dependencies,
+    Options,
+    Context,
+    BaseClient,
+    any,
+    any,
+    any
+  >
 }
 
 export type Next = (payload?: any) => any
@@ -194,11 +215,14 @@ export interface ExtensionInterface<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {}
 > {
+  _: {
+    context: Context
+    options: ProcedureOptions
+  }
   context?(): Context
   install?(
     application: ExtensionInstallOptions<ProcedureOptions, Context>
   ): void
-  _options: ProcedureOptions
 }
 
 export type ResolveExtensionOptions<Extension> =
@@ -208,6 +232,14 @@ export type ResolveExtensionContext<Extension> =
   Extension extends ExtensionInterface<infer Options, infer Context>
     ? Context
     : {}
+
+export type ResolveTransportClient<Transport> = Transport extends BaseTransport<
+  any,
+  any,
+  infer Client
+>
+  ? Client
+  : never
 
 export type UnionToIntersection<U> = (
   U extends any ? (k: U) => void : never
@@ -313,3 +345,18 @@ export type ExtractAppContext<App> = App extends Application<
 >
   ? AppContext
   : never
+
+export type ExtractAppTransportClient<App> = App extends Application<
+  any,
+  any,
+  any,
+  any
+>
+  ? ResolveTransportClient<App['transport']>
+  : never
+
+export interface BaseClient<Data = any> {
+  id: string
+  send: (eventName: string, payload: any) => boolean
+  data: Data
+}

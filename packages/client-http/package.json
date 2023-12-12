@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/common",
+  "name": "@neemata/client-http",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -25,9 +25,6 @@
     }
   },
   "dependencies": {
-    "events": "^3.3.0"
-  },
-  "devDependencies": {
-    "pino": "^8.15.1"
+    "@neemata/common": "workspace:*"
   }
 }

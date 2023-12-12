@@ -1,9 +1,9 @@
 import { LoggingOptions, createLogger } from '../lib/logger'
-import { BaseAdapter } from './adapter'
 import { Api, BaseParser } from './api'
 import { Container } from './container'
 import { BaseExtension } from './extension'
 import { TaskDeclaration, Tasks, TasksRunner } from './tasks'
+import { BaseTransport } from './transport'
 import {
   CallHook,
   Callback,
@@ -46,16 +46,16 @@ export type ApplicationWorkerOptions = {
 }
 
 export class Application<
-  Adapter extends BaseAdapter = BaseAdapter,
+  Transport extends BaseTransport = BaseTransport,
   Extensions extends Record<string, BaseExtension> = {},
   Options extends Extra = UnionToIntersection<
     ResolveExtensionOptions<Extensions[keyof Extensions]>
   > &
-    ResolveExtensionOptions<Adapter>,
+    ResolveExtensionOptions<Transport>,
   Context extends Extra = UnionToIntersection<
     ResolveExtensionContext<Extensions[keyof Extensions]>
   > &
-    ResolveExtensionContext<Adapter>
+    ResolveExtensionContext<Transport>
 > {
   api: Api<Options, Context>
   tasks: Tasks
@@ -69,7 +69,7 @@ export class Application<
   middlewares: Middlewares
 
   constructor(
-    readonly adapter: Adapter,
+    readonly transport: Transport,
     readonly options: ApplicationOptions,
     readonly extensions: Extensions = {} as Extensions
   ) {
@@ -116,13 +116,13 @@ export class Application<
   async start() {
     await this.initialize()
     await this.callHook(Hook.BeforeStart)
-    if (this.isApiWorker) await this.adapter.start()
+    if (this.isApiWorker) await this.transport.start()
     await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
     await this.callHook(Hook.BeforeStop)
-    if (this.isApiWorker) await this.adapter.stop()
+    if (this.isApiWorker) await this.transport.stop()
     await this.callHook(Hook.AfterStop)
     await this.terminate()
   }
@@ -139,7 +139,6 @@ export class Application<
     return this.tasks.execute(this.container, declaration.task.name, ...args)
   }
 
-  // TODO: probably it make sense at this point just make Application to extend from EventEmitter ??
   registerHook<T extends string>(hookName: T, hook: (...args: any[]) => any) {
     let hooks = this.hooks.get(hookName)
     if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
@@ -164,6 +163,7 @@ export class Application<
     middlewares.add(middleware)
   }
 
+  // TODO: some hooks might be better to call concurrently
   private async callHook(hook: Hook, ...args: any[]) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
@@ -173,7 +173,7 @@ export class Application<
   private initContext() {
     for (const key in this.context) delete this.context[key]
     const mixins = []
-    const extensions = [...Object.values(this.extensions), this.adapter]
+    const extensions = [...Object.values(this.extensions), this.transport]
     for (const extension of extensions) {
       if (extension.context) {
         mixins.push(extension.context())
@@ -188,7 +188,7 @@ export class Application<
   private initExtensions() {
     const installations = [
       ...Object.entries(this.extensions),
-      ['adapter', this.adapter],
+      ['transport', this.transport],
     ] as const
 
     const { api, container } = this

@@ -68,7 +68,7 @@ export class Container {
     }
 
     const declarations = this.findCurrentScopeDeclarations()
-    await Promise.all(declarations.map(this.resolve.bind(this))) // probably allSettled would be better here
+    await Promise.all(declarations.map((val) => this.resolve(val)))
   }
 
   createScope(scope: Scope, params: any = {}) {
@@ -109,12 +109,13 @@ export class Container {
     return declarations
   }
 
-  has(value: any) {
+  isResolved(value: any) {
     return this.instances.has(value) || this.resolvers.has(value)
   }
 
   async resolve<T extends ProviderDeclaration | ProviderDeclarationWithOptions>(
-    value: T
+    value: T,
+    forceScope?: Scope
   ): Promise<
     ResolvedDependencyInjection<
       T extends ProviderDeclarationWithOptions ? T['declaration'] : T
@@ -129,9 +130,9 @@ export class Container {
     } else if (this.resolvers.has(value)) {
       return this.resolvers.get(value)
     } else {
-      const isCurrentScopeStricter =
-        ScopeStrictness[this.scope] > ScopeStrictness[scope]
-      if (this.parent && isCurrentScopeStricter && this.parent.has(value))
+      const isStricter =
+        ScopeStrictness[this.scope] > ScopeStrictness[forceScope ?? scope]
+      if (this.parent && isStricter && this.parent.isResolved(value))
         return this.parent.resolve(value)
       const resolution = this.createContext(declaration.dependencies)
         .then((ctx) => factory(merge(this.params, ctx), options))

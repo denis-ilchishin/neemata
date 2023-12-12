@@ -6,6 +6,7 @@ export class LoaderError extends Error {}
 
 export class Loader<T> implements LoaderInterface<T> {
   readonly modules = new Map<string, T>()
+  readonly names = new Map<T, string>()
   readonly paths = new Map<string, string>()
 
   constructor(protected readonly root: string) {}
@@ -13,7 +14,6 @@ export class Loader<T> implements LoaderInterface<T> {
   async load() {
     if (!this.root) return
     const read = async (dir: string, level = 0) => {
-      // TODO: potential max call stack exception? maybe use loop instead of recursion
       const entries = await readdir(dir, { withFileTypes: true })
       for (const entry of entries) {
         if (entry.name.startsWith('.')) continue
@@ -47,11 +47,13 @@ export class Loader<T> implements LoaderInterface<T> {
 
   protected set(name: string, path: string, module: any) {
     this.modules.set(name, module)
+    this.names.set(module, name)
     this.paths.set(name, path)
   }
 
   clear() {
     this.modules.clear()
+    this.names.clear()
     this.paths.clear()
   }
 }

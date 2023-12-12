@@ -16,7 +16,10 @@ export abstract class BaseExtension<
   > = ExtensionMiddlewareOptions<AsProcedureOptions<ProcedureOptions>, Context>
 > implements ExtensionInterface<ProcedureOptions, Context>
 {
-  readonly _options!: ProcedureOptions
+  readonly _!: {
+    context: Context
+    options: ProcedureOptions
+  }
 
   abstract name: string
 

@@ -12,6 +12,7 @@ export enum ErrorCode {
   GatewayTimeout = 'GatewayTimeout',
   ServiceUnavailable = 'ServiceUnavailable',
   ClientRequestError = 'ClientRequestError',
+  ConnectionError = 'ConnectionError',
 }
 
 export enum Scope {
@@ -62,19 +63,16 @@ export type ResolveProcedureApiType<
     : any
   : any
 
-export type Call = [
-  (value?: any) => void,
-  (reason?: any) => void,
-  ReturnType<typeof setTimeout>?
-]
+export type Call = {
+  resolve: (value?: any) => void
+  reject: (reason?: any) => void
+  timer: ReturnType<typeof setTimeout>
+}
 
 export abstract class BaseClient<
   Api extends any = never,
   RPCOptions = never
 > extends EventEmitter {
-  protected readonly _calls = new Map<string | number, Call>()
-  protected _nextCallId = 1
-
   abstract rpc<P extends keyof Api>(
     procedure: P,
     ...args: Api extends never
@@ -85,4 +83,7 @@ export abstract class BaseClient<
   ): Promise<
     Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
   >
+  abstract connect(): Promise<void>
+  abstract disconnect(): Promise<void>
+  abstract reconnect(): Promise<void>
 }

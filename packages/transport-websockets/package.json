@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/adapter-rabbitmq",
+  "name": "@neemata/transport-websockets",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -9,7 +9,10 @@
     "type-check": "tsc --noEmit"
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
   "os": [
     "darwin",
     "linux"
@@ -18,15 +21,15 @@
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
   "dependencies": {
-    "amqplib": "^0.10.3"
+    "qs": "^6.11.2",
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"
   },
   "peerDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neemata/transport-http": "workspace:*"
   },
   "devDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*",
-    "@types/amqplib": "^0.10.3"
+    "@types/qs": "^6.9.8"
   }
 }

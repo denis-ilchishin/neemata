@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/adapter-uws",
+  "name": "@neemata/transport-http",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -9,7 +9,10 @@
     "type-check": "tsc --noEmit"
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
   "os": [
     "darwin",
     "linux"

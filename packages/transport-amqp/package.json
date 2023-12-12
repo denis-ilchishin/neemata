@@ -1,8 +1,8 @@
 {
-  "name": "@neemata/application",
+  "name": "@neemata/transport-amqp",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
-  "description": "Nodejs application adapter",
+  "description": "Nodejs application server",
   "scripts": {
     "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
     "build": "rm -rf ./dist && tsc",
@@ -21,24 +21,15 @@
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
   "dependencies": {
-    "@neemata/common": "workspace:*",
-    "pino": "^8.15.1",
-    "pino-pretty": "^10.2.0"
+    "amqplib": "^0.10.3"
   },
   "peerDependencies": {
-    "@sinclair/typebox": "^0.31.23",
-    "zod": "^3.22.4"
-  },
-  "peerDependenciesMeta": {
-    "@sinclair/typebox": {
-      "optional": true
-    },
-    "zod": {
-      "optional": true
-    }
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.31.23",
-    "zod": "^3.22.4"
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
+    "@types/amqplib": "^0.10.3"
   }
 }

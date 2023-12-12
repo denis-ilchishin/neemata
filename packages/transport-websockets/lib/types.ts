@@ -1,11 +1,10 @@
-import uws from 'uWebSockets.js'
-
 import { Container } from '@neemata/application'
 import {
   HttpTransportOptions,
   HttpTransportProtocol,
 } from '@neemata/transport-http'
 import { Readable } from 'node:stream'
+import uws from 'uWebSockets.js'
 
 export type WebSocketUserData = {
   id: string
@@ -36,13 +35,3 @@ export type WebsocketsTransportClientContext = {
 
 export type WebsocketsTransportProcedureOptions = {}
 export type WebsocketsTransportApplicationContext = {}
-
-export const MessageType = Object.freeze({
-  Rpc: 1,
-  StreamTerminate: 2,
-  StreamPush: 3,
-  StreamPull: 4,
-  StreamEnd: 5,
-  Event: 6,
-})
-export type MessageType = (typeof MessageType)[keyof typeof MessageType]

@@ -1,11 +1,8 @@
 import { BaseClient } from '@neemata/application'
 import { HttpTransportProtocol } from '@neemata/transport-http'
+import { MessageType } from './common'
 import { sendPayload } from './server'
-import {
-  MessageType,
-  WebSocket,
-  WebsocketsTransportClientContext,
-} from './types'
+import { WebSocket, WebsocketsTransportClientContext } from './types'
 
 export class WebsocketsTransportClient<Data = any> implements BaseClient<Data> {
   readonly id: string

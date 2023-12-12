@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { PassThrough, Readable } from 'node:stream'
 import { WebsocketsTransportClient } from '..'
 import {
+  MessageType,
   concat,
   decodeNumber,
   decodeText,
@@ -18,7 +19,6 @@ import {
   encodeText,
 } from './common'
 import {
-  MessageType,
   WebSocket,
   WebsocketsTransportApplicationContext,
   WebsocketsTransportClientContext,

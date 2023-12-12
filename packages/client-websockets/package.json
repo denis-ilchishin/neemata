@@ -1,0 +1,25 @@
+{
+  "name": "@neemata/client-websockets",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "tsup --watch",
+    "build": "tsup --clean --dts",
+    "type-check": "tsc --noEmit"
+  },
+  "main": "./dist/index.mjs",
+  "types": "./index.ts",
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "require": "./dist/index.js",
+        "import": "./dist/index.mjs",
+        "types": "./dist/index.d.ts"
+      }
+    }
+  },
+  "dependencies": {
+    "@neemata/common": "workspace:*"
+  }
+}

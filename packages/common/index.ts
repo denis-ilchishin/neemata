@@ -62,11 +62,11 @@ export type ResolveProcedureApiType<
     : any
   : any
 
-export type Call = [
-  (value?: any) => void,
-  (reason?: any) => void,
-  ReturnType<typeof setTimeout>?
-]
+export type Call = {
+  resolve: (value?: any) => void
+  reject: (reason?: any) => void
+  timer: ReturnType<typeof setTimeout>
+}
 
 export abstract class BaseClient<
   Api extends any = never,

@@ -10,6 +10,7 @@ import {
   Extra,
   ExtractAppContext,
   ExtractAppOptions,
+  ExtractAppTransportClient,
   Middleware,
   ProcedureDeclaration,
 } from './types'
@@ -35,10 +36,19 @@ export class Api<
     Dependencies,
     Options,
     Context,
+    BaseClient,
     any,
     any,
     any
-  > = ProcedureDeclaration<Dependencies, Options, Context, any, any, any>
+  > = ProcedureDeclaration<
+    Dependencies,
+    Options,
+    Context,
+    BaseClient,
+    any,
+    any,
+    any
+  >
 > extends Loader<T> {
   constructor(
     private readonly application: Application<any, any, any, any>,
@@ -162,7 +172,7 @@ export class Api<
 }
 
 export const declareProcedure = (
-  procedure: BaseProcedure<any, any, any, any, any, any>,
+  procedure: BaseProcedure<any, any, any, any, any, any, any>,
   dependencies?: Dependencies,
   enableMiddleware = true
 ) => {
@@ -175,13 +185,30 @@ export const createTypedDeclareProcedure =
   <
     App,
     Options extends ExtractAppOptions<App> = ExtractAppOptions<App>,
-    Context extends ExtractAppContext<App> = ExtractAppContext<App>
+    Context extends ExtractAppContext<App> = ExtractAppContext<App>,
+    TransportClient extends ExtractAppTransportClient<App> = ExtractAppTransportClient<App>
   >() =>
   <Deps extends Dependencies, Input, Response, Output>(
-    procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>,
+    procedure: BaseProcedure<
+      Deps,
+      Options,
+      Context,
+      TransportClient,
+      Input,
+      Response,
+      Output
+    >,
     dependencies?: Deps,
     enableMiddleware = true
-  ): ProcedureDeclaration<Deps, Options, Context, Input, Response, Output> => {
+  ): ProcedureDeclaration<
+    Deps,
+    Options,
+    Context,
+    TransportClient,
+    Input,
+    Response,
+    Output
+  > => {
     // @ts-expect-error
     return declareProcedure(procedure, dependencies, enableMiddleware)
   }

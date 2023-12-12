@@ -6,7 +6,7 @@ import { WebSocket, WebsocketsTransportClientContext } from './types'
 
 export class WebsocketsTransportClient<Data = any> implements BaseClient<Data> {
   readonly id: string
-  readonly protocol = HttpTransportProtocol.Websockets
+  readonly protocol: HttpTransportProtocol = HttpTransportProtocol.Websockets
 
   #context: WebsocketsTransportClientContext
   #websocket: WebSocket

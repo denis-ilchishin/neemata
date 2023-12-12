@@ -66,9 +66,10 @@ export type ProcedureOption<T, Context extends Extra = {}> =
   | T
   | ((context: Context) => Async<T>)
 
-export type ProcedureContext = {
+export type ProcedureContext<Client extends BaseClient> = {
+  client: Client
   call: <
-    Declaration extends ProcedureDeclaration<any, any, any, any, any, any>
+    Declaration extends ProcedureDeclaration<any, any, any, any, any, any, any>
   >(
     declaration: Declaration,
     ...args: OmitFirstItem<Parameters<Declaration['procedure']['handle']>>
@@ -102,13 +103,14 @@ export type BaseProcedure<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
+  Client extends BaseClient,
   Input,
   Response,
   Output
 > = AsProcedureOptions<Options, DependencyContext<Context, Deps>> & {
   input?: Input | ((ctx: DependencyContext<Context, Deps>) => Input)
   handle: (
-    ctx: DependencyContext<Context, Deps> & ProcedureContext,
+    ctx: DependencyContext<Context, Deps> & ProcedureContext<Client>,
     data: ProcedureDataType<Input>
   ) => Response
   output?:
@@ -123,11 +125,20 @@ export interface ProcedureDeclaration<
   Deps extends Dependencies,
   Options extends Extra,
   Context extends Extra,
+  Client extends BaseClient,
   Input,
   Response,
   Output
 > extends Depender<Deps> {
-  procedure: BaseProcedure<Deps, Options, Context, Input, Response, Output>
+  procedure: BaseProcedure<
+    Deps,
+    Options,
+    Context,
+    Client,
+    Input,
+    Response,
+    Output
+  >
 }
 
 export interface Depender<Deps extends Dependencies> {
@@ -149,7 +160,15 @@ export type ExtensionMiddlewareOptions<
   name: string
   context: DependencyContext<Extra, {}>
   container: Container
-  procedure: BaseProcedure<Dependencies, Options, Context, any, any, any>
+  procedure: BaseProcedure<
+    Dependencies,
+    Options,
+    Context,
+    BaseClient,
+    any,
+    any,
+    any
+  >
 }
 
 export type Next = (payload?: any) => any
@@ -215,6 +234,8 @@ export type ResolveExtensionContext<Extension> =
     : {}
 
 export type ResolveTransportClient<Transport> = Transport extends BaseTransport<
+  any,
+  any,
   infer Client
 >
   ? Client
@@ -323,6 +344,15 @@ export type ExtractAppContext<App> = App extends Application<
   infer AppContext
 >
   ? AppContext
+  : never
+
+export type ExtractAppTransportClient<App> = App extends Application<
+  any,
+  any,
+  any,
+  any
+>
+  ? ResolveTransportClient<App['transport']>
   : never
 
 export interface BaseClient<Data = any> {

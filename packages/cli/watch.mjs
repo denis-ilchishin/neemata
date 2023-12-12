@@ -37,7 +37,7 @@ export async function initialize(data) {
 
 export function fileUrl(val, parentURL) {
   if (val instanceof URL) return val
-  if (val.startsWith('file://')) return new URL(val)
+  if (isFileUrl(val)) return new URL(val)
   return isRelativePath(val) ? new URL(val, parentURL) : pathToFileURL(val)
 }
 
@@ -48,7 +48,7 @@ export function isLib(val) {
     return val.protocol === 'file:'
   } else {
     if (isBuiltin(val)) return true
-    else if (val.startsWith('file:')) return false
+    else if (isFileUrl(val)) return false
     return !isPath(val)
   }
 }

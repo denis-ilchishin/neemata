@@ -72,9 +72,6 @@ export abstract class BaseClient<
   Api extends any = never,
   RPCOptions = never
 > extends EventEmitter {
-  protected readonly _calls = new Map<string | number, Call>()
-  protected _nextCallId = 1
-
   abstract rpc<P extends keyof Api>(
     procedure: P,
     ...args: Api extends never
@@ -85,4 +82,7 @@ export abstract class BaseClient<
   ): Promise<
     Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
   >
+  abstract connect(): Promise<void>
+  abstract disconnect(): Promise<void>
+  abstract reconnect(urlParams?: URLSearchParams): Promise<void>
 }

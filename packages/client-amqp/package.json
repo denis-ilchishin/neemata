@@ -9,7 +9,10 @@
     "type-check": "tsc --noEmit"
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
   "dependencies": {
     "@neemata/common": "workspace:*",
     "amqplib": "^0.10.3"

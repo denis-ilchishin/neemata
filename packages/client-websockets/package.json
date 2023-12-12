@@ -8,8 +8,13 @@
     "build": "tsup --clean --dts",
     "type-check": "tsc --noEmit"
   },
-  "main": "./dist/index.mjs",
-  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./index.ts"
+    }
+  },
   "publishConfig": {
     "exports": {
       ".": {

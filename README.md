@@ -8,18 +8,19 @@ Lightweight Node.js RPC application server
 
 ### Features:
 
-- (in-progress) Modular and extendable [transport-agnostic](https://github.com/denis-ilchishin/neemata/issues/55) design
+- Modular and extendable [transport-agnostic](https://github.com/denis-ilchishin/neemata/issues/55) design
 - Dependency injection
 - [Application server mode](https://github.com/denis-ilchishin/neemata/pull/41) to run multiple instances of application with worker_threads under one process
 - Task workers over worker_threads to parallelize CPU-intensive workloads and prevent blocking of API workers 
+- Bi-directional [transport-agnostic](https://github.com/denis-ilchishin/neemata/issues/56) data streaming
 - CLI support
 - Typescript modules support without build process (runtime transpilation with [SWC](https://github.com/swc-project/swc))
 - Hot-reload without server restart (preserving all current connections)
 
-#### First-party adapters and clients:
-
-- **[μWebSockets](https://github.com/uNetworking/uWebSockets.js)** with both websockets and http transports support, as well as binary data streaming over websockets
-- **[RabbitMQ](https://www.rabbitmq.com/)**
+#### First-party transports and clients:
+- **HTTP**
+- **Websockets**
+- **AMQP**
 
 
 #### First-party extensions:

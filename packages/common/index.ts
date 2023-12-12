@@ -12,6 +12,7 @@ export enum ErrorCode {
   GatewayTimeout = 'GatewayTimeout',
   ServiceUnavailable = 'ServiceUnavailable',
   ClientRequestError = 'ClientRequestError',
+  ConnectionError = 'ConnectionError',
 }
 
 export enum Scope {
@@ -84,5 +85,5 @@ export abstract class BaseClient<
   >
   abstract connect(): Promise<void>
   abstract disconnect(): Promise<void>
-  abstract reconnect(urlParams?: URLSearchParams): Promise<void>
+  abstract reconnect(): Promise<void>
 }

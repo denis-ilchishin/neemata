@@ -1,0 +1,20 @@
+{
+  "name": "@neemata/client-amqp",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@neemata/common": "workspace:*",
+    "amqplib": "^0.10.3"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.3"
+  }
+}

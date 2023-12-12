@@ -157,23 +157,16 @@ importers:
         version: 6.9.8
 
   packages/transport-websockets:
-    dependencies:
-      '@neemata/transport-http':
-        specifier: workspace:*
-        version: link:../transport-http
-      qs:
-        specifier: ^6.11.2
-        version: 6.11.2
-      uWebSockets.js:
-        specifier: uNetworking/uWebSockets.js#v20.34.0
-        version: github.com/uNetworking/uWebSockets.js/fca27c05066342b01951782248640c8013b37196
     devDependencies:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
-      '@types/qs':
-        specifier: ^6.9.8
-        version: 6.9.8
+      '@neemata/transport-http':
+        specifier: workspace:*
+        version: link:../transport-http
+      uWebSockets.js:
+        specifier: uNetworking/uWebSockets.js#v20.34.0
+        version: github.com/uNetworking/uWebSockets.js/fca27c05066342b01951782248640c8013b37196
 
 packages:
 
@@ -1859,4 +1852,3 @@ packages:
     resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fca27c05066342b01951782248640c8013b37196}
     name: uWebSockets.js
     version: 20.34.0
-    dev: false

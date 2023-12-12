@@ -9,7 +9,7 @@ import {
 } from '@neemata/transport-http'
 import { randomUUID } from 'node:crypto'
 import { PassThrough, Readable } from 'node:stream'
-import { WebsocketsTransportClient } from '..'
+import { WebsocketsTransportClient } from './client'
 import {
   MessageType,
   concat,

@@ -3,6 +3,7 @@ import { Application, ApplicationOptions } from './application'
 import { Container } from './container'
 import { Loader } from './loader'
 import {
+  BaseClient,
   BaseProcedure,
   Dependencies,
   ExtensionMiddlewareOptions,
@@ -54,21 +55,34 @@ export class Api<
   }
 
   async call(
-    name: string,
-    declaration: T,
-    payload: any,
-    container: Container,
-    callContext: Extra,
-    withMiddleware = declaration[MIDDLEWARE_ENABLED]
+    callOptions: {
+      client: BaseClient
+      name: string
+      declaration: T
+      payload: any
+      container: Container
+    },
+    callContext: Extra = {},
+    withMiddleware = callOptions.declaration[MIDDLEWARE_ENABLED]
   ) {
+    const { client, container, declaration, name, payload } = callOptions
     let middlewars = withMiddleware ? this.findMiddlewares(name) : undefined
     const { dependencies, procedure } = declaration
-    const nestedCall = (declaration, payload) =>
-      this.call(name, declaration, payload, container, callContext, false)
+    const nestedCall = (declaration, payload) => {
+      const name = this.names.get(declaration)
+      this.call(
+        { client, name, declaration, payload, container },
+        callContext,
+        false
+      )
+    }
+
     const context = await container.createContext(dependencies, callContext, {
+      client,
       call: nestedCall,
     })
     const options: ExtensionMiddlewareOptions<any, any> = {
+      client,
       name,
       context,
       procedure,

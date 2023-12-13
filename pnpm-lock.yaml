@@ -152,6 +152,9 @@ importers:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
+      '@neemata/common':
+        specifier: workspace:*
+        version: link:../common
       '@types/qs':
         specifier: ^6.9.8
         version: 6.9.8
@@ -161,6 +164,9 @@ importers:
       '@neemata/application':
         specifier: workspace:*
         version: link:../application
+      '@neemata/common':
+        specifier: workspace:*
+        version: link:../common
       '@neemata/transport-http':
         specifier: workspace:*
         version: link:../transport-http

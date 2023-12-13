@@ -22,9 +22,11 @@
   },
   "peerDependencies": {
     "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
     "@neemata/transport-http": "workspace:*"
   },
   "devDependencies": {
+    "@neemata/common": "workspace:*",
     "@neemata/application": "workspace:*",
     "@neemata/transport-http": "workspace:*",
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"

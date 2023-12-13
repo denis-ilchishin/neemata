@@ -25,10 +25,12 @@
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*"
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*"
   },
   "devDependencies": {
     "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*",
     "@types/qs": "^6.9.8"
   }
 }

@@ -1,5 +1,12 @@
 import { ApiError, ExtensionInstallOptions, Scope } from '@neemata/application'
 import {
+  concat,
+  decodeNumber,
+  decodeText,
+  encodeNumber,
+  encodeText,
+} from '@neemata/common'
+import {
   HttpTransportClient,
   HttpTransportProtocol,
   HttpTransportServer,
@@ -10,14 +17,7 @@ import {
 import { randomUUID } from 'node:crypto'
 import { PassThrough, Readable } from 'node:stream'
 import { WebsocketsTransportClient } from './client'
-import {
-  MessageType,
-  concat,
-  decodeNumber,
-  decodeText,
-  encodeNumber,
-  encodeText,
-} from './common'
+import { MessageType } from './common'
 import {
   WebSocket,
   WebsocketsTransportApplicationContext,

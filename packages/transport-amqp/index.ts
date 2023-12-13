@@ -53,7 +53,7 @@ export class Transport<ClientData> extends BaseTransport<
   channel!: amqplib.Channel
 
   constructor(private readonly options: TransportOptions<ClientData>) {
-    super()
+    super(options.clientProvider)
   }
 
   install(

@@ -19,8 +19,8 @@ export class WebsocketsTransport<ClientData> extends BaseTransport<
     WebsocketsTransportApplicationContext
   >
 
-  constructor(readonly options?: WebsocketsTransportOptions<ClientData>) {
-    super()
+  constructor(readonly options: WebsocketsTransportOptions<ClientData>) {
+    super(options.clientProvider)
   }
 
   install(

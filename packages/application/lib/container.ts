@@ -1,10 +1,12 @@
 import { Scope } from '@neemata/common'
 import { Application } from './application'
 import {
+  BaseClient,
   Dependencies,
   Depender,
   Extra,
   ExtractAppContext,
+  ExtractAppTransportClient,
   LoaderInterface,
   Provider,
   ProviderDeclaration,
@@ -171,8 +173,8 @@ export class Container {
 
 export const declareProvider = (
   provider:
-    | ProviderFactory<any, Extra, Extra, any[]>
-    | Provider<any, Extra, Extra, Scope, any[]>,
+    | ProviderFactory<any, Extra, Extra, Scope, BaseClient, any>
+    | Provider<any, Extra, Extra, Scope, BaseClient, any>,
   dependencies?: Dependencies
 ) => {
   const declarationFactory = (options) => ({ declaration, options })
@@ -187,7 +189,11 @@ export const declareProvider = (
 }
 
 export const createTypedDeclareProvider =
-  <App, Context extends ExtractAppContext<App> = ExtractAppContext<App>>() =>
+  <
+    App,
+    Context extends ExtractAppContext<App> = ExtractAppContext<App>,
+    TransportClient extends ExtractAppTransportClient<App> = ExtractAppTransportClient<App>
+  >() =>
   <
     Type,
     Deps extends Dependencies,
@@ -195,10 +201,24 @@ export const createTypedDeclareProvider =
     ProviderScope extends Scope = Scope.Global
   >(
     provider:
-      | ProviderFactory<Type, Context, Deps, Options>
-      | Provider<Type, Context, Deps, ProviderScope, Options>,
+      | ProviderFactory<
+          Type,
+          Context,
+          Deps,
+          ProviderScope,
+          TransportClient,
+          Options
+        >
+      | Provider<Type, Context, Deps, ProviderScope, TransportClient, Options>,
     dependencies?: Deps
-  ): ProviderDeclaration<Type, Context, Deps, ProviderScope, Options> => {
+  ): ProviderDeclaration<
+    Type,
+    Context,
+    Deps,
+    ProviderScope,
+    TransportClient,
+    Options
+  > => {
     // @ts-expect-error
     return declareProvider(provider, dependencies)
   }

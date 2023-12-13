@@ -107,16 +107,24 @@ export type BaseProcedure<
   Input,
   Response,
   Output
-> = AsProcedureOptions<Options, DependencyContext<Context, Deps>> & {
-  input?: Input | ((ctx: DependencyContext<Context, Deps>) => Input)
+> = AsProcedureOptions<
+  Options,
+  DependencyContext<Context, Deps, ProviderScope, BaseClient>
+> & {
+  input?:
+    | Input
+    | ((
+        ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient>
+      ) => Input)
   handle: (
-    ctx: DependencyContext<Context, Deps> & ProcedureContext<Client>,
+    ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient> &
+      ProcedureContext<Client>,
     data: ProcedureDataType<Input>
   ) => Response
   output?:
     | Output
     | ((
-        ctx: DependencyContext<Context, Deps>,
+        ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient>,
         data: Awaited<Response>
       ) => Output)
 }
@@ -158,7 +166,7 @@ export type ExtensionMiddlewareOptions<
 > = {
   client: BaseClient
   name: string
-  context: DependencyContext<Extra, {}>
+  context: DependencyContext<Extra, {}, ProviderScope, BaseClient>
   container: Container
   procedure: BaseProcedure<
     Dependencies,
@@ -267,36 +275,49 @@ export type GlobalContext = {
 
 export type DependencyContext<
   Context extends Extra,
-  Deps extends Dependencies
+  Deps extends Dependencies,
+  Scope extends ProviderScope,
+  Client extends BaseClient
 > = Context & {
   injections: {
     [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
   }
   scope: ProviderScope
-} & GlobalContext
+} & GlobalContext &
+  (Scope extends Exclude<ProviderScope, ProviderScope.Global>
+    ? { client: Client }
+    : {})
 
 export type ProviderFactory<
   Type,
   Context extends Extra,
   Deps extends Dependencies,
+  Scope extends ProviderScope,
+  Client extends BaseClient,
   Options extends any
-> = (ctx: DependencyContext<Context, Deps>, options?: Options) => Async<Type>
+> = (
+  ctx: DependencyContext<Context, Deps, Scope, Client>,
+  options?: Options
+) => Async<Type>
 
 export type ProviderDispose<
   Type,
   Context extends Extra,
-  Deps extends Dependencies
-> = (ctx: DependencyContext<Context, Deps>, value: Type) => any
+  Deps extends Dependencies,
+  Scope extends ProviderScope,
+  Client extends BaseClient
+> = (ctx: DependencyContext<Context, Deps, Scope, Client>, value: Type) => any
 
 export type Provider<
   Type,
   Context extends Extra,
   Deps extends Dependencies,
   Scope extends ProviderScope,
+  Client extends BaseClient,
   Options extends any
 > = {
-  factory: ProviderFactory<Type, Context, Deps, Options>
-  dispose?: ProviderDispose<Type, Context, Deps>
+  factory: ProviderFactory<Type, Context, Deps, Scope, Client, Options>
+  dispose?: ProviderDispose<Type, Context, Deps, Scope, Client>
   scope?: Scope
 }
 
@@ -305,6 +326,7 @@ export interface ProviderDeclaration<
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
   Scope extends ProviderScope = ProviderScope,
+  Client extends BaseClient = BaseClient,
   Options extends any = any
 > extends Depender<Deps> {
   (options: Options): ProviderDeclarationWithOptions<
@@ -312,9 +334,10 @@ export interface ProviderDeclaration<
     Context,
     Deps,
     Scope,
+    Client,
     Options
   >
-  provider: Provider<Type, Context, Deps, Scope, Options>
+  provider: Provider<Type, Context, Deps, Scope, Client, Options>
 }
 
 export interface ProviderDeclarationWithOptions<
@@ -322,9 +345,10 @@ export interface ProviderDeclarationWithOptions<
   Context extends Extra = Extra,
   Deps extends Dependencies = Dependencies,
   Scope extends ProviderScope = ProviderScope,
+  Client extends BaseClient = BaseClient,
   Options extends any = any
 > extends Depender<Deps> {
-  provider?: Provider<Type, Context, Deps, Scope, Options>
+  provider?: Provider<Type, Context, Deps, Scope, Client, Options>
   options: Options
   declaration?: ProviderDeclaration
 }

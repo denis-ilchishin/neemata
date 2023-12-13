@@ -15,6 +15,7 @@ export {
   Container,
   createTypedDeclareProvider,
   declareProvider,
+  getProviderScope,
 } from './lib/container'
 export { BaseExtension } from './lib/extension'
 export { Loader } from './lib/loader'

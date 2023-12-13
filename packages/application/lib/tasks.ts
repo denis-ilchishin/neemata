@@ -18,7 +18,9 @@ export type Task<
   Args extends any[],
   Response
 > = (
-  ctx: DependencyContext<Context, Deps> & { signal: AbortSignal },
+  ctx: DependencyContext<Context, Deps, Scope.Global, never> & {
+    signal: AbortSignal
+  },
   ...args: Args
 ) => Response
 

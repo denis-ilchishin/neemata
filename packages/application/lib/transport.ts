@@ -1,8 +1,11 @@
+import { Scope } from '@neemata/common'
+import { getProviderScope } from './container'
 import {
   BaseClient,
   ExtensionInstallOptions,
   ExtensionInterface,
   Extra,
+  ProviderDeclaration,
 } from './types'
 
 export abstract class BaseTransport<
@@ -11,6 +14,14 @@ export abstract class BaseTransport<
   Client extends BaseClient = BaseClient
 > implements ExtensionInterface<ProcedureOptions, Context>
 {
+  constructor(clientProvider: ProviderDeclaration<any> | undefined) {
+    if (getProviderScope(clientProvider) !== Scope.Global) {
+      throw new Error(
+        'Client provider must be Global scope (including all dependencies)'
+      )
+    }
+  }
+
   readonly _!: {
     options: ProcedureOptions
     context: Context

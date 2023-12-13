@@ -20,8 +20,8 @@ export class HttpTransport<ClientData> extends BaseTransport<
     HttpTransportApplicationContext
   >
 
-  constructor(readonly options?: HttpTransportOptions<ClientData>) {
-    super()
+  constructor(readonly options: HttpTransportOptions<ClientData>) {
+    super(options.clientProvider)
   }
 
   install(

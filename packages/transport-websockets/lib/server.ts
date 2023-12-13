@@ -95,14 +95,10 @@ export class WebsocketsTransportServer extends HttpTransportServer {
       },
       open: async (ws: WebSocket) => {
         this.sockets.add(ws)
-        const { id, context, container } = ws.getUserData()
+        const { id, context } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
         try {
-          const clientData = await this.getClientData(
-            container,
-            context,
-            Scope.Connection
-          )
+          const clientData = await this.getClientData(context)
           const client = new WebsocketsTransportClient(context, ws, clientData)
           this.clients.set(id, client)
         } catch (error) {

@@ -251,15 +251,10 @@ export class HttpTransportServer {
     return { method, url, query, headers, proxyRemoteAddress, remoteAddress }
   }
 
-  protected async getClientData(
-    container: Container,
-    transportData: any,
-    scope: Scope
-  ) {
+  protected async getClientData(transportData: any) {
     const declaration = this.options.clientProvider(transportData)
-    declaration.declaration!.provider.scope = scope
     const clientData = this.options.clientProvider
-      ? await container.resolve(declaration, scope)
+      ? await this.application.container.resolve(declaration)
       : undefined
     return clientData
   }

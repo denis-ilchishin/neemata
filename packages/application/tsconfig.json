@@ -21,6 +21,5 @@
   "include": [
     "./index.ts",
     "./lib/**/*.ts",
-    "./lib/**/*.mts"
   ]
 }

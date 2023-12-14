@@ -3,6 +3,8 @@ import {
   BaseClient,
   ErrorCode,
   ResolveProcedureApiType,
+  createBinaryStream,
+  createJsonStream,
 } from '@neemata/common'
 
 export { ApiError, ErrorCode, HttpClient }
@@ -16,6 +18,11 @@ type Options = {
 
 type RPCOptions = {
   timeout?: number
+}
+
+const StreamTypeHandlerMethod = {
+  json: 'streamJson',
+  binary: 'streamBinary',
 }
 
 class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
@@ -54,11 +61,17 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   > {
     const [payload, options = {}] = args
     const { timeout = options.timeout } = options
+    const ac = new AbortController()
     const signal = timeout ? AbortSignal.timeout(timeout) : undefined
+    if (signal) {
+      signal.addEventListener('abort', () => ac.abort(new Error('Timeout')), {
+        once: true,
+      })
+    }
     return await fetch(
       this.applyURLParams(new URL(`api/${procedure as string}`, this.url)),
       {
-        signal,
+        signal: ac.signal,
         method: 'POST',
         body: JSON.stringify(payload),
         credentials: 'include',
@@ -67,12 +80,23 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
           'Content-Type': 'application/json',
         },
       }
-    )
-      .then((res) => res.json())
-      .then(({ response, error }) => {
-        if (error) throw new ApiError(error.code, error.message, error.data)
-        return response
-      })
+    ).then((res) => {
+      const streamType = res.headers.get('X-Neemata-Stream')
+      if (streamType) return this[StreamTypeHandlerMethod[streamType]](res, ac)
+      else
+        return res.json().then(({ response, error }) => {
+          if (error) throw new ApiError(error.code, error.message, error.data)
+          return response
+        })
+    })
+  }
+
+  [StreamTypeHandlerMethod.json](res: Response, ac: AbortController) {
+    return createJsonStream(res.body, ac)
+  }
+
+  [StreamTypeHandlerMethod.binary](res: Response, ac: AbortController) {
+    return createBinaryStream(res.body, ac)
   }
 
   setGetParams(params: URLSearchParams) {

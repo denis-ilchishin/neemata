@@ -28,6 +28,7 @@
     "@neemata/application": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*"
+    "@neemata/application": "workspace:*",
+    "@neemata/common": "workspace:*"
   }
 }

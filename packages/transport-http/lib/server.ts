@@ -199,11 +199,7 @@ export class HttpTransportServer {
     try {
       const body = await this.handleBody(req, res, method, query)
       const container = this.application.container.createScope(Scope.Call)
-      const clientData = await this.getClientData(
-        container,
-        clientContext,
-        Scope.Call
-      )
+      const clientData = await this.getClientData(clientContext)
       const client = new HttpTransportClient(clientContext, clientData)
       this.clients.set(client.id, client)
       const response = await this.handleRPC(

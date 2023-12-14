@@ -26,6 +26,7 @@ export {
   createLogger,
 } from './lib/logger'
 export { ApplicationServer, ApplicationServerOptions } from './lib/server'
+export * from './lib/streams'
 export { TaskInterface, createTypedDeclareTask } from './lib/tasks'
 export { BaseTransport } from './lib/transport'
 export * from './lib/types'

@@ -4,9 +4,11 @@ import {
   Container,
   ErrorCode,
   ExtensionInstallOptions,
+  JsonStreamResponse,
   Scope,
   defer,
 } from '@neemata/application'
+import { encodeText } from '@neemata/common'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
@@ -32,6 +34,7 @@ export const CONTENT_TYPE_HEADER = 'Content-Type'
 export const CHARSET_SUFFIX = 'charset=utf-8'
 export const JSON_CONTENT_TYPE_MIME = 'application/json'
 export const PLAIN_CONTENT_TYPE_MIME = 'text/plain'
+export const STREAM_HEADER = 'X-Neemata-Stream'
 export const HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -122,7 +125,10 @@ export class HttpTransportServer {
     this.server.options(this.basePath('*'), (res, req) => {
       if (!this.listeningSocket) return void res.close()
       this.handleDefaultHeaders(req, res)
-      if (req.getUrl().startsWith(this.basePath('api')))
+      if (
+        req.getUrl().startsWith(this.basePath('api')) &&
+        req.getMethod() === HttpTransportMethod.Post
+      )
         res.writeHeader('Accept', JSON_CONTENT_TYPE_MIME)
       res.writeStatus('204 No Content')
       res.endWithoutBody()
@@ -212,7 +218,6 @@ export class HttpTransportServer {
       tryRespond(() => {
         this.setCors(res, headers)
         this.setDefaultHeaders(res)
-        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
         for (const [name, value] of resHeaders) res.writeHeader(name, value)
         if (isStream) this.handleStreamResponse(req, res, headers, response)
         else this.handleResponse(req, res, headers, { response })
@@ -273,6 +278,7 @@ export class HttpTransportServer {
   }
 
   protected handleResponse(req: Req, res: Res, headers: Headers, data: any) {
+    res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
     res.end(toJSON(data))
   }
 
@@ -283,14 +289,30 @@ export class HttpTransportServer {
     stream: Readable
   ) {
     let isAborted = false
+    let isFirstChunk = true
     const tryRespond = (cb) => !isAborted && res.cork(cb)
     res.onAborted(() => {
       isAborted = true
       stream.destroy(new Error('Aborted by client'))
     })
     stream.on('error', () => tryRespond(() => res.close()))
-    stream.on('end', () => tryRespond(() => res.end()))
+    stream.on('end', () =>
+      tryRespond(() => {
+        if (stream instanceof JsonStreamResponse) {
+          const end = encodeText('\n]')
+          res.end(end)
+        } else {
+          res.end()
+        }
+      })
+    )
     stream.on('data', (chunk) => {
+      if (stream instanceof JsonStreamResponse) {
+        // wrap all data into array, so any http client
+        // can consume it as json array
+        chunk = encodeText((isFirstChunk ? '' : ',') + '\n' + chunk)
+        if (isFirstChunk) isFirstChunk = false
+      }
       const arrayBuffer = chunk.buffer.slice(
         chunk.byteOffset,
         chunk.byteOffset + chunk.byteLength
@@ -310,6 +332,17 @@ export class HttpTransportServer {
         })
       }
     })
+    const streamType = stream instanceof JsonStreamResponse ? 'json' : 'binary'
+    res.writeHeader('Access-Control-Expose-Headers', STREAM_HEADER)
+    res.writeHeader(STREAM_HEADER, streamType)
+    if (stream instanceof JsonStreamResponse) {
+      // wrap all data into array, so so any http client
+      // can consume it as json array
+      tryRespond(() => {
+        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
+        res.write(encodeText('['))
+      })
+    }
   }
 
   protected handleDefaultHeaders(req: Req, res: Res) {

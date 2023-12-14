@@ -1,14 +1,13 @@
 import {
   BaseExtension,
-  BinaryStream,
+  BinaryStreamResponse,
   ExtensionInstallOptions,
   Hook,
-  JsonStream,
+  JsonStreamResponse,
   ProcedureDataType,
   ProcedureDeclaration,
   WorkerType,
 } from '@neemata/application'
-import { BaseClientStream } from '@neemata/common'
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
 import { name as packageName } from '../package.json'
@@ -18,7 +17,7 @@ export class StaticApiAnnotations extends BaseExtension {
 
   application!: ExtensionInstallOptions<{}, {}>
 
-  constructor(private readonly options: { output: string }) {
+  constructor(private readonly options: { output: string; emit: boolean }) {
     super()
   }
 
@@ -32,7 +31,7 @@ export class StaticApiAnnotations extends BaseExtension {
       await this.generate()
     })
 
-    if (type === WorkerType.Api)
+    if (type === WorkerType.Api && (this.options.emit ?? true))
       registerHook(Hook.AfterInitialize, this.generate.bind(this))
   }
 
@@ -77,16 +76,19 @@ export type ResolveApi<Input extends Record<string, any>> = {
     : never
 }
 
-export type ResolveApiOutput<Output> = Output extends JsonStream<infer Type>
-  ? BaseClientStream<Primitive<Type>>
-  : Output extends BinaryStream
-  ? BaseClientStream<Uint8Array>
+export type ResolveApiOutput<Output> = Output extends JsonStreamResponse<
+  infer Type
+>
+  ? import('@neemata/common').BaseClientStream<Primitive<Type>>
+  : Output extends BinaryStreamResponse
+  ? import('@neemata/common').BaseClientStream<Uint8Array>
   : Primitive<Output>
 
 /**
- * Slightly modified version of https://github.com/samchon/typia Primitive type.
+ * Slightly modified version of https://github.com/samchon/typia Primitive type. (TODO: make a PR maybe?)
  * Excludes keys with `never` types from object, and if a function is in array,
- * then it is stringified as `null`, just like JSON.stringify does.
+ * then it is stringified as `null`, just like V8 implementation of JSON.stringify does.
+ * Could differ from Bun's JSC implementation. Need further investigation.
  */
 export type Primitive<T> = Equal<T, PrimitiveMain<T>> extends true
   ? T

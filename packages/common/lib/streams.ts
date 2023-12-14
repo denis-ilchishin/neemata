@@ -1,6 +1,17 @@
 import { concat, decodeText, encodeText } from './binary'
 
 export class BaseClientStream<Data = any> extends ReadableStream<Data> {
+  constructor(
+    readonly ac: AbortController,
+    underlyingSource: UnderlyingDefaultSource<Data>
+  ) {
+    super(underlyingSource)
+  }
+
+  abort() {
+    this.ac.abort()
+  }
+
   toAsyncIterable() {
     return {
       [Symbol.asyncIterator]: () => {
@@ -14,7 +25,8 @@ export class BaseClientStream<Data = any> extends ReadableStream<Data> {
 }
 
 export function createJsonStream<Data = any>(
-  input: InstanceType<typeof ReadableStream<Uint8Array>>
+  input: globalThis.ReadableStream<Uint8Array>,
+  ac = new AbortController()
 ): BaseClientStream<Data> {
   let buffer: ArrayBuffer
 
@@ -27,18 +39,20 @@ export function createJsonStream<Data = any>(
     if (!isEnd) buffer = encodeText(lines.at(-1))
     const parsed = lines
       .slice(0, -1)
-      .map((line) => line.slice(0, isEnd ? undefined : -1))
+      .map((line) => JSON.parse(line.slice(0, isEnd ? undefined : -1)))
     return parsed
   }
 
   const reader = input.getReader()
-  const stream = new BaseClientStream({
+  const stream = new BaseClientStream(ac, {
     start(controller) {
       async function push(): Promise<void> {
+        if (ac.signal.aborted)
+          return void controller.error(new Error('Aborted'))
         const { done, value } = await reader.read()
         if (done) return void controller.close()
         buffer = buffer ? concat(buffer, value.buffer) : value.buffer
-        controller.enqueue(decode())
+        for (const entry of decode()) controller.enqueue(entry)
         push()
       }
       push()
@@ -49,18 +63,22 @@ export function createJsonStream<Data = any>(
 }
 
 export function createBinaryStream(
-  input: globalThis.ReadableStream<Uint8Array>
+  input: globalThis.ReadableStream<Uint8Array>,
+  ac = new AbortController()
 ): BaseClientStream<Uint8Array> {
-  Object.assign(input, 'toAsyncIterable', () => {
-    return {
-      [Symbol.asyncIterator]: () => {
-        const reader = input.getReader()
-        return {
-          next: () => reader.read(),
-        }
-      },
-    }
+  const stream = new BaseClientStream(ac, {
+    start(controller) {
+      async function push(): Promise<void> {
+        if (ac.signal.aborted)
+          return void controller.error(new Error('Aborted'))
+        const { done, value } = await input.getReader().read()
+        if (done) return void controller.close()
+        controller.enqueue(value)
+        push()
+      }
+      push()
+    },
   })
-  // @ts-ignore
-  return input
+
+  return stream
 }

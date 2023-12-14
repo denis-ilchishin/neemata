@@ -1,6 +1,6 @@
 import { PassThrough, Transform, TransformCallback } from 'node:stream'
 
-export class JsonStream<Type = any> extends Transform {
+export class JsonStreamResponse<Type = any> extends Transform {
   _!: {
     type: Type
   }
@@ -15,7 +15,6 @@ export class JsonStream<Type = any> extends Transform {
     callback: TransformCallback
   ): void {
     try {
-      chunk = chunk instanceof Buffer ? chunk.toString('base64') : chunk
       callback(null, JSON.stringify(chunk))
     } catch (error: any) {
       callback(error)
@@ -23,4 +22,4 @@ export class JsonStream<Type = any> extends Transform {
   }
 }
 
-export class BinaryStream extends PassThrough {}
+export class BinaryStreamResponse extends PassThrough {}

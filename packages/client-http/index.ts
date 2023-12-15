@@ -3,6 +3,8 @@ import {
   BaseClient,
   ErrorCode,
   ResolveProcedureApiType,
+  Stream,
+  StreamDataType,
   createBinaryStream,
   createJsonStream,
 } from '@neemata/common'
@@ -20,10 +22,10 @@ type RPCOptions = {
   timeout?: number
 }
 
-const StreamTypeHandlerMethod = {
-  json: 'streamJson',
-  binary: 'streamBinary',
-}
+const CreateStreamMethod = {
+  [StreamDataType.Json]: createJsonStream,
+  [StreamDataType.Binary]: createBinaryStream,
+} as const
 
 class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   private readonly url: URL
@@ -47,6 +49,12 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     await this.disconnect()
     if (urlParams) this.setGetParams(urlParams)
     await this.connect()
+  }
+
+  async createStream(
+    input: Blob | ArrayBuffer | ReadableStream
+  ): Promise<Stream> {
+    throw new Error('Upload streams are not supported yet.')
   }
 
   async rpc<P extends keyof Api>(
@@ -81,22 +89,19 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
         },
       }
     ).then((res) => {
-      const streamType = res.headers.get('X-Neemata-Stream')
-      if (streamType) return this[StreamTypeHandlerMethod[streamType]](res, ac)
-      else
+      const streamType = res.headers.get('X-Neemata-Stream-Data-Type')
+      if (streamType) {
+        if (streamType in CreateStreamMethod) {
+          return CreateStreamMethod[streamType](res, ac)
+        } else {
+          throw new Error(`Unsupported stream type: ${streamType}`)
+        }
+      } else
         return res.json().then(({ response, error }) => {
           if (error) throw new ApiError(error.code, error.message, error.data)
           return response
         })
     })
-  }
-
-  [StreamTypeHandlerMethod.json](res: Response, ac: AbortController) {
-    return createJsonStream(res.body, ac)
-  }
-
-  [StreamTypeHandlerMethod.binary](res: Response, ac: AbortController) {
-    return createBinaryStream(res.body, ac)
   }
 
   setGetParams(params: URLSearchParams) {

@@ -1,4 +1,22 @@
+import EventEmitter from 'events'
 import { concat, decodeText, encodeText } from './binary'
+
+export enum StreamDataType {
+  Binary = 'Binary',
+  Json = 'Json',
+}
+
+async function readNext(
+  ac: AbortController,
+  controller: ReadableStreamDefaultController,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  cb: (chunk: Uint8Array) => void
+) {
+  if (ac.signal.aborted) return void controller.error(new Error('Aborted'))
+  const { done, value } = await reader.read()
+  if (done) return void controller.close()
+  return cb(value)
+}
 
 export class BaseClientStream<Data = any> extends ReadableStream<Data> {
   constructor(
@@ -46,12 +64,9 @@ export function createJsonStream<Data = any>(
   const reader = input.getReader()
   const stream = new BaseClientStream(ac, {
     start(controller) {
-      async function push(): Promise<void> {
-        if (ac.signal.aborted)
-          return void controller.error(new Error('Aborted'))
-        const { done, value } = await reader.read()
-        if (done) return void controller.close()
-        buffer = buffer ? concat(buffer, value.buffer) : value.buffer
+      const push = () => readNext(ac, controller, reader, handleChunk)
+      const handleChunk = (chunk: Uint8Array) => {
+        buffer = buffer ? concat(buffer, chunk.buffer) : chunk.buffer
         for (const entry of decode()) controller.enqueue(entry)
         push()
       }
@@ -66,14 +81,12 @@ export function createBinaryStream(
   input: globalThis.ReadableStream<Uint8Array>,
   ac = new AbortController()
 ): BaseClientStream<Uint8Array> {
+  const reader = input.getReader()
   const stream = new BaseClientStream(ac, {
     start(controller) {
-      async function push(): Promise<void> {
-        if (ac.signal.aborted)
-          return void controller.error(new Error('Aborted'))
-        const { done, value } = await input.getReader().read()
-        if (done) return void controller.close()
-        controller.enqueue(value)
+      const push = () => readNext(ac, controller, reader, handleChunk)
+      const handleChunk = (chunk: Uint8Array) => {
+        controller.enqueue(chunk)
         push()
       }
       push()
@@ -81,4 +94,22 @@ export function createBinaryStream(
   })
 
   return stream
+}
+
+interface StreamInferface {
+  on(event: 'start', listener: () => void): this
+  on(event: 'end', listener: () => void): this
+  on(event: 'progress', listener: (sent: number, total: number) => void): this
+  on(event: 'error', listener: (error?: any) => void): this
+
+  once(event: 'start', listener: () => void): this
+  once(event: 'end', listener: () => void): this
+  once(event: 'progress', listener: (sent: number, total: number) => void): this
+  once(event: 'error', listener: (error?: any) => void): this
+}
+
+export class Stream extends EventEmitter implements StreamInferface {
+  constructor(readonly id: string) {
+    super()
+  }
 }

@@ -4,6 +4,7 @@ import {
   Call,
   ErrorCode,
   ResolveProcedureApiType,
+  Stream,
 } from '@neemata/common'
 import amqplib from 'amqplib'
 
@@ -120,6 +121,12 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
         : null
       this.calls.set(correlationId, { resolve, reject, timer })
     })
+  }
+
+  async createStream(
+    input: Blob | ArrayBuffer | ReadableStream
+  ): Promise<Stream> {
+    throw new Error('Upload streams are not supported yet.')
   }
 
   private serialize(data: any) {

@@ -4,6 +4,7 @@ import {
   Call,
   ErrorCode,
   ResolveProcedureApiType,
+  Stream,
   concat,
   decodeNumber,
   decodeText,
@@ -151,6 +152,12 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
 
   setGetParams(params: URLSearchParams) {
     this.URLParams = params
+  }
+
+  async createStream(
+    input: Blob | ArrayBuffer | ReadableStream
+  ): Promise<Stream> {
+    throw new Error('Upload streams are not supported yet.')
   }
 
   private applyURLParams(url: URL) {

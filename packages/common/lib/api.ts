@@ -1,4 +1,5 @@
 import EventEmitter from 'events'
+import { Stream } from './streams'
 
 export class ApiError extends Error {
   code: string
@@ -65,4 +66,9 @@ export abstract class BaseClient<
   abstract connect(): Promise<void>
   abstract disconnect(): Promise<void>
   abstract reconnect(): Promise<void>
+  abstract createStream(input: Blob | ArrayBuffer): Promise<Stream>
+  abstract createStream(
+    input: ReadableStream,
+    byteLength: number
+  ): Promise<Stream>
 }

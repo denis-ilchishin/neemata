@@ -23,3 +23,9 @@ export class JsonStreamResponse<Type = any> extends Transform {
 }
 
 export class BinaryStreamResponse extends PassThrough {}
+
+export class Stream extends PassThrough {
+  constructor(readonly id: string) {
+    super()
+  }
+}

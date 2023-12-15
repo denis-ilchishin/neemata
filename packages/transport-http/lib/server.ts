@@ -8,7 +8,7 @@ import {
   Scope,
   defer,
 } from '@neemata/application'
-import { encodeText } from '@neemata/common'
+import { StreamDataType, encodeText } from '@neemata/common'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
@@ -30,11 +30,13 @@ import {
 
 export const AUTH_KEY = Symbol('auth')
 export const HTTP_SUFFIX = '\r\n\r\n'
-export const CONTENT_TYPE_HEADER = 'Content-Type'
 export const CHARSET_SUFFIX = 'charset=utf-8'
 export const JSON_CONTENT_TYPE_MIME = 'application/json'
 export const PLAIN_CONTENT_TYPE_MIME = 'text/plain'
-export const STREAM_HEADER = 'X-Neemata-Stream'
+export const CONTENT_TYPE_HEADER = 'Content-Type'
+export const STREAM_DATA_TYPE_HEADER = 'X-Neemata-Stream-Data-Type'
+export const CORS_ORIGIN_HEADER = 'Access-Control-Allow-Origin'
+export const CORS_EXPOSE_HEADERS_HEADER = 'Access-Control-Expose-Headers'
 export const HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
@@ -142,7 +144,7 @@ export class HttpTransportServer {
   protected setCors(res: Res, headers: Headers) {
     //TODO: configurable cors
     const origin = headers['origin']
-    if (origin) res.writeHeader('Access-Control-Allow-Origin', origin)
+    if (origin) res.writeHeader(CORS_ORIGIN_HEADER, origin)
   }
 
   protected async handleRPC(
@@ -332,11 +334,14 @@ export class HttpTransportServer {
         })
       }
     })
-    const streamType = stream instanceof JsonStreamResponse ? 'json' : 'binary'
-    res.writeHeader('Access-Control-Expose-Headers', STREAM_HEADER)
-    res.writeHeader(STREAM_HEADER, streamType)
+    const streamType =
+      stream instanceof JsonStreamResponse
+        ? StreamDataType.Json
+        : StreamDataType.Binary
+    res.writeHeader(CORS_EXPOSE_HEADERS_HEADER, STREAM_DATA_TYPE_HEADER)
+    res.writeHeader(STREAM_DATA_TYPE_HEADER, streamType)
     if (stream instanceof JsonStreamResponse) {
-      // wrap all data into array, so so any http client
+      // wrap all data into array, so any http client
       // can consume it as json array
       tryRespond(() => {
         res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)

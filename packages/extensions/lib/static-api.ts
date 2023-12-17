@@ -1,15 +1,16 @@
 import {
   BaseExtension,
-  BinaryStreamResponse,
   ExtensionInstallOptions,
   Hook,
-  JsonStreamResponse,
   ProcedureDataType,
   ProcedureDeclaration,
+  StreamResponse,
   WorkerType,
 } from '@neemata/application'
+import { UpStream } from '@neemata/common'
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
+import { Readable } from 'node:stream'
 import { name as packageName } from '../package.json'
 
 export class StaticApiAnnotations extends BaseExtension {
@@ -68,7 +69,7 @@ export type ResolveApi<Input extends Record<string, any>> = {
     infer Output
   >
     ? {
-        input: ProcedureDataType<Input>
+        input: ResolveApiInput<ProcedureDataType<Input>>
         output: ResolveApiOutput<
           Awaited<Output extends unknown ? Response : ProcedureDataType<Output>>
         >
@@ -76,14 +77,20 @@ export type ResolveApi<Input extends Record<string, any>> = {
     : never
 }
 
-export type ResolveApiOutput<Output> = Output extends
-  | JsonStreamResponse
-  | BinaryStreamResponse
+export type ResolveApiInput<Input> = Input extends Readable
+  ? UpStream
+  : Input extends object
+  ? {
+      [K in keyof Input]: ResolveApiInput<Input[K]>
+    }
+  : Input
+
+export type ResolveApiOutput<Output> = Output extends StreamResponse
   ? {
       payload: Primitive<Output['_']['payload']>
-      stream: import('@neemata/common').BaseClientStream<
+      stream: import('@neemata/common').DownStream<
         Primitive<Output['_']['chunk']>
-      >
+      >['interface']
     }
   : Primitive<Output>
 

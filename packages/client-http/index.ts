@@ -3,7 +3,6 @@ import {
   BaseClient,
   ErrorCode,
   ResolveProcedureApiType,
-  Stream,
   StreamDataType,
   createBinaryStream,
   createJsonStream,
@@ -49,12 +48,6 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     await this.disconnect()
     if (urlParams) this.setGetParams(urlParams)
     await this.connect()
-  }
-
-  async createStream(
-    input: Blob | ArrayBuffer | ReadableStream
-  ): Promise<Stream> {
-    throw new Error('Upload streams are not supported yet.')
   }
 
   async rpc<P extends keyof Api>(

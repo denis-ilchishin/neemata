@@ -14,6 +14,46 @@ export type StreamMetadata = {
 
 export const STREAM_SERIALIZE_KEY = '__neemata:stream:'
 
+export class AbortStreamError extends Error {}
+
+export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
+  reader: ReadableStreamDefaultReader<Chunk>
+  writer: WritableStreamDefaultWriter<Chunk>
+
+  interface: ReadableStream<Chunk> & {
+    [Symbol.asyncIterator]: () => AsyncIterator<Chunk>
+    abort: (reason?: any) => void
+  }
+
+  constructor(
+    transform: Transformer['transform'],
+    readonly ac: AbortController
+  ) {
+    super({ transform })
+    this.ac.signal.addEventListener('abort', () => this.writable.close(), {
+      once: true,
+    })
+
+    this.reader = this.readable.getReader()
+    this.writer = this.writable.getWriter()
+
+    const mixin: any = {
+      abort: (reason?: any) => {
+        this.ac.abort()
+        this.reader.cancel(reason)
+      },
+    }
+
+    if (Symbol.asyncIterator in this.readable === false) {
+      mixin[Symbol.asyncIterator] = () => ({
+        next: () => this.reader.read(),
+      })
+    }
+
+    this.interface = Object.assign(this.readable, mixin)
+  }
+}
+
 async function readNext(
   ac: AbortController,
   controller: ReadableStreamDefaultController,
@@ -123,7 +163,7 @@ interface StreamInferface {
   ): this
 }
 
-export class Stream extends EventEmitter implements StreamInferface {
+export class UpStream extends EventEmitter implements StreamInferface {
   private source: ReadableStream
   private reader: ReadableStreamDefaultReader<Uint8Array>
   private readBuffer: ArrayBuffer

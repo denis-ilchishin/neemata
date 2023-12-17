@@ -1,5 +1,5 @@
 import EventEmitter from 'events'
-import { Stream, StreamMetadata } from './streams'
+import { DownStream, StreamMetadata, UpStream } from './streams'
 
 export class ApiError extends Error {
   code: string
@@ -54,8 +54,8 @@ export abstract class BaseClient<
   RPCOptions = never
 > extends EventEmitter {
   protected streams = {
-    client: new Map<number, Stream>(),
-    server: new Map<number, ReadableStream>(),
+    up: new Map<number, UpStream>(),
+    down: new Map<number, DownStream>(),
     streamId: 0,
   }
 
@@ -91,8 +91,8 @@ export abstract class BaseClient<
     }
 
     const id = ++this.streams.streamId
-    const stream = new Stream(id, metadata as StreamMetadata, source)
-    this.streams.client.set(id, stream)
+    const stream = new UpStream(id, metadata as StreamMetadata, source)
+    this.streams.up.set(id, stream)
     return stream
   }
 }

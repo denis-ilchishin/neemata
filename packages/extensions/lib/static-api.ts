@@ -76,19 +76,21 @@ export type ResolveApi<Input extends Record<string, any>> = {
     : never
 }
 
-export type ResolveApiOutput<Output> = Output extends JsonStreamResponse<
-  infer Type
->
-  ? import('@neemata/common').BaseClientStream<Primitive<Type>>
-  : Output extends BinaryStreamResponse
-  ? import('@neemata/common').BaseClientStream<Uint8Array>
+export type ResolveApiOutput<Output> = Output extends
+  | JsonStreamResponse
+  | BinaryStreamResponse
+  ? {
+      payload: Primitive<Output['_']['payload']>
+      stream: import('@neemata/common').BaseClientStream<
+        Primitive<Output['_']['chunk']>
+      >
+    }
   : Primitive<Output>
 
 /**
  * Slightly modified version of https://github.com/samchon/typia Primitive type. (TODO: make a PR maybe?)
  * Excludes keys with `never` types from object, and if a function is in array,
- * then it is stringified as `null`, just like V8 implementation of JSON.stringify does.
- * Could differ from Bun's JSC implementation. Need further investigation.
+ * then it is stringified as `null`, just like V8's implementation of JSON.stringify does.
  */
 export type Primitive<T> = Equal<T, PrimitiveMain<T>> extends true
   ? T

@@ -86,7 +86,7 @@ export class HttpTransportServer {
   }
 
   async start() {
-    const { hostname, port, ssl: https } = this.options
+    const { hostname, port, ssl } = this.options
     this.listeningSocket = await new Promise((r) => {
       // TODO: incorrect behavior when using unix sockets
       if (hostname.startsWith('unix:')) {
@@ -98,7 +98,7 @@ export class HttpTransportServer {
     // TODO: check if listeningSocket is valid, otherwise throw error
     this.logger.info(
       'Listening on %s://%s:%s',
-      https ? 'https' : 'http',
+      ssl ? 'https' : 'http',
       hostname,
       port
     )
@@ -123,7 +123,7 @@ export class HttpTransportServer {
 
   protected bindHandlers() {
     this.server.post(this.basePath('api', '*'), this.handleRequest.bind(this))
-    this.server.get(this.basePath('api', '*'), this.handleRequest.bind(this))
+    // this.server.get(this.basePath('api', '*'), this.handleRequest.bind(this))
     this.server.options(this.basePath('*'), (res, req) => {
       if (!this.listeningSocket) return void res.close()
       this.handleDefaultHeaders(req, res)
@@ -221,8 +221,8 @@ export class HttpTransportServer {
         this.setCors(res, headers)
         this.setDefaultHeaders(res)
         for (const [name, value] of resHeaders) res.writeHeader(name, value)
-        if (isStream) this.handleStreamResponse(req, res, headers, response)
-        else this.handleResponse(req, res, headers, { response })
+        if (isStream) this.handleHttpStreamResponse(req, res, headers, response)
+        else this.handleHttpResponse(req, res, headers, { response })
       })
       this.handleDispose(container)
     } catch (error) {
@@ -231,11 +231,11 @@ export class HttpTransportServer {
         this.setCors(res, headers)
         res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
         if (error instanceof ApiError) {
-          this.handleResponse(req, res, headers, { error })
+          this.handleHttpResponse(req, res, headers, { error })
         } else {
           this.logger.error(new Error('Unexpected error', { cause: error }))
           res.writeStatus('500 Internal Transport Error')
-          this.handleResponse(req, res, headers, { error: InternalError() })
+          this.handleHttpResponse(req, res, headers, { error: InternalError() })
         }
       })
     }
@@ -279,12 +279,17 @@ export class HttpTransportServer {
     }
   }
 
-  protected handleResponse(req: Req, res: Res, headers: Headers, data: any) {
+  protected handleHttpResponse(
+    req: Req,
+    res: Res,
+    headers: Headers,
+    data: any
+  ) {
     res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
     res.end(toJSON(data))
   }
 
-  protected handleStreamResponse(
+  protected handleHttpStreamResponse(
     req: Req,
     res: Res,
     headers: Headers,

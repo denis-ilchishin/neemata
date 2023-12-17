@@ -1,4 +1,4 @@
-import { Container } from '@neemata/application'
+import { Callback, Container, Stream } from '@neemata/application'
 import {
   HttpTransportOptions,
   HttpTransportProtocol,
@@ -8,9 +8,19 @@ import uws from 'uWebSockets.js'
 
 export type WebSocketUserData = {
   id: string
-  streams: Map<number, Readable>
+  streams: {
+    /**
+     * Client to server streams
+     */
+    client: Map<number, Stream>
+    /**
+     * Server to client streams
+     */
+    server: Map<number, { response: Readable; pull: Callback }>
+    streamId: number
+  }
   container: Container
-  context: WebsocketsTransportClientContext
+  context: WebsocketsTransportData
 }
 
 export type WebSocket = uws.WebSocket<WebSocketUserData>

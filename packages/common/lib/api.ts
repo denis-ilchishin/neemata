@@ -1,5 +1,5 @@
 import EventEmitter from 'events'
-import { Stream } from './streams'
+import { Stream, StreamMetadata } from './streams'
 
 export class ApiError extends Error {
   code: string
@@ -53,6 +53,12 @@ export abstract class BaseClient<
   Api extends any = never,
   RPCOptions = never
 > extends EventEmitter {
+  protected streams = {
+    client: new Map<number, Stream>(),
+    server: new Map<number, ReadableStream>(),
+    streamId: 0,
+  }
+
   abstract rpc<P extends keyof Api>(
     procedure: P,
     ...args: Api extends never
@@ -66,9 +72,27 @@ export abstract class BaseClient<
   abstract connect(): Promise<void>
   abstract disconnect(): Promise<void>
   abstract reconnect(): Promise<void>
-  abstract createStream(input: Blob | ArrayBuffer): Promise<Stream>
-  abstract createStream(
-    input: ReadableStream,
-    byteLength: number
-  ): Promise<Stream>
+  async createStream<I extends Blob | ArrayBuffer | ReadableStream>(
+    source: I,
+    metadata: Partial<StreamMetadata> = {}
+  ) {
+    if (source instanceof File && !metadata.filename) {
+      metadata.type = source.type
+    }
+
+    if (!metadata.size) {
+      if (source instanceof Blob) {
+        metadata.size = source.size
+      } else if (source instanceof ArrayBuffer) {
+        metadata.size = source.byteLength
+      } else if (source instanceof ReadableStream) {
+        throw new Error('Size is required for ReadableStream')
+      }
+    }
+
+    const id = ++this.streams.streamId
+    const stream = new Stream(id, metadata as StreamMetadata, source)
+    this.streams.client.set(id, stream)
+    return stream
+  }
 }

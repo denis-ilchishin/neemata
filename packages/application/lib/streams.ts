@@ -47,7 +47,11 @@ export class JsonStreamResponse<
 
 export class BinaryStreamResponse<
   Payload = any
-> extends StreamResponse<Payload> {}
+> extends StreamResponse<Payload> {
+  constructor(payload: Payload, readonly type: string) {
+    super(payload)
+  }
+}
 
 export class Stream extends PassThrough {
   bytesReceived = 0
@@ -75,6 +79,9 @@ export const createJsonResponse = <Payload>(payload?: Payload) => {
   return Object.assign(stream, { with: helper })
 }
 
-export const createBinaryResponse = <Payload>(payload?: Payload) => {
-  return new BinaryStreamResponse<Payload>(payload)
+export const createBinaryResponse = <Payload>(
+  type: string,
+  payload?: Payload
+) => {
+  return new BinaryStreamResponse<Payload>(payload, type)
 }

@@ -36,12 +36,6 @@ const KEY: Record<MessageType, symbol> = Object.fromEntries(
   Object.values(MessageType).map((type) => [type as any, Symbol()])
 )
 
-const StreamTransformer: Record<StreamDataType, Transformer['transform']> = {
-  [StreamDataType.Json]: (chunk, controller) =>
-    controller.enqueue(JSON.parse(decodeText(chunk))),
-  [StreamDataType.Binary]: (chunk, controller) => controller.enqueue(chunk),
-} as const
-
 class WebsocketsClient<Api extends any = never> extends BaseClient<
   Api,
   RPCOptions
@@ -104,7 +98,9 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       this.isConnected = false
       this.isHealthy = false
       this.emit('close')
-      this.clear()
+      this.clear(
+        event.code === 1000 ? undefined : new Error('Connection closed')
+      )
       if (this.autoreconnect) this.connect()
     }
     this.ws.onerror = (event) => {
@@ -122,7 +118,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
 
   async reconnect(urlParams?: URLSearchParams) {
     await this.disconnect()
-    if (urlParams) this.setGetParams(urlParams)
+    if (urlParams) this.setURLParams(urlParams)
     await this.connect()
   }
 
@@ -170,7 +166,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     })
   }
 
-  setGetParams(params: URLSearchParams) {
+  setURLParams(params: URLSearchParams) {
     this.URLParams = params
   }
 
@@ -186,6 +182,15 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       clearTimeout(timer)
       reject(error)
     }
+
+    for (const stream of this.streams.up.values()) {
+      stream.destroy(error)
+    }
+
+    for (const stream of this.streams.down.values()) {
+      stream.ac.abort(error)
+    }
+
     this.calls.clear()
   }
 
@@ -207,6 +212,36 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       this.calls.delete(callId)
       if (error) reject(new ApiError(error.code, error.message, error.data))
       else resolve(response)
+    }
+  }
+
+  [KEY[MessageType.RpcStream]](buffer: ArrayBuffer) {
+    const [callId, streamDataType, streamId, payload] = JSON.parse(
+      decodeText(buffer)
+    )
+    const call = this.calls.get(callId)
+    if (call) {
+      const ac = new AbortController()
+      ac.signal.addEventListener(
+        'abort',
+        () => {
+          this.streams.down.delete(streamId)
+          this.send(
+            MessageType.ServerStreamAbort,
+            encodeNumber(streamId, 'Uint32')
+          )
+        },
+        { once: true }
+      )
+      const transformer = transformers[streamDataType]
+      const stream = new DownStream(transformer, ac)
+      this.streams.down.set(streamId, stream)
+      const { resolve, timer } = call
+      clearTimeout(timer)
+      this.calls.delete(callId)
+      resolve({ payload, stream: stream.interface })
+    } else {
+      this.send(MessageType.ServerStreamAbort, encodeNumber(streamId, 'Uint32'))
     }
   }
 
@@ -239,36 +274,6 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     this.streams.up.delete(id)
   }
 
-  [KEY[MessageType.RpcStream]](buffer: ArrayBuffer) {
-    const [callId, streamDataType, streamId, payload] = JSON.parse(
-      decodeText(buffer)
-    )
-    const call = this.calls.get(callId)
-    if (call) {
-      const ac = new AbortController()
-      ac.signal.addEventListener(
-        'abort',
-        () => {
-          this.streams.down.delete(streamId)
-          this.send(
-            MessageType.ServerStreamAbort,
-            encodeNumber(streamId, 'Uint32')
-          )
-        },
-        { once: true }
-      )
-      const transformer = StreamTransformer[streamDataType]
-      const stream = new DownStream(transformer, ac)
-      this.streams.down.set(streamId, stream)
-      const { resolve, timer } = call
-      clearTimeout(timer)
-      this.calls.delete(callId)
-      resolve({ payload, stream: stream.interface })
-    } else {
-      this.send(MessageType.ServerStreamAbort, encodeNumber(streamId, 'Uint32'))
-    }
-  }
-
   async [KEY[MessageType.ServerStreamPush]](buffer: ArrayBuffer) {
     const streamId = decodeNumber(buffer, 'Uint32')
     const stream = this.streams.down.get(streamId)
@@ -294,3 +299,9 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     this.streams.down.delete(streamId)
   }
 }
+
+const transformers: Record<StreamDataType, Transformer['transform']> = {
+  [StreamDataType.Json]: (chunk, controller) =>
+    controller.enqueue(JSON.parse(decodeText(chunk))),
+  [StreamDataType.Binary]: (chunk, controller) => controller.enqueue(chunk),
+} as const

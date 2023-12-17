@@ -1,11 +1,13 @@
 import {
   ApiError,
   BaseClient,
+  DownStream,
   ErrorCode,
   ResolveProcedureApiType,
   StreamDataType,
-  createBinaryStream,
-  createJsonStream,
+  concat,
+  decodeText,
+  encodeText,
 } from '@neemata/common'
 
 export { ApiError, ErrorCode, HttpClient }
@@ -19,21 +21,19 @@ type Options = {
 
 type RPCOptions = {
   timeout?: number
+  URLParams?: URLSearchParams
+  headers?: Record<string, string>
 }
-
-const CreateStreamMethod = {
-  [StreamDataType.Json]: createJsonStream,
-  [StreamDataType.Binary]: createBinaryStream,
-} as const
 
 class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
   private readonly url: URL
   private URLParams: URLSearchParams = new URLSearchParams()
+  private headers: Record<string, string> = {}
 
   constructor(private readonly options: Options) {
     super()
-    const schema = (schema: string) => schema + (options.secure ? 's' : '')
-    this.url = new URL(`${schema('http')}://${options.host}`)
+    const schema = options.secure ? 'https' : 'http'
+    this.url = new URL(`${schema}://${options.host}`)
   }
 
   async connect() {
@@ -44,9 +44,13 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     return void 0
   }
 
-  async reconnect(urlParams?: URLSearchParams) {
+  async reconnect(
+    URLParams?: URLSearchParams,
+    headers?: Record<string, string>
+  ) {
     await this.disconnect()
-    if (urlParams) this.setGetParams(urlParams)
+    if (URLParams) this.setURLParams(URLParams)
+    if (headers) this.setHeaders(headers)
     await this.connect()
   }
 
@@ -79,16 +83,28 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
         cache: 'no-cache',
         headers: {
           'Content-Type': 'application/json',
+          'X-Neemata-Stream-Protocol-Support': '1',
+          ...this.headers,
+          ...(options.headers ?? {}),
         },
       }
-    ).then((res) => {
+    ).then(async (res) => {
       const streamType = res.headers.get('X-Neemata-Stream-Data-Type')
       if (streamType) {
-        if (streamType in CreateStreamMethod) {
-          return CreateStreamMethod[streamType](res, ac)
-        } else {
-          throw new Error(`Unsupported stream type: ${streamType}`)
-        }
+        let payloadCallback
+        const payloadLength = parseInt(
+          res.headers.get('X-Neemata-Stream-Payload-Length')
+        )
+        const payload = new Promise((resolve) => (payloadCallback = resolve)) // why not just a callback ?
+        const transformer = transformers[streamType](
+          payloadCallback,
+          payloadLength
+        )
+        const stream = new DownStream(transformer, ac)
+        stream.writer.releaseLock()
+        res.body.pipeTo(stream.writable)
+        stream.reader.read()
+        return { stream: stream.interface, payload: await payload }
       } else
         return res.json().then(({ response, error }) => {
           if (error) throw new ApiError(error.code, error.message, error.data)
@@ -97,13 +113,66 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     })
   }
 
-  setGetParams(params: URLSearchParams) {
+  setURLParams(params: URLSearchParams) {
     this.URLParams = params
   }
 
-  private applyURLParams(url: URL) {
+  setHeaders(headers: Record<string, string>) {
+    this.headers = headers
+  }
+
+  private applyURLParams(url: URL, params?: URLSearchParams) {
     for (const [key, value] of this.URLParams.entries())
       url.searchParams.set(key, value)
+    if (params)
+      for (const [key, value] of params.entries())
+        url.searchParams.set(key, value)
     return url
   }
 }
+
+const transformers: Record<
+  StreamDataType,
+  (...args: any[]) => Transformer['transform']
+> = {
+  [StreamDataType.Json]: (resolvePayload) => {
+    let buffer: ArrayBuffer
+    let payloadEmited = false
+
+    const decode = () => {
+      let text = decodeText(buffer)
+      const lines = text.split('\n')
+      const lastLine = lines.pop()
+      if (!payloadEmited && lines.length) {
+        resolvePayload(JSON.parse(lines.shift()))
+        payloadEmited = true
+      }
+      buffer = lastLine ? encodeText(lastLine + '\n') : undefined
+      return lines.map((line) => JSON.parse(line))
+    }
+
+    const transform: Transformer['transform'] = (chunk, controller) => {
+      buffer = buffer ? concat(buffer, chunk.buffer) : chunk.buffer
+      for (const decodedChunk of decode()) controller.enqueue(decodedChunk)
+    }
+
+    return transform
+  },
+  [StreamDataType.Binary]: (resolvePayload, payloadLength) => {
+    let buffer: ArrayBuffer
+    let payloadEmited = false
+
+    return (chunk, controller) => {
+      if (!payloadEmited) {
+        buffer = buffer ? concat(buffer, chunk.buffer) : chunk.buffer
+        if (buffer.byteLength >= payloadLength) {
+          resolvePayload(JSON.parse(decodeText(buffer.slice(0, payloadLength))))
+          payloadEmited = true
+          controller.enqueue(buffer.slice(payloadLength))
+        }
+      } else {
+        controller.enqueue(chunk)
+      }
+    }
+  },
+} as const

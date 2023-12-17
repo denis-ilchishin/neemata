@@ -1,11 +1,13 @@
 import {
   ApiError,
   BaseClient,
+  BinaryStreamResponse,
   Container,
   ErrorCode,
   ExtensionInstallOptions,
   JsonStreamResponse,
   Scope,
+  StreamResponse,
   defer,
 } from '@neemata/application'
 import { StreamDataType, encodeText } from '@neemata/common'
@@ -35,12 +37,16 @@ export const JSON_CONTENT_TYPE_MIME = 'application/json'
 export const PLAIN_CONTENT_TYPE_MIME = 'text/plain'
 export const CONTENT_TYPE_HEADER = 'Content-Type'
 export const STREAM_DATA_TYPE_HEADER = 'X-Neemata-Stream-Data-Type'
+export const STREAM_PAYLOAD_LENGTH_HEADER = 'X-Neemata-Stream-Payload-Length'
+export const STREAM_PROTOCOL_SUPPORT_HEADER =
+  'X-Neemata-Stream-Protocol-Support'
 export const CORS_ORIGIN_HEADER = 'Access-Control-Allow-Origin'
 export const CORS_EXPOSE_HEADERS_HEADER = 'Access-Control-Expose-Headers'
 export const HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers':
+    'Content-Type,X-Neemata-Stream-Protocol-Support',
   'Access-Control-Allow-Credentials': 'true',
 }
 export const InternalError = (message = 'Internal Server Error') =>
@@ -216,7 +222,7 @@ export class HttpTransportServer {
         container,
         body
       )
-      const isStream = response instanceof Readable
+      const isStream = response instanceof StreamResponse
       tryRespond(() => {
         this.setCors(res, headers)
         this.setDefaultHeaders(res)
@@ -295,8 +301,10 @@ export class HttpTransportServer {
     headers: Headers,
     stream: Readable
   ) {
+    // whether client supports neemata custom stream "protocol"
+    const isProtocolSupported =
+      headers[STREAM_PROTOCOL_SUPPORT_HEADER.toLocaleLowerCase()]
     let isAborted = false
-    let isFirstChunk = true
     const tryRespond = (cb) => !isAborted && res.cork(cb)
     res.onAborted(() => {
       isAborted = true
@@ -305,9 +313,8 @@ export class HttpTransportServer {
     stream.on('error', () => tryRespond(() => res.close()))
     stream.on('end', () =>
       tryRespond(() => {
-        if (stream instanceof JsonStreamResponse) {
-          const end = encodeText('\n]')
-          res.end(end)
+        if (stream instanceof JsonStreamResponse && !isProtocolSupported) {
+          res.end(encodeText(']'))
         } else {
           res.end()
         }
@@ -315,11 +322,9 @@ export class HttpTransportServer {
     )
     stream.on('data', (chunk) => {
       if (stream instanceof JsonStreamResponse) {
-        // wrap all data into array, so any http client
-        // can consume it as json array
-        chunk = encodeText((isFirstChunk ? '' : ',') + '\n' + chunk)
-        if (isFirstChunk) isFirstChunk = false
+        if (!isProtocolSupported) chunk = ',' + chunk
       }
+      chunk = encodeText(chunk + '\n')
       const arrayBuffer = chunk.buffer.slice(
         chunk.byteOffset,
         chunk.byteOffset + chunk.byteLength
@@ -343,15 +348,36 @@ export class HttpTransportServer {
       stream instanceof JsonStreamResponse
         ? StreamDataType.Json
         : StreamDataType.Binary
-    res.writeHeader(CORS_EXPOSE_HEADERS_HEADER, STREAM_DATA_TYPE_HEADER)
+    res.writeHeader(
+      CORS_EXPOSE_HEADERS_HEADER,
+      [STREAM_DATA_TYPE_HEADER, STREAM_PAYLOAD_LENGTH_HEADER].join()
+    )
     res.writeHeader(STREAM_DATA_TYPE_HEADER, streamType)
     if (stream instanceof JsonStreamResponse) {
-      // wrap all data into array, so any http client
-      // can consume it as json array
       tryRespond(() => {
-        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
-        res.write(encodeText('['))
+        // wrap all data into array, so any client
+        // can consume it as json array
+        if (!isProtocolSupported) {
+          res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
+          res.write(encodeText('['))
+        } else {
+          res.writeHeader(CONTENT_TYPE_HEADER, 'application/octet-stream')
+        }
+
+        res.write(toJSON(stream.payload) + '\n')
       })
+    } else if (stream instanceof BinaryStreamResponse) {
+      res.writeHeader(
+        CONTENT_TYPE_HEADER,
+        isProtocolSupported ? 'application/octet-stream' : stream.type
+      )
+      if (isProtocolSupported) {
+        tryRespond(() => {
+          const payload = encodeText(toJSON(stream.payload))
+          res.writeHeader(STREAM_PAYLOAD_LENGTH_HEADER, `${payload.byteLength}`)
+          res.write(payload)
+        })
+      }
     }
   }
 

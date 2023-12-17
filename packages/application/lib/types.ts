@@ -1,6 +1,5 @@
 import type { Scope as ProviderScope } from '@neemata/common'
 import type { Static, TSchema } from '@sinclair/typebox'
-import type { TypeOf, ZodSchema } from 'zod'
 import type { Api } from './api'
 import type { Application } from './application'
 import type { Container } from './container'
@@ -93,8 +92,8 @@ export type Middleware = (
 export type ProcedureDataType<
   Input,
   Schema = Input extends Promise<any> ? Awaited<Input> : Input
-> = Schema extends ZodSchema
-  ? TypeOf<Schema>
+> = Schema extends import('zod').ZodSchema
+  ? import('zod').TypeOf<Schema>
   : Schema extends TSchema
   ? Static<Schema>
   : unknown

@@ -1,9 +1,57 @@
-import EventEmitter from 'events'
+import EventEmitter, { once } from 'events'
 import { concat, decodeText, encodeText } from './binary'
 
 export enum StreamDataType {
   Binary = 'Binary',
   Json = 'Json',
+}
+
+export type StreamMetadata = {
+  type: string
+  size: number
+  filename?: string
+}
+
+export const STREAM_SERIALIZE_KEY = '__neemata:stream:'
+
+export class AbortStreamError extends Error {}
+
+export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
+  reader: ReadableStreamDefaultReader<Chunk>
+  writer: WritableStreamDefaultWriter<Chunk>
+
+  interface: ReadableStream<Chunk> & {
+    [Symbol.asyncIterator]: () => AsyncIterator<Chunk>
+    abort: (reason?: any) => void
+  }
+
+  constructor(
+    transform: Transformer['transform'],
+    readonly ac: AbortController
+  ) {
+    super({ transform })
+    this.ac.signal.addEventListener('abort', () => this.writable.close(), {
+      once: true,
+    })
+
+    this.reader = this.readable.getReader()
+    this.writer = this.writable.getWriter()
+
+    const mixin: any = {
+      abort: (reason?: any) => {
+        this.ac.abort()
+        this.reader.cancel(reason)
+      },
+    }
+
+    if (Symbol.asyncIterator in this.readable === false) {
+      mixin[Symbol.asyncIterator] = () => ({
+        next: () => this.reader.read(),
+      })
+    }
+
+    this.interface = Object.assign(this.readable, mixin)
+  }
 }
 
 async function readNext(
@@ -96,20 +144,100 @@ export function createBinaryStream(
   return stream
 }
 
-interface StreamInferface {
-  on(event: 'start', listener: () => void): this
-  on(event: 'end', listener: () => void): this
-  on(event: 'progress', listener: (sent: number, total: number) => void): this
-  on(event: 'error', listener: (error?: any) => void): this
-
-  once(event: 'start', listener: () => void): this
-  once(event: 'end', listener: () => void): this
-  once(event: 'progress', listener: (sent: number, total: number) => void): this
-  once(event: 'error', listener: (error?: any) => void): this
+type StreamInferfaceEvent = {
+  start: () => void
+  end: () => void
+  progress: (bytesLength: number) => void
+  error: (error?: any) => void
+  close: () => void
 }
 
-export class Stream extends EventEmitter implements StreamInferface {
-  constructor(readonly id: string) {
+interface StreamInferface {
+  on<Event extends keyof StreamInferfaceEvent>(
+    event: Event,
+    listener: StreamInferfaceEvent[Event]
+  ): this
+  once<Event extends keyof StreamInferfaceEvent>(
+    event: Event,
+    listener: StreamInferfaceEvent[Event]
+  ): this
+}
+
+export class UpStream extends EventEmitter implements StreamInferface {
+  private source: ReadableStream
+  private reader: ReadableStreamDefaultReader<Uint8Array>
+  private readBuffer: ArrayBuffer
+
+  bytesSent = 0
+  paused = false
+
+  constructor(
+    readonly id: number,
+    readonly metadata: StreamMetadata,
+    source: ArrayBuffer | ReadableStream | Blob
+  ) {
     super()
+
+    this.source =
+      source instanceof ReadableStream
+        ? source
+        : source instanceof Blob
+        ? source.stream()
+        : source instanceof ArrayBuffer
+        ? new Blob([source]).stream()
+        : undefined
+
+    if (typeof this.source === 'undefined')
+      throw new Error('Stream source is not supported')
+
+    this.reader = this.source.getReader()
+  }
+
+  destroy(error?: Error) {
+    this.reader.cancel(error)
+    if (error) this.emit('error', error)
+    this.emit('close')
+    this.readBuffer = undefined
+  }
+
+  pause() {
+    this.paused = true
+    this.emit('pause')
+  }
+
+  resume() {
+    this.paused = false
+    this.emit('resume')
+  }
+
+  async _read(size: number): Promise<{ done?: boolean; chunk?: ArrayBuffer }> {
+    if (!this.bytesSent) this.emit('start')
+    if (this.bytesSent && this.paused) await once(this, 'resume')
+    if (this.readBuffer?.byteLength > 0) {
+      const end = Math.min(size, this.readBuffer.byteLength)
+      const chunk = this.readBuffer.slice(0, end)
+      this.readBuffer =
+        this.readBuffer.byteLength > size ? this.readBuffer.slice(end) : null
+      this.bytesSent = this.bytesSent + chunk.byteLength
+      this.emit('progress', this.bytesSent)
+      return { chunk }
+    } else {
+      const { done, value } = await this.reader.read()
+      if (done) {
+        return { done }
+      } else {
+        this.readBuffer = value
+        return this._read(size)
+      }
+    }
+  }
+
+  _finish() {
+    this.emit('end')
+    this.destroy()
+  }
+
+  _serialize() {
+    return STREAM_SERIALIZE_KEY + this.id
   }
 }

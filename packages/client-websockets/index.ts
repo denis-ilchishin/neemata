@@ -1,10 +1,13 @@
 import {
+  AbortStreamError,
   ApiError,
   BaseClient,
   Call,
+  DownStream,
   ErrorCode,
   ResolveProcedureApiType,
-  Stream,
+  StreamDataType,
+  UpStream,
   concat,
   decodeNumber,
   decodeText,
@@ -28,10 +31,10 @@ type RPCOptions = {
   timeout?: number
 }
 
-const KEYS = {
-  [MessageType.Rpc]: Symbol(),
-  [MessageType.Event]: Symbol(),
-} as const
+// to make private keys
+const KEY: Record<MessageType, symbol> = Object.fromEntries(
+  Object.values(MessageType).map((type) => [type as any, Symbol()])
+)
 
 class WebsocketsClient<Api extends any = never> extends BaseClient<
   Api,
@@ -81,9 +84,9 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     this.ws.onmessage = (event) => {
       const buffer: ArrayBuffer = event.data
       const type = decodeNumber(buffer, 'Uint8')
-      const handler = this[KEYS[type]]?.bind(this)
+      const handler = this[KEY[type]]
       if (handler) {
-        handler(buffer.slice(Uint8Array.BYTES_PER_ELEMENT), this.ws)
+        handler.call(this, buffer.slice(Uint8Array.BYTES_PER_ELEMENT), this.ws)
       }
     }
     this.ws.onopen = (event) => {
@@ -95,7 +98,9 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       this.isConnected = false
       this.isHealthy = false
       this.emit('close')
-      this.clear()
+      this.clear(
+        event.code === 1000 ? undefined : new Error('Connection closed')
+      )
       if (this.autoreconnect) this.connect()
     }
     this.ws.onerror = (event) => {
@@ -113,11 +118,11 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
 
   async reconnect(urlParams?: URLSearchParams) {
     await this.disconnect()
-    if (urlParams) this.setGetParams(urlParams)
+    if (urlParams) this.setURLParams(urlParams)
     await this.connect()
   }
 
-  rpc<P extends keyof Api>(
+  async rpc<P extends keyof Api>(
     procedure: P,
     ...args: Api extends never
       ? [any?, RPCOptions?]
@@ -129,12 +134,21 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
   > {
     const [payload, options = {}] = args
     const { timeout = options.timeout } = options
-    const callId = this.callId++
+    const callId = ++this.callId
     const streams = []
-    const callPayload = encodeText(JSON.stringify([callId, procedure, payload]))
+    const replacer = (key: string, value: any) => {
+      if (value instanceof UpStream) {
+        streams.push([value.id, value.metadata])
+        return value._serialize()
+      }
+      return value
+    }
+    const rpcPayload = encodeText(
+      JSON.stringify([callId, procedure, payload], replacer)
+    )
     const streamsData = encodeText(JSON.stringify(streams))
     const streamDataLength = encodeNumber(streamsData.byteLength, 'Uint32')
-    const data = concat(streamDataLength, streamsData, callPayload)
+    const data = concat(streamDataLength, streamsData, rpcPayload)
     const timer = setTimeout(() => {
       const call = this.calls.get(callId)
       if (call) {
@@ -144,20 +158,16 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       }
     }, timeout || 30000)
 
+    if (!this.isConnected) await once(this, 'connect')
+
     return new Promise((resolve, reject) => {
       this.calls.set(callId, { resolve, reject, timer })
       this.send(MessageType.Rpc, data)
     })
   }
 
-  setGetParams(params: URLSearchParams) {
+  setURLParams(params: URLSearchParams) {
     this.URLParams = params
-  }
-
-  async createStream(
-    input: Blob | ArrayBuffer | ReadableStream
-  ): Promise<Stream> {
-    throw new Error('Upload streams are not supported yet.')
   }
 
   private applyURLParams(url: URL) {
@@ -172,17 +182,29 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       clearTimeout(timer)
       reject(error)
     }
+
+    for (const stream of this.streams.up.values()) {
+      stream.destroy(error)
+    }
+
+    for (const stream of this.streams.down.values()) {
+      stream.ac.abort(error)
+    }
+
     this.calls.clear()
   }
 
-  private async send(type: MessageType, payload: ArrayBuffer) {
-    if (!this.isConnected) await once(this, 'connect')
-    this.ws.send(concat(encodeNumber(type, 'Uint8'), payload))
+  private async send(type: MessageType, ...payload: ArrayBuffer[]) {
+    this.ws.send(concat(encodeNumber(type, 'Uint8'), ...payload))
   }
 
-  [KEYS[MessageType.Rpc]](buffer: ArrayBuffer) {
-    const { callId, payload } = JSON.parse(decodeText(buffer))
-    const { error, response } = payload
+  [KEY[MessageType.Event]](buffer: ArrayBuffer) {
+    const [event, payload] = JSON.parse(decodeText(buffer))
+    this.emit(event, payload)
+  }
+
+  [KEY[MessageType.Rpc]](buffer: ArrayBuffer) {
+    const [callId, response, error] = JSON.parse(decodeText(buffer))
     const call = this.calls.get(callId)
     if (call) {
       const { resolve, reject, timer } = call
@@ -192,4 +214,94 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       else resolve(response)
     }
   }
+
+  [KEY[MessageType.RpcStream]](buffer: ArrayBuffer) {
+    const [callId, streamDataType, streamId, payload] = JSON.parse(
+      decodeText(buffer)
+    )
+    const call = this.calls.get(callId)
+    if (call) {
+      const ac = new AbortController()
+      ac.signal.addEventListener(
+        'abort',
+        () => {
+          this.streams.down.delete(streamId)
+          this.send(
+            MessageType.ServerStreamAbort,
+            encodeNumber(streamId, 'Uint32')
+          )
+        },
+        { once: true }
+      )
+      const transformer = transformers[streamDataType]
+      const stream = new DownStream(transformer, ac)
+      this.streams.down.set(streamId, stream)
+      const { resolve, timer } = call
+      clearTimeout(timer)
+      this.calls.delete(callId)
+      resolve({ payload, stream: stream.interface })
+    } else {
+      this.send(MessageType.ServerStreamAbort, encodeNumber(streamId, 'Uint32'))
+    }
+  }
+
+  async [KEY[MessageType.ClientStreamPull]](buffer: ArrayBuffer) {
+    const id = decodeNumber(buffer, 'Uint32')
+    const size = decodeNumber(buffer, 'Uint32', Uint32Array.BYTES_PER_ELEMENT)
+    const stream = this.streams.up.get(id)
+    const { done, chunk } = await stream._read(size)
+    if (done) {
+      this.send(MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32'))
+    } else {
+      this.send(
+        MessageType.ClientStreamPush,
+        concat(encodeNumber(id, 'Uint32'), chunk)
+      )
+    }
+  }
+
+  async [KEY[MessageType.ClientStreamEnd]](buffer: ArrayBuffer) {
+    const id = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.up.get(id)
+    stream._finish()
+    this.streams.up.delete(id)
+  }
+
+  [KEY[MessageType.ClientStreamAbort]](buffer: ArrayBuffer) {
+    const id = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.up.get(id)
+    stream.destroy(new AbortStreamError('Aborted by server'))
+    this.streams.up.delete(id)
+  }
+
+  async [KEY[MessageType.ServerStreamPush]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) {
+      await stream.writer.write(
+        new Uint8Array(buffer.slice(Uint32Array.BYTES_PER_ELEMENT))
+      )
+      this.send(MessageType.ServerStreamPull, encodeNumber(streamId, 'Uint32'))
+    }
+  }
+
+  [KEY[MessageType.ServerStreamEnd]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) stream.writer.close()
+    this.streams.down.delete(streamId)
+  }
+
+  [KEY[MessageType.ServerStreamAbort]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) stream.writable.abort(new AbortStreamError('Aborted by server'))
+    this.streams.down.delete(streamId)
+  }
 }
+
+const transformers: Record<StreamDataType, Transformer['transform']> = {
+  [StreamDataType.Json]: (chunk, controller) =>
+    controller.enqueue(JSON.parse(decodeText(chunk))),
+  [StreamDataType.Binary]: (chunk, controller) => controller.enqueue(chunk),
+} as const

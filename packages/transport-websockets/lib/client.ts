@@ -2,26 +2,18 @@ import { BaseClient } from '@neemata/application'
 import { HttpTransportProtocol } from '@neemata/transport-http'
 import { MessageType } from './common'
 import { sendPayload } from './server'
-import { WebSocket, WebsocketsTransportClientContext } from './types'
+import { WebSocket } from './types'
 
 export class WebsocketsTransportClient<Data = any> implements BaseClient<Data> {
-  readonly id: string
   readonly protocol: HttpTransportProtocol = HttpTransportProtocol.Websockets
 
-  #context: WebsocketsTransportClientContext
   #websocket: WebSocket
 
-  constructor(
-    context: WebsocketsTransportClientContext,
-    websocket: WebSocket,
-    public readonly data: Data
-  ) {
-    this.#context = context
+  constructor(readonly id: string, readonly data: Data, websocket: WebSocket) {
     this.#websocket = websocket
-    this.id = context.id
   }
 
   send(event: string, payload: any) {
-    return sendPayload(this.#websocket, MessageType.Event, { event, payload })
+    return sendPayload(this.#websocket, MessageType.Event, [event, payload])
   }
 }

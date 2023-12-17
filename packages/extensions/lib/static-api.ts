@@ -1,15 +1,16 @@
 import {
   BaseExtension,
-  BinaryStreamResponse,
   ExtensionInstallOptions,
   Hook,
-  JsonStreamResponse,
   ProcedureDataType,
   ProcedureDeclaration,
+  StreamResponse,
   WorkerType,
 } from '@neemata/application'
+import { UpStream } from '@neemata/common'
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
+import { Readable } from 'node:stream'
 import { name as packageName } from '../package.json'
 
 export class StaticApiAnnotations extends BaseExtension {
@@ -68,7 +69,7 @@ export type ResolveApi<Input extends Record<string, any>> = {
     infer Output
   >
     ? {
-        input: ProcedureDataType<Input>
+        input: ResolveApiInput<ProcedureDataType<Input>>
         output: ResolveApiOutput<
           Awaited<Output extends unknown ? Response : ProcedureDataType<Output>>
         >
@@ -76,19 +77,27 @@ export type ResolveApi<Input extends Record<string, any>> = {
     : never
 }
 
-export type ResolveApiOutput<Output> = Output extends JsonStreamResponse<
-  infer Type
->
-  ? import('@neemata/common').BaseClientStream<Primitive<Type>>
-  : Output extends BinaryStreamResponse
-  ? import('@neemata/common').BaseClientStream<Uint8Array>
+export type ResolveApiInput<Input> = Input extends Readable
+  ? UpStream
+  : Input extends object
+  ? {
+      [K in keyof Input]: ResolveApiInput<Input[K]>
+    }
+  : Input
+
+export type ResolveApiOutput<Output> = Output extends StreamResponse
+  ? {
+      payload: Primitive<Output['_']['payload']>
+      stream: import('@neemata/common').DownStream<
+        Primitive<Output['_']['chunk']>
+      >['interface']
+    }
   : Primitive<Output>
 
 /**
  * Slightly modified version of https://github.com/samchon/typia Primitive type. (TODO: make a PR maybe?)
  * Excludes keys with `never` types from object, and if a function is in array,
- * then it is stringified as `null`, just like V8 implementation of JSON.stringify does.
- * Could differ from Bun's JSC implementation. Need further investigation.
+ * then it is stringified as `null`, just like V8's implementation of JSON.stringify does.
  */
 export type Primitive<T> = Equal<T, PrimitiveMain<T>> extends true
   ? T

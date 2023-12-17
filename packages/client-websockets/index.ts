@@ -1,10 +1,13 @@
 import {
+  AbortStreamError,
   ApiError,
   BaseClient,
   Call,
+  DownStream,
   ErrorCode,
   ResolveProcedureApiType,
-  Stream,
+  StreamDataType,
+  UpStream,
   concat,
   decodeNumber,
   decodeText,
@@ -32,6 +35,12 @@ type RPCOptions = {
 const KEY: Record<MessageType, symbol> = Object.fromEntries(
   Object.values(MessageType).map((type) => [type as any, Symbol()])
 )
+
+const StreamTransformer: Record<StreamDataType, Transformer['transform']> = {
+  [StreamDataType.Json]: (chunk, controller) =>
+    controller.enqueue(JSON.parse(decodeText(chunk))),
+  [StreamDataType.Binary]: (chunk, controller) => controller.enqueue(chunk),
+} as const
 
 class WebsocketsClient<Api extends any = never> extends BaseClient<
   Api,
@@ -132,7 +141,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     const callId = ++this.callId
     const streams = []
     const replacer = (key: string, value: any) => {
-      if (value instanceof Stream) {
+      if (value instanceof UpStream) {
         streams.push([value.id, value.metadata])
         return value._serialize()
       }
@@ -202,10 +211,9 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
   }
 
   async [KEY[MessageType.ClientStreamPull]](buffer: ArrayBuffer) {
-    console.log([buffer.byteLength])
     const id = decodeNumber(buffer, 'Uint32')
     const size = decodeNumber(buffer, 'Uint32', Uint32Array.BYTES_PER_ELEMENT)
-    const stream = this.streams.client.get(id)
+    const stream = this.streams.up.get(id)
     const { done, chunk } = await stream._read(size)
     if (done) {
       this.send(MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32'))
@@ -219,15 +227,70 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
 
   async [KEY[MessageType.ClientStreamEnd]](buffer: ArrayBuffer) {
     const id = decodeNumber(buffer, 'Uint32')
-    const stream = this.streams.client.get(id)
+    const stream = this.streams.up.get(id)
     stream._finish()
-    this.streams.client.delete(id)
+    this.streams.up.delete(id)
   }
 
   [KEY[MessageType.ClientStreamAbort]](buffer: ArrayBuffer) {
     const id = decodeNumber(buffer, 'Uint32')
-    const stream = this.streams.client.get(id)
-    stream.destroy(new Error('Aborted by server'))
-    this.streams.client.delete(id)
+    const stream = this.streams.up.get(id)
+    stream.destroy(new AbortStreamError('Aborted by server'))
+    this.streams.up.delete(id)
+  }
+
+  [KEY[MessageType.RpcStream]](buffer: ArrayBuffer) {
+    const [callId, streamDataType, streamId, payload] = JSON.parse(
+      decodeText(buffer)
+    )
+    const call = this.calls.get(callId)
+    if (call) {
+      const ac = new AbortController()
+      ac.signal.addEventListener(
+        'abort',
+        () => {
+          this.streams.down.delete(streamId)
+          this.send(
+            MessageType.ServerStreamAbort,
+            encodeNumber(streamId, 'Uint32')
+          )
+        },
+        { once: true }
+      )
+      const transformer = StreamTransformer[streamDataType]
+      const stream = new DownStream(transformer, ac)
+      this.streams.down.set(streamId, stream)
+      const { resolve, timer } = call
+      clearTimeout(timer)
+      this.calls.delete(callId)
+      resolve({ payload, stream: stream.interface })
+    } else {
+      this.send(MessageType.ServerStreamAbort, encodeNumber(streamId, 'Uint32'))
+    }
+  }
+
+  async [KEY[MessageType.ServerStreamPush]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) {
+      await stream.writer.write(
+        new Uint8Array(buffer.slice(Uint32Array.BYTES_PER_ELEMENT))
+      )
+      this.send(MessageType.ServerStreamPull, encodeNumber(streamId, 'Uint32'))
+    }
+  }
+
+  [KEY[MessageType.ServerStreamEnd]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) stream.writer.close()
+    this.streams.down.delete(streamId)
+  }
+
+  [KEY[MessageType.ServerStreamAbort]](buffer: ArrayBuffer) {
+    const streamId = decodeNumber(buffer, 'Uint32')
+    const stream = this.streams.down.get(streamId)
+    if (stream) stream.writable.abort(new AbortStreamError('Aborted by server'))
+    this.streams.down.delete(streamId)
   }
 }

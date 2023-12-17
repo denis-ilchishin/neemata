@@ -1,4 +1,4 @@
-import { Callback, Container, Stream } from '@neemata/application'
+import { Container, Stream } from '@neemata/application'
 import {
   HttpTransportOptions,
   HttpTransportProtocol,
@@ -12,11 +12,11 @@ export type WebSocketUserData = {
     /**
      * Client to server streams
      */
-    client: Map<number, Stream>
+    up: Map<number, Stream>
     /**
      * Server to client streams
      */
-    server: Map<number, { response: Readable; pull: Callback }>
+    down: Map<number, Readable>
     streamId: number
   }
   container: Container

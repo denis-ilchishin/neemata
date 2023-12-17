@@ -1,11 +1,15 @@
 import {
   ApiError,
   ExtensionInstallOptions,
+  JsonStreamResponse,
   Scope,
   Stream,
+  StreamResponse,
 } from '@neemata/application'
 import {
+  AbortStreamError,
   STREAM_SERIALIZE_KEY,
+  StreamDataType,
   concat,
   decodeNumber,
   decodeText,
@@ -17,11 +21,10 @@ import {
   HttpTransportProtocol,
   HttpTransportServer,
   InternalError,
-  Req,
-  Res,
+  fromJSON,
+  toJSON,
 } from '@neemata/transport-http'
 import { randomUUID } from 'node:crypto'
-import { PassThrough, Readable } from 'node:stream'
 import { WebsocketsTransportClient } from './client'
 import { MessageType } from './common'
 import {
@@ -62,8 +65,8 @@ export class WebsocketsTransportServer extends HttpTransportServer {
           this.getRequestData(req, res)
 
         const streams = {
-          client: new Map(),
-          server: new Map(),
+          up: new Map(),
+          down: new Map(),
           streamId: 0,
         }
         const transportData: WebsocketsTransportData = {
@@ -129,10 +132,10 @@ export class WebsocketsTransportServer extends HttpTransportServer {
         const { id, container, streams } = ws.getUserData()
         this.sockets.delete(ws)
         this.clients.delete(id)
-        streams.client.forEach((stream) => stream.destroy())
-        streams.server.forEach(({ response: stream }) => stream.destroy())
-        streams.client.clear()
-        streams.server.clear()
+        streams.up.forEach((stream) => stream.destroy())
+        streams.down.forEach((stream) => stream.destroy())
+        streams.up.clear()
+        streams.down.clear()
         this.handleDispose(container)
       },
     })
@@ -169,7 +172,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
         read,
         this.options.maxStreamChunkLength
       )
-      data.streams.client.set(id, stream)
+      data.streams.up.set(id, stream)
       stream.on('error', (cause) =>
         this.logger.trace(new Error('Stream error', { cause }))
       )
@@ -177,7 +180,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
 
     const streamsReplacer = (key, value) => {
       if (typeof value === 'string' && value.startsWith(STREAM_SERIALIZE_KEY)) {
-        return data.streams.client.get(
+        return data.streams.up.get(
           parseInt(value.slice(STREAM_SERIALIZE_KEY.length))
         )
       }
@@ -200,7 +203,47 @@ export class WebsocketsTransportServer extends HttpTransportServer {
         container,
         payload
       )
-      sendPayload(ws, MessageType.Rpc, [callId, response, null])
+      if (response instanceof StreamResponse) {
+        const streamDataType =
+          response instanceof JsonStreamResponse
+            ? StreamDataType.Json
+            : StreamDataType.Binary
+
+        const streamId = ++data.streams.streamId
+        sendPayload(ws, MessageType.RpcStream, [
+          callId,
+          streamDataType,
+          streamId,
+          response.payload,
+        ])
+        data.streams.down.set(streamId, response)
+        response.on('data', (chunk) => {
+          response.pause()
+          send(
+            ws,
+            MessageType.ServerStreamPush,
+            encodeNumber(streamId, 'Uint32'),
+            chunk
+          )
+        })
+        response.once('end', () => {
+          send(
+            ws,
+            MessageType.ServerStreamEnd,
+            encodeNumber(streamId, 'Uint32')
+          )
+        })
+
+        response.once('error', () => {
+          send(
+            ws,
+            MessageType.ServerStreamAbort,
+            encodeNumber(streamId, 'Uint32')
+          )
+        })
+      } else {
+        sendPayload(ws, MessageType.Rpc, [callId, response, null])
+      }
     } catch (error) {
       if (error instanceof ApiError) {
         sendPayload(ws, MessageType.Rpc, [callId, null, error])
@@ -216,7 +259,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
   async [MessageType.ClientStreamPush](ws: WebSocket, buffer: ArrayBuffer) {
     const { streams } = ws.getUserData()
     const id = decodeNumber(buffer, 'Uint32')
-    const stream = streams.client.get(id)
+    const stream = streams.up.get(id)
     if (!stream) return void ws.close()
     else stream.push(Buffer.from(buffer.slice(Uint32Array.BYTES_PER_ELEMENT)))
   }
@@ -224,68 +267,46 @@ export class WebsocketsTransportServer extends HttpTransportServer {
   async [MessageType.ClientStreamEnd](ws: WebSocket, buffer: ArrayBuffer) {
     const { streams } = ws.getUserData()
     const id = decodeNumber(buffer, 'Uint32')
-    const stream = streams.client.get(id)
+    const stream = streams.up.get(id)
     if (!stream) return void ws.close()
     stream.once('finish', () =>
       send(ws, MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32'))
     )
     stream.push(null)
-    streams.client.delete(id)
+    streams.up.delete(id)
   }
 
   async [MessageType.ClientStreamAbort](ws: WebSocket, buffer: ArrayBuffer) {
     const { streams } = ws.getUserData()
     const id = decodeNumber(buffer, 'Uint32')
-    const stream = streams.client.get(id)
+    const stream = streams.up.get(id)
     if (!stream) ws.close()
-    stream.destroy(new Error('Aborted by client'))
-  }
-}
-
-export const toJSON = (
-  data: any,
-  replacer?: (key: string, value: any) => any
-) => (data ? JSON.stringify(data, replacer) : undefined)
-
-export const fromJSON = (
-  data: any,
-  replacer?: (key: string, value: any) => any
-) => (data ? JSON.parse(data, replacer) : undefined)
-
-export const getBody = (req: Req, res: Res) => {
-  const toBuffer = () => {
-    const chunks: Buffer[] = []
-    return new Promise<Buffer>((resolve, reject) => {
-      res.onData((chunk, isLast) => {
-        chunks.push(Buffer.from(chunk))
-        if (isLast) resolve(Buffer.concat(chunks))
-      })
-      res.onAborted(() => reject(new Error('Aborted')))
-    })
+    stream.destroy(new AbortStreamError('Aborted by client'))
   }
 
-  const toString = async () => {
-    const buffer = await toBuffer()
-    return buffer.toString()
+  async [MessageType.ServerStreamPull](ws: WebSocket, buffer: ArrayBuffer) {
+    const { streams } = ws.getUserData()
+    const id = decodeNumber(buffer, 'Uint32')
+    const stream = streams.down.get(id)
+    if (!stream) return void ws.close()
+    stream.resume()
   }
 
-  const toJSON = async () => {
-    const buffer = await toBuffer()
-    if (buffer.byteLength) return fromJSON(buffer)
-    return null
+  async [MessageType.ServerStreamEnd](ws: WebSocket, buffer: ArrayBuffer) {
+    const { streams } = ws.getUserData()
+    const id = decodeNumber(buffer, 'Uint32')
+    const stream = streams.down.get(id)
+    if (!stream) return void ws.close()
+    streams.down.delete(id)
   }
 
-  const toStream = (): Readable => {
-    const stream = new PassThrough()
-    res.onData((chunk, isLast) => {
-      stream.write(Buffer.from(chunk))
-      if (isLast) stream.end()
-    })
-    res.onAborted(() => stream.destroy())
-    return stream
+  async [MessageType.ServerStreamAbort](ws: WebSocket, buffer: ArrayBuffer) {
+    const { streams } = ws.getUserData()
+    const id = decodeNumber(buffer, 'Uint32')
+    const stream = streams.down.get(id)
+    if (!stream) return void ws.close()
+    stream.destroy(new AbortStreamError('Aborted by client'))
   }
-
-  return { toBuffer, toString, toJSON, toStream }
 }
 
 const CLOSED_SOCKET_MESSAGE =

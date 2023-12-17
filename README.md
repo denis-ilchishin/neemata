@@ -1,5 +1,4 @@
 ## Neemata
-
 Lightweight Node.js RPC application server
 
 [Example](https://github.com/denis-ilchishin/neemata-starter)
@@ -16,12 +15,12 @@ Lightweight Node.js RPC application server
 - CLI support
 - Typescript modules support without build process (runtime transpilation with [SWC](https://github.com/swc-project/swc))
 - Hot-reload without server restart (preserving all current connections)
+- Real static end-to-end typesafety (respecting JSON'nification of values), including streams
 
 #### First-party transports and clients:
 - **HTTP**
 - **Websockets**
 - **AMQP**
-
 
 #### First-party extensions:
 - Procedure guards

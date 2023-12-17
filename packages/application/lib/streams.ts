@@ -45,9 +45,10 @@ export class JsonStreamResponse<
   }
 }
 
-export class BinaryStreamResponse<
-  Payload = any
-> extends StreamResponse<Payload> {
+export class BinaryStreamResponse<Payload = any> extends StreamResponse<
+  Payload,
+  ArrayBuffer
+> {
   constructor(payload: Payload, readonly type: string) {
     super(payload)
   }

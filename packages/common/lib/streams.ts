@@ -17,7 +17,7 @@ export class AbortStreamError extends Error {}
 
 export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
   reader: ReadableStreamDefaultReader<Chunk>
-  writer: WritableStreamDefaultWriter<Chunk>
+  writer: WritableStreamDefaultWriter
 
   interface: ReadableStream<Chunk> & {
     [Symbol.asyncIterator]: () => AsyncIterator<Chunk>

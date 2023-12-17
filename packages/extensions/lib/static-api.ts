@@ -87,25 +87,27 @@ export type ResolveApiInput<Input> = Input extends Readable
 
 export type ResolveApiOutput<Output> = Output extends StreamResponse
   ? {
-      payload: Primitive<Output['_']['payload']>
+      payload: JsonPrimitive<Output['_']['payload']>
       stream: import('@neemata/common').DownStream<
-        Primitive<Output['_']['chunk']>
+        Output['_']['chunk'] extends ArrayBuffer
+          ? ArrayBuffer
+          : JsonPrimitive<Output['_']['chunk']>
       >['interface']
     }
-  : Primitive<Output>
+  : JsonPrimitive<Output>
 
 /**
  * Slightly modified version of https://github.com/samchon/typia Primitive type. (TODO: make a PR maybe?)
  * Excludes keys with `never` types from object, and if a function is in array,
  * then it is stringified as `null`, just like V8's implementation of JSON.stringify does.
  */
-export type Primitive<T> = Equal<T, PrimitiveMain<T>> extends true
+export type JsonPrimitive<T> = Equal<T, JsonPrimitiveMain<T>> extends true
   ? T
-  : PrimitiveMain<T>
+  : JsonPrimitiveMain<T>
 
 type Equal<X, Y> = X extends Y ? (Y extends X ? true : false) : false
 
-type PrimitiveMain<
+type JsonPrimitiveMain<
   Instance,
   InArray extends boolean = false
 > = Instance extends [never]
@@ -135,23 +137,23 @@ type PrimitiveMain<
 type PrimitiveObject<Instance extends object> = Instance extends Array<infer T>
   ? IsTuple<Instance> extends true
     ? PrimitiveTuple<Instance>
-    : PrimitiveMain<T, true>[]
+    : JsonPrimitiveMain<T, true>[]
   : {
-      [P in keyof Instance as PrimitiveMain<Instance[P]> extends never
+      [P in keyof Instance as JsonPrimitiveMain<Instance[P]> extends never
         ? never
-        : P]: PrimitiveMain<Instance[P]>
+        : P]: JsonPrimitiveMain<Instance[P]>
     }
 
 type PrimitiveTuple<T extends readonly any[]> = T extends []
   ? []
   : T extends [infer F]
-  ? [PrimitiveMain<F, true>]
+  ? [JsonPrimitiveMain<F, true>]
   : T extends [infer F, ...infer Rest extends readonly any[]]
-  ? [PrimitiveMain<F, true>, ...PrimitiveTuple<Rest>]
+  ? [JsonPrimitiveMain<F, true>, ...PrimitiveTuple<Rest>]
   : T extends [(infer F)?]
-  ? [PrimitiveMain<F, true>?]
+  ? [JsonPrimitiveMain<F, true>?]
   : T extends [(infer F)?, ...infer Rest extends readonly any[]]
-  ? [PrimitiveMain<F, true>?, ...PrimitiveTuple<Rest>]
+  ? [JsonPrimitiveMain<F, true>?, ...PrimitiveTuple<Rest>]
   : []
 
 type ValueOf<Instance> = IsValueOf<Instance, Boolean> extends true

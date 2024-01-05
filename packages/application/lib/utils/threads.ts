@@ -1,10 +1,13 @@
 import EventEmitter from 'node:events'
+import { ApplicationWorkerOptions } from '../application'
 
 export const bindPortMessageHandler = (port: EventEmitter) => {
   port.on('message', (message) => {
     if (message && typeof message === 'object') {
       const { type, payload } = message
-      port.emit(type, payload)
+      if (typeof type === 'string') {
+        port.emit(type, payload)
+      }
     }
   })
 }
@@ -23,4 +26,14 @@ export const createBroadcastChannel = (name: string) => {
     emitter.removeAllListeners()
   }
   return { emitter, channel, close }
+}
+
+const WORKER_OPTIONS_KEY = Symbol('neemata:workerOptions')
+
+export const providerWorkerOptions = (opts: ApplicationWorkerOptions) => {
+  globalThis[WORKER_OPTIONS_KEY] = opts
+}
+
+export const injectWorkerOptions = (): ApplicationWorkerOptions => {
+  return globalThis[WORKER_OPTIONS_KEY]
 }

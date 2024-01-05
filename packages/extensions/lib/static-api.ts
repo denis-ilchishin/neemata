@@ -1,11 +1,10 @@
 import {
+  AnyApplication,
   BaseExtension,
-  ExtensionInstallOptions,
   Hook,
-  ProcedureDataType,
-  ProcedureDeclaration,
+  InferSchema,
+  Procedure,
   StreamResponse,
-  WorkerType,
 } from '@neemata/application'
 import { UpStream } from '@neemata/common'
 import { writeFile } from 'node:fs/promises'
@@ -16,62 +15,56 @@ import { name as packageName } from '../package.json'
 export class StaticApiAnnotations extends BaseExtension {
   name = 'Static API annotations'
 
-  application!: ExtensionInstallOptions<{}, {}>
-
-  constructor(private readonly options: { output: string; emit: boolean }) {
+  constructor(
+    private readonly options: {
+      output: string
+      emit: boolean
+      applicationPath: string
+    }
+  ) {
     super()
   }
 
-  install(application: ExtensionInstallOptions<{}, {}>) {
-    this.application = application
-
-    const { type, api, registerHook, registerCommand } = application
-
-    registerCommand('generate', async () => {
-      if (type !== WorkerType.Api) await api.load()
-      await this.generate()
-    })
-
-    if (type === WorkerType.Api && (this.options.emit ?? true))
-      registerHook(Hook.AfterInitialize, this.generate.bind(this))
+  initialize() {
+    const { registerHook, registerCommand } = this.application
+    registerCommand('emit', () => this.emit())
+    if (this.options.emit !== false) {
+      registerHook(Hook.AfterInitialize, this.emit.bind(this))
+    }
   }
 
-  private async generate() {
+  private async emit() {
     const procedures: any = []
     for (const [name, filePath] of this.application.api.paths) {
       const path = relative(dirname(this.options.output), filePath)
       procedures.push(`"${name}": typeof import("${path}").default`)
     }
+    const appRelativePath = relative(
+      dirname(this.options.output),
+      this.options.applicationPath
+    )
     const entries = `\n  ${procedures.join(',\n  ')}\n`
-    const dtsContent = `export declare type Api = import("${packageName}").ResolveApi<{${entries}}>`
+    const dtsContent = `export declare type Procedures = import("${packageName}").ResolveProcedures<{${entries}}>;\nexport declare type Events = import("${packageName}").ResolveEvents<typeof import("${appRelativePath}").default>`
     await writeFile(this.options.output, dtsContent)
   }
 }
 
-export type ResolveApi<Input extends Record<string, any>> = {
-  [K in keyof Input as Input[K] extends ProcedureDeclaration<
-    any,
-    any,
-    any,
-    any,
-    any,
-    any,
-    any
-  >
+export type ResolveEvents<App extends AnyApplication> = {
+  [K in keyof App['_']['events']]: App['_']['events'][K]['payload']
+}
+
+export type ResolveProcedures<Api extends Record<string, any>> = {
+  [K in keyof Api as Api[K] extends Procedure
     ? K
-    : never]: Input[K] extends ProcedureDeclaration<
-    any,
-    any,
-    any,
-    any,
-    infer Input,
-    infer Response,
-    infer Output
-  >
+    : never]: Api[K] extends Procedure
     ? {
-        input: ResolveApiInput<ProcedureDataType<Input>>
+        input: ResolveApiInput<InferSchema<Api>>
         output: ResolveApiOutput<
-          Awaited<Output extends unknown ? Response : ProcedureDataType<Output>>
+          Awaited<
+            Api[K]['_']['output'] extends unknown
+              ? ReturnType<Api[K]['handler']>
+              : InferSchema<Api[K]['_']['output']>
+          >
         >
       }
     : never
@@ -87,11 +80,11 @@ export type ResolveApiInput<Input> = Input extends Readable
 
 export type ResolveApiOutput<Output> = Output extends StreamResponse
   ? {
-      payload: JsonPrimitive<Output['_']['payload']>
+      payload: JsonPrimitive<Output['payload']>
       stream: import('@neemata/common').DownStream<
-        Output['_']['chunk'] extends ArrayBuffer
+        Output['chunk'] extends ArrayBuffer
           ? ArrayBuffer
-          : JsonPrimitive<Output['_']['chunk']>
+          : JsonPrimitive<Output['chunk']>
       >['interface']
     }
   : JsonPrimitive<Output>

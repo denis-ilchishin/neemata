@@ -1,21 +1,11 @@
-import {
-  AsProcedureOptions,
-  Async,
-  ExtensionInstallOptions,
-  ExtensionInterface,
-  ExtensionMiddlewareOptions,
-  Extra,
-} from './types'
+import { ExtensionInstallOptions, ExtensionInterface, Extra } from './types'
 
 export abstract class BaseExtension<
   ProcedureOptions extends Extra = {},
-  Context extends Extra = {},
-  MiddlewareOptions extends ExtensionMiddlewareOptions<
-    AsProcedureOptions<ProcedureOptions>,
-    Context
-  > = ExtensionMiddlewareOptions<AsProcedureOptions<ProcedureOptions>, Context>
+  Context extends Extra = {}
 > implements ExtensionInterface<ProcedureOptions, Context>
 {
+  readonly application!: ExtensionInstallOptions<ProcedureOptions, Context>
   readonly _!: {
     context: Context
     options: ProcedureOptions
@@ -23,15 +13,6 @@ export abstract class BaseExtension<
 
   abstract name: string
 
-  install?(options: ExtensionInstallOptions<ProcedureOptions, Context>): any
+  initialize?(): any
   context?(): Context
-
-  protected resolveProcedureOption<T extends keyof ProcedureOptions>(
-    optionName: T,
-    options: MiddlewareOptions
-  ): Async<ProcedureOptions[T]> {
-    return typeof options.procedure[optionName] === 'function'
-      ? options.procedure[optionName](options.context)
-      : options.procedure[optionName]
-  }
 }

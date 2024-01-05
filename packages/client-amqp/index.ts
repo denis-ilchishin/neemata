@@ -3,9 +3,10 @@ import {
   BaseClient,
   Call,
   ErrorCode,
-  ResolveProcedureApiType,
+  ResolveApiProcedureType,
 } from '@neemata/common'
 import amqplib from 'amqplib'
+import { hostname } from 'os'
 
 export { AmqpClient, ApiError, ErrorCode }
 
@@ -14,21 +15,28 @@ type Options = {
   requestQueue: string
   debug?: boolean
   timeout?: number
+  clientId?: string
+  headers?: Record<string, string>
 }
 
 type RPCOptions = {
   timeout?: number
 }
 
-class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
+class AmqpClient<
+  Procedures extends any = never,
+  Events extends Record<string, any> = Record<string, any>
+> extends BaseClient<Procedures, Events, RPCOptions> {
   private connection!: amqplib.Connection
   private channel!: amqplib.Channel
   private queue!: string
   private callId = 0
   private calls = new Map<string, Call>()
+  private clientId: string
 
   constructor(private readonly options: Options) {
     super()
+    this.clientId = options.clientId || hostname()
   }
 
   async connect() {
@@ -47,11 +55,11 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     this.channel.consume(
       this.queue,
       (msg) => {
+        if (!msg) return void 0
         const { correlationId } = msg.properties
         const call = this.calls.get(correlationId)
         if (!call) return
         const { resolve, reject, timer } = call
-        const clear = () => clearTimeout(timer)
         try {
           const { response, error } = this.deserialize(msg.content)
           if (error) reject(new ApiError(error.code, error.message, error.data))
@@ -59,7 +67,7 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
         } catch (error) {
           reject(error)
         } finally {
-          clear()
+          if (timer) clearTimeout(timer)
           this.calls.delete(correlationId)
         }
       },
@@ -84,15 +92,17 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     await this.connect()
   }
 
-  rpc<P extends keyof Api>(
+  rpc<P extends keyof Procedures>(
     procedure: P,
-    ...args: Api extends never
+    ...args: Procedures extends never
       ? [any?, RPCOptions?]
-      : null extends ResolveProcedureApiType<Api, P, 'input'>
-      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
-      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+      : null extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
-    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+    Procedures extends never
+      ? any
+      : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
     // TODO: implement AMQP message timeout
@@ -107,6 +117,8 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
         contentType: 'application/json',
         correlationId,
         replyTo: this.queue,
+        appId: this.clientId,
+        headers: this.options.headers,
       }
     )
 
@@ -132,7 +144,7 @@ class AmqpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
 
   private clear(error) {
     for (const { reject, timer } of this.calls.values()) {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       reject(error)
     }
     this.calls.clear()

@@ -1,36 +1,35 @@
-import { BaseTransport, ExtensionInstallOptions } from '@neemata/application'
+import { BaseTransport } from '@neemata/application'
+import { HttpTransportClient, HttpTransportData } from '@neemata/transport-http'
 import { WebsocketsTransportClient } from './client'
 import { WebsocketsTransportServer } from './server'
 import {
   WebsocketsTransportApplicationContext,
+  WebsocketsTransportData,
   WebsocketsTransportOptions,
   WebsocketsTransportProcedureOptions,
 } from './types'
 
-export class WebsocketsTransport<ClientData> extends BaseTransport<
+export class WebsocketsTransport<
+  Options extends WebsocketsTransportOptions
+> extends BaseTransport<
   WebsocketsTransportProcedureOptions,
   WebsocketsTransportApplicationContext,
-  WebsocketsTransportClient<ClientData>
+  Options['http'] extends true
+    ? WebsocketsTransportClient | HttpTransportClient
+    : WebsocketsTransportClient,
+  Options['http'] extends true
+    ? WebsocketsTransportData | HttpTransportData
+    : WebsocketsTransportData
 > {
   name = 'Websockets Transport'
-  server: WebsocketsTransportServer
-  application!: ExtensionInstallOptions<
-    WebsocketsTransportProcedureOptions,
-    WebsocketsTransportApplicationContext
-  >
+  server!: WebsocketsTransportServer
 
-  constructor(readonly options: WebsocketsTransportOptions<ClientData>) {
-    super(options.clientProvider)
+  constructor(readonly options: Options) {
+    super()
   }
 
-  install(
-    application: ExtensionInstallOptions<
-      WebsocketsTransportProcedureOptions,
-      WebsocketsTransportApplicationContext
-    >
-  ) {
-    this.application = application
-    this.server = new WebsocketsTransportServer(this.options, application)
+  initialize() {
+    this.server = new WebsocketsTransportServer(this.options, this.application)
   }
 
   async start() {

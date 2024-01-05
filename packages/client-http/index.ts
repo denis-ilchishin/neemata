@@ -3,7 +3,7 @@ import {
   BaseClient,
   DownStream,
   ErrorCode,
-  ResolveProcedureApiType,
+  ResolveApiProcedureType,
   StreamDataType,
   concat,
   decodeText,
@@ -25,7 +25,10 @@ type RPCOptions = {
   headers?: Record<string, string>
 }
 
-class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
+class HttpClient<
+  Procedures extends any = never,
+  Events extends Record<string, any> = Record<string, any>
+> extends BaseClient<Procedures, Events, RPCOptions> {
   private readonly url: URL
   private URLParams: URLSearchParams = new URLSearchParams()
   private headers: Record<string, string> = {}
@@ -54,15 +57,17 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
     await this.connect()
   }
 
-  async rpc<P extends keyof Api>(
+  async rpc<P extends keyof Procedures>(
     procedure: P,
-    ...args: Api extends never
+    ...args: Procedures extends never
       ? [any?, RPCOptions?]
-      : null extends ResolveProcedureApiType<Api, P, 'input'>
-      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
-      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+      : null extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
-    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+    Procedures extends never
+      ? any
+      : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
     const { timeout = options.timeout } = options
@@ -93,16 +98,17 @@ class HttpClient<Api extends any = never> extends BaseClient<Api, RPCOptions> {
       if (streamType) {
         let payloadCallback
         const payloadLength = parseInt(
-          res.headers.get('X-Neemata-Stream-Payload-Length')
+          res.headers.get('X-Neemata-Stream-Payload-Length')!
         )
-        const payload = new Promise((resolve) => (payloadCallback = resolve)) // why not just a callback ?
+        // Promise.withResolvers() not yet widely supported https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers
+        const payload = new Promise((resolve) => (payloadCallback = resolve))
         const transformer = transformers[streamType](
           payloadCallback,
           payloadLength
         )
         const stream = new DownStream(transformer, ac)
         stream.writer.releaseLock()
-        res.body.pipeTo(stream.writable)
+        res.body!.pipeTo(stream.writable)
         stream.reader.read()
         return { stream: stream.interface, payload: await payload }
       } else
@@ -144,10 +150,10 @@ const transformers: Record<
       const lines = text.split('\n')
       const lastLine = lines.pop()
       if (!payloadEmited && lines.length) {
-        resolvePayload(JSON.parse(lines.shift()))
+        resolvePayload(JSON.parse(lines.shift()!))
         payloadEmited = true
       }
-      buffer = lastLine ? encodeText(lastLine + '\n') : undefined
+      buffer = lastLine ? encodeText(lastLine + '\n') : new ArrayBuffer(0)
       return lines.map((line) => JSON.parse(line))
     }
 

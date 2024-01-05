@@ -1,9 +1,4 @@
-import {
-  BaseExtension,
-  ExtensionInstallOptions,
-  declareProcedure,
-  match,
-} from '@neemata/application'
+import { BaseExtension, Procedure, match } from '@neemata/application'
 import { JSONSchema, compile } from 'json-schema-to-typescript'
 import fsp from 'node:fs/promises'
 
@@ -21,25 +16,23 @@ export type SchemaExtensionOptions<> = {
 
 export class SchemaExtension extends BaseExtension {
   name = 'SchemasExtension'
-  application!: ExtensionInstallOptions
 
-  constructor(readonly options: SchemaExtensionOptions) {
+  constructor(readonly options: SchemaExtensionOptions = {}) {
     super()
   }
 
-  install(application: ExtensionInstallOptions): void {
-    this.application = application
-    const { api, registerHook, registerCommand } = application
+  initialize(): void {
+    const { api, registerCommand } = this.application
     if (this.options.procedureName) {
       api.registerProcedure(
         this.options.procedureName,
-        declareProcedure({ handle: this.jsonSchema.bind(this) }),
-        false
+        new Procedure()
+          .withHandler(this.jsonSchema.bind(this))
+          .withMiddlewareEnabled(false)
       )
     }
 
     registerCommand('typescript', async ({ args: output }) => {
-      await this.application.api.load()
       await this.export({ typescript: output })
     })
   }
@@ -48,7 +41,7 @@ export class SchemaExtension extends BaseExtension {
     const { api, container } = this.application
     const jsonSchemas = {}
 
-    for (const [name, { procedure, dependencies }] of api.modules) {
+    for (const [name, procedure] of api.modules) {
       if (name === this.options.procedureName) continue
 
       if (this.options.include) {
@@ -66,17 +59,17 @@ export class SchemaExtension extends BaseExtension {
       }
 
       const getJsonSchema = async (type: 'input' | 'output') => {
-        let context
-        if (procedure[type] === 'function') {
-          context = await container.createContext(dependencies)
-        }
-        const schema = await this.application.api.getProcedureSchema(
-          procedure,
-          context,
-          type
+        const context = this.application.container.createContext(
+          procedure.dependencies
         )
-        return this.application.api.parser?.toJsonSchema(schema) ?? {}
+        const schema = await this.application.api.resolveProcedureOption(
+          procedure,
+          type,
+          context
+        )
+        return this.application.api.parsers[type]?.toJsonSchema(schema) ?? {}
       }
+
       const [input, output] = await Promise.all([
         getJsonSchema('input'),
         getJsonSchema('output'),
@@ -161,7 +154,7 @@ export class SchemaExtension extends BaseExtension {
 
     for (const entry of Object.entries<any>(schemas)) {
       const [procedure, { input, output, metadata }] = entry
-      proceduresSchema.properties[procedure] = procedureSchema(
+      proceduresSchema.properties![procedure] = procedureSchema(
         input,
         output,
         metadata

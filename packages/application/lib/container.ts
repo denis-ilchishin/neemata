@@ -1,18 +1,9 @@
-import { Scope } from '@neemata/common'
-import { Application } from './application'
 import {
-  BaseClient,
-  Dependencies,
-  Depender,
+  AnyApplication,
   Extra,
-  ExtractAppContext,
-  ExtractAppTransportClient,
+  GlobalContext,
   LoaderInterface,
-  Provider,
-  ProviderDeclaration,
-  ProviderDeclarationWithOptions,
-  ProviderFactory,
-  ResolvedDependencyInjection,
+  Scope,
 } from './types'
 import { merge } from './utils/functions'
 
@@ -20,14 +11,12 @@ const ScopeStrictness = {
   [Scope.Global]: 0,
   [Scope.Connection]: 1,
   [Scope.Call]: 2,
+  [Scope.Transient]: 3,
 }
 
-type DeclarationType = ProviderDeclaration | ProviderDeclarationWithOptions
-
-export function getProviderScope(value: DeclarationType) {
-  const declaration = getDeclaration(value)
-  let scope = declaration.provider.scope ?? Scope.Global
-  for (const dependency of Object.values(declaration.dependencies ?? {})) {
+export function getProviderScope(provider: Provider) {
+  let scope = provider.scope
+  for (const dependency of Object.values<Provider>(provider.dependencies)) {
     const dependencyScope = getProviderScope(dependency)
     if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
       scope = dependencyScope
@@ -36,17 +25,191 @@ export function getProviderScope(value: DeclarationType) {
   return scope
 }
 
-function getDeclaration(value: DeclarationType) {
-  return 'declaration' in value ? value.declaration : value
+export type Dependencies<DependencyScope extends Scope = Scope> = Record<
+  string,
+  Provider<
+    any,
+    AnyApplication,
+    unknown,
+    Dependencies<DependencyScope>,
+    DependencyScope
+  >
+>
+
+export type ResolvedDependencyInjection<T extends Provider> = Awaited<T['type']>
+
+export interface Depender<Deps extends Dependencies> {
+  dependencies: Deps
+}
+
+export type DependencyContext<
+  Context extends Extra,
+  Deps extends Dependencies
+> = GlobalContext &
+  Context & {
+    injections: {
+      [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
+    }
+  }
+
+export type ProviderFactoryType<
+  App extends AnyApplication,
+  ProviderOptions extends any,
+  ProviderDeps extends Dependencies,
+  ProviderScope extends Scope,
+  ProviderType = any
+> = (
+  ctx: DependencyContext<App['_']['context'], ProviderDeps> &
+    (ProviderScope extends Exclude<Scope, Scope.Global | Scope.Transient>
+      ? {
+          client: App['_']['client']
+        }
+      : ProviderScope extends Scope.Transient
+      ? {
+          client?: App['_']['client']
+        }
+      : {}),
+  options: ProviderOptions
+) => ProviderType
+
+export type ProviderDisposeType<
+  ProviderType,
+  App extends AnyApplication,
+  ProviderOptions extends any,
+  ProviderDeps extends Dependencies
+> = (
+  instance: Awaited<ProviderType>,
+  ctx: DependencyContext<App['_']['context'], ProviderDeps>,
+  options: ProviderOptions
+) => any
+
+export class Provider<
+  ProviderType = any,
+  App extends AnyApplication = AnyApplication,
+  ProviderOptions extends any = unknown,
+  ProviderDeps extends Dependencies = Dependencies,
+  ProviderScope extends Scope = Scope,
+  ProviderFactory extends ProviderFactoryType<
+    App,
+    ProviderOptions,
+    ProviderDeps,
+    ProviderScope
+  > = ProviderFactoryType<App, ProviderOptions, ProviderDeps, ProviderScope>,
+  ProviderDispose extends ProviderDisposeType<
+    ProviderType,
+    App,
+    ProviderOptions,
+    ProviderDeps
+  > = ProviderDisposeType<ProviderType, App, ProviderOptions, ProviderDeps>
+> implements Depender<ProviderDeps>
+{
+  readonly type!: ProviderType
+  readonly dependencies: ProviderDeps = {} as ProviderDeps
+  readonly scope: ProviderScope = Scope.Global as ProviderScope
+  readonly factory!: ProviderFactory
+  readonly dispose!: ProviderDispose
+  readonly options!: ProviderOptions
+
+  withDependencies<Deps extends Dependencies>(dependencies: Deps) {
+    const provider = new Provider<
+      ProviderType,
+      App,
+      ProviderOptions,
+      Deps,
+      ProviderScope,
+      ProviderFactoryType<App, ProviderOptions, Deps, ProviderScope>
+    >()
+    Object.assign(provider, this, { dependencies })
+    return provider
+  }
+
+  withScope<S extends Scope>(scope: S) {
+    const provider = new Provider<
+      ProviderType,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      S,
+      ProviderFactoryType<App, ProviderOptions, ProviderDeps, S>,
+      ProviderDispose
+    >()
+    Object.assign(provider, this, { scope })
+    return provider
+  }
+
+  withOptionsType<Options>() {
+    const provider = new Provider<
+      ProviderType,
+      App,
+      Options,
+      ProviderDeps,
+      ProviderScope,
+      ProviderFactoryType<App, Options, ProviderDeps, ProviderScope>,
+      ProviderDisposeType<ProviderType, App, Options, ProviderDeps>
+    >()
+    Object.assign(provider, this)
+    return provider
+  }
+
+  withFactory<
+    F extends ProviderFactoryType<
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      ProviderScope,
+      ProviderType extends never ? unknown : ProviderType
+    >,
+    T extends Awaited<ReturnType<F>>
+  >(factory: F) {
+    const provider = new Provider<
+      T,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      ProviderScope,
+      F,
+      ProviderDisposeType<T, App, ProviderOptions, ProviderDeps>
+    >()
+    Object.assign(provider, this, { factory })
+    return provider
+  }
+
+  withDisposal(dispose: ProviderDispose) {
+    const provider = new Provider<
+      ProviderType,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      ProviderScope,
+      ProviderFactory,
+      ProviderDispose
+    >()
+    Object.assign(provider, this, { dispose })
+    return provider
+  }
+
+  withOptions(options: ProviderOptions) {
+    const provider = new Provider<
+      ProviderType,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      Scope.Transient,
+      ProviderFactory,
+      ProviderDispose
+    >()
+    Object.assign(provider, this, { options, scope: Scope.Transient })
+    return provider
+  }
 }
 
 export class Container {
-  readonly instances = new Map<DeclarationType, any>()
-  private readonly resolvers = new Map<DeclarationType, Promise<any>>()
-  private readonly providers = new Set<DeclarationType>()
+  readonly instances = new Map<Provider, any>()
+  private readonly resolvers = new Map<Provider, Promise<any>>()
+  private readonly providers = new Set<Provider>()
 
   constructor(
-    private readonly application: Application<any, any, any, any>,
+    private readonly application: AnyApplication,
     private readonly loaders: LoaderInterface<Depender<Dependencies>>[],
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},
@@ -82,14 +245,11 @@ export class Container {
     // to prevent first disposal of a provider
     // that other disposing provider depends on
     this.application.logger.debug('Disposing [%s] scope context...', this.scope)
-    for (const [key, value] of this.instances) {
-      const declaration = getDeclaration(key)
-      const { provider, dependencies } = declaration
+    for (const [{ dispose, options, dependencies }, value] of this.instances) {
       try {
-        const { dispose } = provider
         if (dispose) {
           const ctx = await this.createContext(dependencies)
-          await dispose(merge(ctx, this.params), value)
+          await dispose(value, merge(ctx, this.params), options)
         }
       } catch (cause) {
         this.application.logger.error(
@@ -99,10 +259,11 @@ export class Container {
     }
     this.instances.clear()
     this.providers.clear()
+    this.resolvers.clear()
   }
 
   private findCurrentScopeDeclarations() {
-    const declarations: DeclarationType[] = []
+    const declarations: Provider[] = []
     for (const provider of this.providers) {
       if (getProviderScope(provider) === this.scope) {
         declarations.push(provider)
@@ -112,38 +273,34 @@ export class Container {
   }
 
   isResolved(value: any) {
-    return this.instances.has(value) || this.resolvers.has(value)
+    return (
+      this.instances.has(value) ||
+      this.resolvers.has(value) ||
+      (this.parent && this.parent.isResolved(value))
+    )
   }
 
-  async resolve<T extends ProviderDeclaration | ProviderDeclarationWithOptions>(
-    value: T,
-    forceScope?: Scope
-  ): Promise<
-    ResolvedDependencyInjection<
-      T extends ProviderDeclarationWithOptions ? T['declaration'] : T
-    >
-  > {
-    const declaration = getDeclaration(value)
-    const options: any = 'options' in value ? value.options : undefined
-    const { factory, scope } = declaration.provider
+  async resolve<T extends Provider>(
+    value: T
+  ): Promise<ResolvedDependencyInjection<T>> {
+    const { factory, scope, dependencies, options } = value
 
     if (this.instances.has(value)) {
       return this.instances.get(value)
     } else if (this.resolvers.has(value)) {
       return this.resolvers.get(value)
     } else {
-      const isStricter =
-        ScopeStrictness[this.scope] > ScopeStrictness[forceScope ?? scope]
+      const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
       if (this.parent && isStricter && this.parent.isResolved(value))
         return this.parent.resolve(value)
-      const resolution = this.createContext(declaration.dependencies)
+      const resolution = this.createContext(dependencies)
         .then((ctx) => factory(merge(this.params, ctx), options))
         .then((instance) => {
-          this.instances.set(value, instance)
-          this.resolvers.delete(value)
+          if (this.scope === scope) this.instances.set(value, instance)
+          if (this.scope !== Scope.Transient) this.resolvers.delete(value)
           return instance
         })
-      this.resolvers.set(value, resolution)
+      if (this.scope !== Scope.Transient) this.resolvers.set(value, resolution)
       return resolution as any
     }
   }
@@ -163,62 +320,7 @@ export class Container {
 
   async createContext(dependencies: Dependencies, ...extra: Extra[]) {
     const injections = await this.resolveDependecies(dependencies)
-    const context = merge(...extra, this.application.context, {
-      injections,
-      scope: this.scope,
-    })
+    const context = merge(this.application.context, ...extra, { injections })
     return Object.freeze(context)
   }
 }
-
-export const declareProvider = (
-  provider:
-    | ProviderFactory<any, Extra, Extra, Scope, BaseClient, any>
-    | Provider<any, Extra, Extra, Scope, BaseClient, any>,
-  dependencies?: Dependencies
-) => {
-  const declarationFactory = (options) => ({ declaration, options })
-  provider = typeof provider === 'function' ? { factory: provider } : provider
-  const declaration = Object.assign(declarationFactory, {
-    provider,
-    dependencies,
-  })
-  // @ts-expect-error
-  declaration.provider.scope = getProviderScope(declaration)
-  return declaration
-}
-
-export const createTypedDeclareProvider =
-  <
-    App,
-    Context extends ExtractAppContext<App> = ExtractAppContext<App>,
-    TransportClient extends ExtractAppTransportClient<App> = ExtractAppTransportClient<App>
-  >() =>
-  <
-    Type,
-    Deps extends Dependencies,
-    Options extends any,
-    ProviderScope extends Scope = Scope.Global
-  >(
-    provider:
-      | ProviderFactory<
-          Type,
-          Context,
-          Deps,
-          ProviderScope,
-          TransportClient,
-          Options
-        >
-      | Provider<Type, Context, Deps, ProviderScope, TransportClient, Options>,
-    dependencies?: Deps
-  ): ProviderDeclaration<
-    Type,
-    Context,
-    Deps,
-    ProviderScope,
-    TransportClient,
-    Options
-  > => {
-    // @ts-expect-error
-    return declareProvider(provider, dependencies)
-  }

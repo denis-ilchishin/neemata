@@ -12,9 +12,3 @@ export enum ErrorCode {
   ClientRequestError = 'ClientRequestError',
   ConnectionError = 'ConnectionError',
 }
-
-export enum Scope {
-  Global = 'Global',
-  Connection = 'Connection',
-  Call = 'Call',
-}

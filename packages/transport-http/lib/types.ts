@@ -1,25 +1,18 @@
-import { ProviderDeclaration } from '@neemata/application'
 import { IParseOptions } from 'qs'
 import { AppOptions, HttpRequest, HttpResponse } from 'uWebSockets.js'
-
-export enum HttpTransportProtocol {
-  Http = 'Http',
-  Websockets = 'Websockets',
-}
 
 export enum HttpTransportMethod {
   Get = 'get',
   Post = 'post',
 }
 
-export type HttpTransportOptions<ClientData> = {
+export type HttpTransportOptions = {
   port?: number
   hostname?: string
   qsOptions?: IParseOptions
   ssl?: AppOptions
   maxPayloadLength?: number
   maxStreamChunkLength?: number
-  clientProvider?: ProviderDeclaration<ClientData>
 }
 
 export type HttpTransportProcedureOptions = {}
@@ -29,7 +22,6 @@ export type HttpTransportData = {
   query: any
   proxyRemoteAddress: string
   remoteAddress: string
-  protocol: HttpTransportProtocol
   method: HttpTransportMethod
 }
 

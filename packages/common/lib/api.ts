@@ -1,4 +1,4 @@
-import EventEmitter from 'events'
+import { EventEmitter, EventsType } from './event-emitter'
 import { DownStream, StreamMetadata, UpStream } from './streams'
 
 export class ApiError extends Error {
@@ -33,7 +33,7 @@ export type ApiProcedureType = {
   output?: any
 }
 
-export type ResolveProcedureApiType<
+export type ResolveApiProcedureType<
   Api,
   Key,
   Type extends keyof ApiProcedureType
@@ -46,28 +46,37 @@ export type ResolveProcedureApiType<
 export type Call = {
   resolve: (value?: any) => void
   reject: (reason?: any) => void
-  timer: ReturnType<typeof setTimeout>
+  timer: ReturnType<typeof setTimeout> | null
 }
 
+export type BaseClientEvents = {
+  '_neemata:open': never
+  '_neemata:close': never
+  '_neemata:connect': never
+  '_neemata:healthy': never
+}
 export abstract class BaseClient<
-  Api extends any = never,
+  Procedures extends any = never,
+  Events extends EventsType = never,
   RPCOptions = never
-> extends EventEmitter {
+> extends EventEmitter<Events & BaseClientEvents> {
   protected streams = {
     up: new Map<number, UpStream>(),
     down: new Map<number, DownStream>(),
     streamId: 0,
   }
 
-  abstract rpc<P extends keyof Api>(
+  abstract rpc<P extends keyof Procedures>(
     procedure: P,
-    ...args: Api extends never
+    ...args: Procedures extends never
       ? [any?, RPCOptions?]
-      : null | undefined extends ResolveProcedureApiType<Api, P, 'input'>
-      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
-      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+      : null | undefined extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
-    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+    Procedures extends never
+      ? any
+      : ResolveApiProcedureType<Procedures, P, 'output'>
   >
   abstract connect(): Promise<void>
   abstract disconnect(): Promise<void>

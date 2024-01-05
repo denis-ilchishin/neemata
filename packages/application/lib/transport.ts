@@ -1,31 +1,21 @@
-import { Scope } from '@neemata/common'
-import { getProviderScope } from './container'
-import {
-  BaseClient,
-  ExtensionInstallOptions,
-  ExtensionInterface,
-  Extra,
-  ProviderDeclaration,
-} from './types'
+import { randomUUID } from 'node:crypto'
+
+import { Event } from './events'
+import { ExtensionInstallOptions, ExtensionInterface, Extra } from './types'
 
 export abstract class BaseTransport<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {},
-  Client extends BaseClient = BaseClient
+  Client extends BaseTransportClient = BaseTransportClient,
+  TransportData = unknown
 > implements ExtensionInterface<ProcedureOptions, Context>
 {
-  constructor(clientProvider: ProviderDeclaration<any> | undefined) {
-    if (getProviderScope(clientProvider) !== Scope.Global) {
-      throw new Error(
-        'Client provider must be Global scope (including all dependencies)'
-      )
-    }
-  }
-
+  readonly application!: ExtensionInstallOptions<ProcedureOptions, Context>
   readonly _!: {
     options: ProcedureOptions
     context: Context
     client: Client
+    transportData: TransportData
   }
 
   context?(): Context
@@ -33,7 +23,29 @@ export abstract class BaseTransport<
   abstract name: string
   abstract start(): any
   abstract stop(): any
-  abstract install(
-    application: ExtensionInstallOptions<ProcedureOptions, Context>
-  ): any
+  abstract initialize?(): any
+}
+
+export abstract class BaseTransportClient<
+  Data = unknown,
+  Events extends Record<string, Event> = {}
+> {
+  readonly id: string
+  readonly protocol: string
+  readonly data: Data
+
+  constructor(id: string = randomUUID(), data: any, protocol: string) {
+    this.id = id
+    this.data = data
+    this.protocol = protocol
+  }
+
+  send<E extends keyof Events>(
+    eventName: E,
+    payload: Events[E]['payload']
+  ): boolean {
+    return this._handle(eventName as string, payload)
+  }
+
+  abstract _handle(eventName: string, payload: any): boolean
 }

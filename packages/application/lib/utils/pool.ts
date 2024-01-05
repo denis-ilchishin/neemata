@@ -50,16 +50,16 @@ export class Pool<T = unknown> {
     if (this.#size === 0) throw new PoolError('Pool is empty')
     if (this.#available === 0) {
       return new Promise((resolve, reject) => {
-        const waiting = {
+        const waiting: PoolQueueItem = {
           resolve: (item: T) => {
             if (exclusive) this.#capture(item)
             resolve(item)
           },
-          timer: null,
+          timer: undefined,
         }
         if (timeout) {
           waiting.timer = setTimeout(() => {
-            waiting.resolve = null
+            waiting.resolve = undefined
             this.#queue.shift()
             reject(new PoolError('Next item timeout'))
           }, timeout)
@@ -67,7 +67,7 @@ export class Pool<T = unknown> {
         this.#queue.push(waiting)
       })
     }
-    let item = null
+    let item: T | undefined = undefined
     let free = false
     do {
       item = this.#items[this.#current]
@@ -87,7 +87,7 @@ export class Pool<T = unknown> {
     this.#free[index] = true
     this.#available++
     if (this.#queue.length > 0) {
-      const { resolve, timer } = this.#queue.shift()
+      const { resolve, timer } = this.#queue.shift()!
       clearTimeout(timer)
       if (resolve) setTimeout(resolve, 0, item)
     }

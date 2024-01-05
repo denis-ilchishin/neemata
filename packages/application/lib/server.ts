@@ -7,8 +7,6 @@ import { Pool } from './utils/pool'
 import { bindPortMessageHandler } from './utils/threads'
 import { ApplicationWorkerData } from './worker'
 
-const IGNORE_ARGS = ['--inspect-brk', '--inspect', '--inspect-port']
-
 export type ApplicationServerOptions = {
   applicationPath: string | URL
   logging?: LoggingOptions
@@ -24,7 +22,7 @@ export class ApplicationServer {
   #exiting = false
 
   constructor(readonly options: ApplicationServerOptions) {
-    this.logger = createLogger(this.options.logging, 'Neemata')
+    this.logger = createLogger(this.options.logging, 'Application Server')
   }
 
   async start() {
@@ -75,9 +73,7 @@ export class ApplicationServer {
 
   private createWorker(type: WorkerType, id: number, options: any) {
     const isTaskWorker = type === WorkerType.Task
-    const execArgv = process.execArgv.filter(
-      (arg) => !IGNORE_ARGS.includes(arg)
-    )
+    const execArgv = process.execArgv
     const { applicationPath, taskWorkers } = this.options
 
     const workerData: ApplicationWorkerData = {

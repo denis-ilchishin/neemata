@@ -1,10 +1,17 @@
-import { BaseParser } from '@neemata/application'
-import { ZodSchema, any } from 'zod'
+import { Async, BaseParser } from '@neemata/application'
+import { ZodErrorMap, ZodSchema, any } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export class ZodParser extends BaseParser {
-  parse(schema: ZodSchema, data: any) {
-    return schema.parseAsync(data)
+  constructor(
+    private readonly customErrorMap?: (context: any) => Async<ZodErrorMap>
+  ) {
+    super()
+  }
+
+  async parse(schema: ZodSchema, data: any, context: any) {
+    const errorMap = await this.customErrorMap?.(context)
+    return await schema.parseAsync(data, { errorMap })
   }
 
   toJsonSchema(schema: ZodSchema) {

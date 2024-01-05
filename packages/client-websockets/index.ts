@@ -5,16 +5,18 @@ import {
   Call,
   DownStream,
   ErrorCode,
-  ResolveProcedureApiType,
+  EventsType,
+  ResolveApiProcedureType,
   StreamDataType,
+  StreamMetadata,
   UpStream,
   concat,
   decodeNumber,
   decodeText,
   encodeNumber,
   encodeText,
+  once,
 } from '@neemata/common'
-import { once } from 'events'
 import { MessageType } from '../transport-websockets/lib/common'
 
 export { ApiError, ErrorCode, WebsocketsClient }
@@ -31,18 +33,18 @@ type RPCOptions = {
   timeout?: number
 }
 
-// to make private keys
+// to make dynamic private keys
 const KEY: Record<MessageType, symbol> = Object.fromEntries(
   Object.values(MessageType).map((type) => [type as any, Symbol()])
 )
 
-class WebsocketsClient<Api extends any = never> extends BaseClient<
-  Api,
-  RPCOptions
-> {
+class WebsocketsClient<
+  Procedures extends any = never,
+  Events extends EventsType = never
+> extends BaseClient<Procedures, Events, RPCOptions> {
   private readonly url: URL
-  private ws: WebSocket
-  private autoreconnect: boolean
+  private ws!: WebSocket
+  private autoreconnect!: boolean
   private URLParams: URLSearchParams = new URLSearchParams()
   private isHealthy = false
   private isConnected = false
@@ -71,7 +73,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
         await new Promise((r) => setTimeout(r, seconds * 1000))
       }
     }
-    this.emit('healthy')
+    this.emit('_neemata:healthy')
   }
 
   async connect() {
@@ -91,13 +93,13 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     }
     this.ws.onopen = (event) => {
       this.isConnected = true
-      this.emit('open')
+      this.emit('_neemata:open')
       this.attempts = 0
     }
     this.ws.onclose = (event) => {
       this.isConnected = false
       this.isHealthy = false
-      this.emit('close')
+      this.emit('_neemata:close')
       this.clear(
         event.code === 1000 ? undefined : new Error('Connection closed')
       )
@@ -106,8 +108,8 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     this.ws.onerror = (event) => {
       this.isHealthy = false
     }
-    await once(this, 'open')
-    this.emit('connect')
+    await once(this, 'neemata:open')
+    this.emit('_neemata:connect')
   }
 
   async disconnect() {
@@ -122,20 +124,22 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     await this.connect()
   }
 
-  async rpc<P extends keyof Api>(
+  async rpc<P extends keyof Procedures>(
     procedure: P,
-    ...args: Api extends never
+    ...args: Procedures extends never
       ? [any?, RPCOptions?]
-      : null extends ResolveProcedureApiType<Api, P, 'input'>
-      ? [ResolveProcedureApiType<Api, P, 'input'>?, RPCOptions?]
-      : [ResolveProcedureApiType<Api, P, 'input'>, RPCOptions?]
+      : null extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
-    Api extends never ? any : ResolveProcedureApiType<Api, P, 'output'>
+    Procedures extends never
+      ? any
+      : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
     const { timeout = options.timeout } = options
     const callId = ++this.callId
-    const streams = []
+    const streams: [number, StreamMetadata][] = []
     const replacer = (key: string, value: any) => {
       if (value instanceof UpStream) {
         streams.push([value.id, value.metadata])
@@ -158,7 +162,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       }
     }, timeout || 30000)
 
-    if (!this.isConnected) await once(this, 'connect')
+    if (!this.isConnected) await once(this, 'neemata:connect')
 
     return new Promise((resolve, reject) => {
       this.calls.set(callId, { resolve, reject, timer })
@@ -179,7 +183,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
   private async clear(error?: Error) {
     for (const call of this.calls.values()) {
       const { reject, timer } = call
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       reject(error)
     }
 
@@ -208,7 +212,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     const call = this.calls.get(callId)
     if (call) {
       const { resolve, reject, timer } = call
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       this.calls.delete(callId)
       if (error) reject(new ApiError(error.code, error.message, error.data))
       else resolve(response)
@@ -237,7 +241,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
       const stream = new DownStream(transformer, ac)
       this.streams.down.set(streamId, stream)
       const { resolve, timer } = call
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       this.calls.delete(callId)
       resolve({ payload, stream: stream.interface })
     } else {
@@ -249,13 +253,14 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
     const id = decodeNumber(buffer, 'Uint32')
     const size = decodeNumber(buffer, 'Uint32', Uint32Array.BYTES_PER_ELEMENT)
     const stream = this.streams.up.get(id)
+    if (!stream) throw new Error('Stream not found')
     const { done, chunk } = await stream._read(size)
     if (done) {
       this.send(MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32'))
     } else {
       this.send(
         MessageType.ClientStreamPush,
-        concat(encodeNumber(id, 'Uint32'), chunk)
+        concat(encodeNumber(id, 'Uint32'), chunk!)
       )
     }
   }
@@ -263,6 +268,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
   async [KEY[MessageType.ClientStreamEnd]](buffer: ArrayBuffer) {
     const id = decodeNumber(buffer, 'Uint32')
     const stream = this.streams.up.get(id)
+    if (!stream) throw new Error('Stream not found')
     stream._finish()
     this.streams.up.delete(id)
   }
@@ -270,6 +276,7 @@ class WebsocketsClient<Api extends any = never> extends BaseClient<
   [KEY[MessageType.ClientStreamAbort]](buffer: ArrayBuffer) {
     const id = decodeNumber(buffer, 'Uint32')
     const stream = this.streams.up.get(id)
+    if (!stream) throw new Error('Stream not found')
     stream.destroy(new AbortStreamError('Aborted by server'))
     this.streams.up.delete(id)
   }

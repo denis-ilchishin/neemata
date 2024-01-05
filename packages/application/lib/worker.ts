@@ -1,11 +1,20 @@
+import { randomUUID } from 'node:crypto'
 import { register } from 'node:module'
+import {
+  MessagePort,
+  isMainThread,
+  parentPort,
+  workerData,
+} from 'node:worker_threads'
 
-import { randomUUID } from 'crypto'
-import { isMainThread, parentPort, workerData } from 'worker_threads'
 import { Application, ApplicationWorkerOptions } from './application'
 import { WorkerMessageType, WorkerType } from './types'
 import { importDefault } from './utils/functions'
-import { bindPortMessageHandler, createBroadcastChannel } from './utils/threads'
+import {
+  bindPortMessageHandler,
+  createBroadcastChannel,
+  providerWorkerOptions,
+} from './utils/threads'
 import { watchApp } from './utils/watch'
 
 export type ApplicationWorkerData = {
@@ -21,9 +30,9 @@ const {
   hasTaskRunners,
 }: ApplicationWorkerData = workerData
 
-if (!isMainThread) start()
+if (!isMainThread) start(parentPort!)
 
-async function start() {
+async function start(parentPort: MessagePort) {
   const { NEEMATA_SWC, NEEMATA_WATCH } = process.env
 
   if (NEEMATA_SWC) register(NEEMATA_SWC)
@@ -33,13 +42,14 @@ async function start() {
   const tasksRunner =
     isApiWorker && hasTaskRunners ? customTaskRunner : undefined
 
-  const bootstrap = await importDefault(applicationPath)
-  const app: Application = await bootstrap({
+  providerWorkerOptions({
     id,
     type,
     workerOptions,
     tasksRunner,
   })
+
+  const app: Application = await importDefault(applicationPath)
 
   process.on('uncaughtException', (err) => app.logger.error(err))
   process.on('unhandledRejection', (err) => app.logger.error(err))
@@ -90,7 +100,7 @@ async function start() {
     const id = randomUUID()
 
     // TODO: performance is 15-17% worse than passing events via the main thread manually
-    // mini bench (node v20.9.0, M1 mbp): 21-22k vs 25-26k
+    // mini bench (node v20.9.0, M1 mbp): 21-22k vs 25-26k per seconds
     // need to investigate further and see if there's a way to improve this
     const bc = createBroadcastChannel(id)
 

@@ -1,133 +1,385 @@
 import { ApiError, ErrorCode } from '@neemata/common'
-import { Application, ApplicationOptions } from './application'
-import { Container } from './container'
-import { Loader } from './loader'
+import { ApplicationOptions } from './application'
 import {
-  BaseClient,
-  BaseProcedure,
+  Container,
   Dependencies,
+  DependencyContext,
+  Depender,
+  Provider,
+  getProviderScope,
+} from './container'
+import { Loader } from './loader'
+import { BaseTransportClient } from './transport'
+import {
+  AnyApplication,
+  Async,
+  ClientProvider,
+  ClientProviderFn,
   ExtensionMiddlewareOptions,
-  Extra,
-  ExtractAppContext,
-  ExtractAppOptions,
-  ExtractAppTransportClient,
-  Middleware,
-  ProcedureDeclaration,
+  GuardFn,
+  InferSchema,
+  MiddlewareFn,
+  Scope,
 } from './types'
-import { match, merge } from './utils/functions'
+import { merge } from './utils/functions'
+
+export type ResolvedProcedureContext<
+  App extends AnyApplication,
+  Deps extends Dependencies
+> = DependencyContext<App['_']['context'], Deps> & {
+  client: App['_']['client']
+  call: <P extends Procedure>(
+    procedure: P,
+    ...args: P['input'] extends unknown ? [] : [InferSchema<P['input']>]
+  ) => Promise<
+    Awaited<
+      P['output'] extends unknown
+        ? ReturnType<P['handler']>
+        : InferSchema<P['output']>
+    >
+  >
+}
+
+export type ProcedureOptionType<
+  App extends AnyApplication,
+  ProcedureDeps extends Dependencies,
+  T
+> = T | ((ctx: ResolvedProcedureContext<App, ProcedureDeps>) => Async<T>)
+
+export type ProcedureHandlerType<
+  App extends AnyApplication,
+  ProcedureDeps extends Dependencies,
+  ProcedureInput
+> = (
+  this: Procedure,
+  ctx: ResolvedProcedureContext<App, ProcedureDeps>,
+  data: InferSchema<ProcedureInput>
+) => any
+
+export class Procedure<
+  App extends AnyApplication = AnyApplication,
+  ProcedureDeps extends Dependencies = {},
+  ProcedureInput = unknown,
+  ProcedureOutput = unknown,
+  ProcedureHandler extends ProcedureHandlerType<
+    App,
+    ProcedureDeps,
+    ProcedureInput
+  > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput>
+> implements Depender<ProcedureDeps>
+{
+  _!: {
+    input: ProcedureInput
+    output: ProcedureOutput
+    middlewares: MiddlewareFn[]
+    guards: GuardFn[]
+    options: App['_']['options']
+    timeout: number
+    rateKey: string
+  }
+
+  dependencies!: ProcedureDeps
+  handler!: ProcedureHandler
+  timeout!: ProcedureOptionType<App, ProcedureDeps, this['_']['timeout']>
+  input!: ProcedureOptionType<App, ProcedureDeps, this['_']['input']>
+  output!: ProcedureOptionType<App, ProcedureDeps, this['_']['output']>
+  options: ProcedureOptionType<App, ProcedureDeps, this['_']['options']>[] = []
+  guards: ProcedureOptionType<App, ProcedureDeps, this['_']['guards']>[] = []
+  middlewares: ProcedureOptionType<
+    App,
+    ProcedureDeps,
+    this['_']['middlewares']
+  >[] = []
+  middlewareEnabled = true
+  parsers: { input?: BaseParser; output?: BaseParser } = {}
+
+  withDependencies<Deps extends Dependencies>(dependencies: Deps) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps & Deps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandlerType<App, ProcedureDeps & Deps, ProcedureInput>
+    >()
+    Object.assign(procedure, this, {
+      dependencies: merge(this.dependencies, dependencies),
+    })
+    return procedure
+  }
+
+  withInput<Input>(input: ProcedureOptionType<App, ProcedureDeps, Input>) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      Input,
+      ProcedureOutput,
+      ProcedureHandlerType<App, ProcedureDeps, Input>
+    >()
+    Object.assign(procedure, this, { input })
+    return procedure
+  }
+
+  withOutput<Output>(output: Output) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      Output,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, { output })
+    return procedure
+  }
+
+  withOptions(...options: this['options']) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, { options: [...this.options, ...options] })
+    return procedure
+  }
+
+  withHandler<
+    H extends ProcedureHandlerType<App, ProcedureDeps, ProcedureInput>
+  >(handler: H) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      H
+    >()
+    Object.assign(procedure, this, { handler })
+    return procedure
+  }
+
+  withGuards(...guards: this['guards']) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, {
+      guards: [...this.guards, ...guards],
+    })
+    return procedure
+  }
+
+  withMiddlewares(...middlewares: this['middlewares']) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, {
+      middlewares: [...this.middlewares, ...middlewares],
+    })
+    return procedure
+  }
+
+  withMiddlewareEnabled(enabled: boolean) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, { middlewareEnabled: enabled })
+    return procedure
+  }
+
+  withTimeout(timeout: number) {
+    if (typeof timeout !== 'number' || timeout < 0)
+      throw new Error('Timeout must be a positive number')
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, { timeout })
+    return procedure
+  }
+
+  withParser(parser: BaseParser) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, {
+      parsers: { input: parser, output: parser },
+    })
+    return procedure
+  }
+
+  withInputParser(parser: BaseParser) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, {
+      parsers: { ...this.parsers, input: parser },
+    })
+    return procedure
+  }
+
+  withOutputParser(parser: BaseParser) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    Object.assign(procedure, this, {
+      parsers: { ...this.parsers, output: parser },
+    })
+    return procedure
+  }
+}
+
+type ProcedureCallOptions = {
+  client: BaseTransportClient
+  name: string
+  procedure: Procedure
+  payload: any
+  container: Container
+}
 
 const NotFound = (name: string) =>
   new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
 
-const MIDDLEWARE_ENABLED = Symbol('middlware')
-
-export abstract class BaseParser {
-  abstract parse(schema: any, data: any): any
-
-  toJsonSchema(schema: any): any {
-    return {}
+export class Api extends Loader<Procedure> {
+  clientProvider?: ClientProvider<any, any>
+  clientProviderFn?: ClientProviderFn<any, any>
+  events: Record<string, Event> = {}
+  throttleQueues = new Map<string, any[]>()
+  parsers: {
+    input?: BaseParser
+    output?: BaseParser
   }
-}
 
-export class Api<
-  Options extends Extra = {},
-  Context extends Extra = {},
-  T extends ProcedureDeclaration<
-    Dependencies,
-    Options,
-    Context,
-    BaseClient,
-    any,
-    any,
-    any
-  > = ProcedureDeclaration<
-    Dependencies,
-    Options,
-    Context,
-    BaseClient,
-    any,
-    any,
-    any
-  >
-> extends Loader<T> {
   constructor(
-    private readonly application: Application<any, any, any, any>,
-    private readonly options: ApplicationOptions['api'] = {},
-    readonly parser: BaseParser | undefined = options.parser
+    private readonly application: AnyApplication,
+    readonly options: ApplicationOptions['api']
   ) {
     super(options.path ?? '')
+    if (options.parsers instanceof BaseParser) {
+      this.parsers = {
+        input: options.parsers,
+        output: options.parsers,
+      }
+    } else {
+      this.parsers = { ...options.parsers }
+    }
   }
 
   async find(name: string) {
-    const declaration = this.modules.get(name)
-    if (!declaration) throw NotFound(name)
-    return declaration
+    const procedure = this.modules.get(name)
+    if (!procedure) throw NotFound(name)
+    return procedure
   }
 
   async call(
-    callOptions: {
-      client: BaseClient
-      name: string
-      declaration: T
-      payload: any
-      container: Container
-    },
-    callContext: Extra = {},
-    withMiddleware = callOptions.declaration[MIDDLEWARE_ENABLED]
+    callOptions: ProcedureCallOptions,
+    withMiddleware = callOptions.procedure.middlewareEnabled
   ) {
-    const { client, container, declaration, name, payload } = callOptions
-    let middlewars = withMiddleware ? this.findMiddlewares(name) : undefined
-    const { dependencies, procedure } = declaration
-    const nestedCall = (declaration, payload) => {
-      const name = this.names.get(declaration)
-      this.call(
-        { client, name, declaration, payload, container },
-        callContext,
-        false
-      )
-    }
+    const { client, container, procedure, payload } = callOptions
+    const { dependencies } = procedure
 
-    const context = await container.createContext(dependencies, callContext, {
-      client,
-      call: nestedCall,
-    })
-    const options: ExtensionMiddlewareOptions<any, any> = {
-      client,
-      name,
+    const nestedCall = this.createNestedCall(callOptions)
+    const callContext = { client, call: nestedCall }
+
+    const context = await container.createContext(dependencies, callContext)
+
+    const handleProcedure = await this.createProcedureHandler(
+      callOptions,
       context,
-      procedure,
-      container,
-    }
-    const handleProcedure = async (payload) => {
-      const middleware: Middleware | undefined = middlewars?.next().value
-      if (middleware) {
-        const next = (newPayload = payload) => handleProcedure(newPayload)
-        return middleware(options, payload, next)
-      } else {
-        // TODO: maybe disable schema handling for nested calls or make it optional at least?
-        const data = await this.handleInput(procedure, context, payload)
-        return procedure.handle(context, data)
-      }
-    }
+      withMiddleware
+    )
 
     try {
-      const response = await handleProcedure(payload)
-      return this.handleOutput(procedure, context, response)
+      return await handleProcedure(payload)
     } catch (error) {
-      throw this.handleFilters(error)
+      throw this.handleFilters(error, context)
     }
   }
 
-  registerProcedure(name: string, declaration: T, enableHooks = true) {
-    // prevent override of original declaration, e.g if it was made by declareProcedure method
-    declaration = merge(declaration, { [MIDDLEWARE_ENABLED]: enableHooks })
-    this.modules.set(name, declaration)
+  registerProcedure(name: string, procedure: Procedure) {
+    this.modules.set(name, procedure)
   }
 
-  getProcedureSchema(procedure, context, type: 'input' | 'output') {
-    return typeof procedure[type] === 'function'
-      ? procedure[type](context)
-      : procedure[type]
+  async getClientData(data: any) {
+    return this.clientProviderFn?.(data)
+  }
+
+  async load(): Promise<void> {
+    await super.load()
+
+    if (!this.clientProvider) {
+      this.application.logger.warn('Client provider is not defined')
+    } else if (getProviderScope(this.clientProvider) !== Scope.Global) {
+      throw new Error(
+        "Client provider must be a Global scope (including all it's dependencies)"
+      )
+    } else {
+      this.clientProviderFn = await this.application.container.resolve(
+        this.clientProvider!
+      )
+    }
+  }
+
+  async resolveProcedureOption<
+    P extends Procedure,
+    O extends Extract<
+      keyof P,
+      'input' | 'output' | 'options' | 'guards' | 'middlewares' | 'timeout'
+    >
+  >(procedure: P, option: O, context: any): Promise<P['_'][O]> {
+    const resolve = async (optionVal) => {
+      if (typeof optionVal === 'function') {
+        return await optionVal(context)
+      }
+      return optionVal
+    }
+
+    switch (option) {
+      case 'input':
+      case 'output':
+      case 'timeout':
+        return resolve(procedure[option as 'input' | 'output' | 'timeout'])
+      case 'options':
+        return merge(
+          ...(await Promise.all(
+            procedure[option as 'options'].map((v) => resolve(v))
+          ))
+        )
+      case 'guards':
+      case 'middlewares':
+        return (
+          await Promise.all(
+            procedure[option as 'guards' | 'middlewares'].map(resolve)
+          )
+        ).flat()
+      default:
+        throw new Error(`Unknown procedure option ${option}`)
+    }
   }
 
   protected set(name: string, path: string, module: any): void {
@@ -135,19 +387,146 @@ export class Api<
     super.set(name, path, module)
   }
 
-  private findMiddlewares(name: string) {
-    const set: Middleware[] = []
-    for (const [pattern, middlewares] of this.application.middlewares) {
-      if (match(name, pattern)) set.push(...middlewares)
+  private createNestedCall(callOptions: ProcedureCallOptions) {
+    return (procedure: Procedure, payload: any) => {
+      const name = this.names.get(procedure)!
+      return this.call({ ...callOptions, name, procedure, payload }, false)
     }
-    return set[Symbol.iterator]()
   }
 
-  private handleFilters(error: any) {
+  private async createProcedureHandler(
+    callOptions: ProcedureCallOptions,
+    context: any,
+    withMiddleware: boolean
+  ) {
+    const { client, name, procedure, container } = callOptions
+
+    const middlewareOptions: ExtensionMiddlewareOptions<any, any> = {
+      client,
+      name,
+      context,
+      procedure,
+      container,
+    }
+
+    const middlewares = await this.resolveMiddlewares(
+      callOptions,
+      context,
+      withMiddleware
+    )
+
+    let timeout =
+      (await this.resolveProcedureOption(procedure, 'timeout', context)) ??
+      this.options.timeout
+
+    const handleProcedure = async (payload) => {
+      const middleware = middlewares?.next().value
+      if (middleware) {
+        const next = (newPayload = payload) => handleProcedure(newPayload)
+        return middleware(middlewareOptions, next, payload)
+      } else {
+        await this.handleGuards(callOptions, context)
+        // TODO: maybe disable schema handling for nested calls or make it optional at least?
+        const data = await this.handleSchema(
+          procedure,
+          'input',
+          payload,
+          context
+        )
+
+        const response = procedure.handler.call(procedure, context, data)
+        const applyTimeout = timeout && response instanceof Promise
+        const result = await (applyTimeout
+          ? this.handleTimeout(response, timeout)
+          : response)
+        try {
+          const output = await this.handleSchema(
+            procedure,
+            'output',
+            result,
+            context
+          )
+          return output
+        } catch (cause) {
+          const error = new Error(`Procedure [${name}] output error`, { cause })
+          this.application.logger.error(error)
+          throw new ApiError(
+            ErrorCode.InternalServerError,
+            'Internal Server Error'
+          )
+        }
+      }
+    }
+
+    return handleProcedure
+  }
+
+  private async resolveMiddlewares(
+    { procedure, container }: ProcedureCallOptions,
+    context: any,
+    withMiddleware: boolean
+  ) {
+    if (!withMiddleware) return undefined
+
+    const procedureMiddlewares = await this.resolveProcedureOption(
+      procedure,
+      'middlewares',
+      context
+    )
+
+    const rawMiddlewares = [
+      ...this.application.middlewares,
+      ...procedureMiddlewares,
+    ]
+
+    const middlewares: MiddlewareFn[] = Array(rawMiddlewares.length)
+
+    for (let i = 0; i < rawMiddlewares.length; i++) {
+      const rawMiddleware = rawMiddlewares[i]
+      if (rawMiddleware instanceof Provider) {
+        middlewares[i] = await container.resolve(rawMiddleware)
+      } else {
+        middlewares[i] = rawMiddleware
+      }
+    }
+
+    return middlewares[Symbol.iterator]()
+  }
+
+  private handleTimeout<T>(value: Promise<T>, timeout: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timeoutError = new ApiError(
+        ErrorCode.RequestTimeout,
+        'Request Timeout'
+      )
+      const timer = setTimeout(reject, timeout, timeoutError)
+      const clearTimer = () => clearTimeout(timer)
+      value.finally(clearTimer).then(resolve).catch(reject)
+    })
+  }
+
+  private async handleGuards(callOptions: ProcedureCallOptions, context: any) {
+    const { procedure, container } = callOptions
+    const guards = await this.resolveProcedureOption(
+      procedure,
+      'guards',
+      context
+    )
+    for (const rawGuard of guards) {
+      const guard =
+        rawGuard instanceof Provider
+          ? await container.resolve(rawGuard)
+          : rawGuard
+      const result = await guard()
+      if (result === false) throw new ApiError(ErrorCode.Forbidden)
+    }
+  }
+
+  private handleFilters(error: any, context: any) {
     if (this.application.filters.size) {
       for (const [errorType, filter] of this.application.filters.entries()) {
         if (error instanceof errorType) {
-          const handledError = filter(error)
+          const handledError = filter(error, context)
           if (!handledError || !(handledError instanceof ApiError)) continue
           return handledError
         }
@@ -156,59 +535,23 @@ export class Api<
     return error
   }
 
-  private async handleInput(procedure, context, payload) {
-    if (!this.parser) return payload
-    const schema = await this.getProcedureSchema(procedure, context, 'input')
+  private async handleSchema(
+    procedure: Procedure,
+    type: 'input' | 'output',
+    payload: any,
+    context: any
+  ) {
+    if (!this.parsers[type]) return payload
+    const schema = await this.resolveProcedureOption(procedure, type, context)
     if (!schema) return payload
-    return this.parser.parse(schema, payload)
-  }
-
-  private async handleOutput(procedure, context, response) {
-    if (!this.parser) return response
-    const schema = await this.getProcedureSchema(procedure, context, 'output')
-    if (!schema) return response
-    return this.parser.parse(schema, response)
+    return this.parsers[type]!.parse(schema, payload, context)
   }
 }
 
-export const declareProcedure = (
-  procedure: BaseProcedure<any, any, any, any, any, any, any>,
-  dependencies?: Dependencies,
-  enableMiddleware = true
-) => {
-  const declaration = { procedure, dependencies }
-  declaration[MIDDLEWARE_ENABLED] = enableMiddleware
-  return declaration
-}
+export abstract class BaseParser {
+  abstract parse(schema: any, data: any, ctx: any): any
 
-export const createTypedDeclareProcedure =
-  <
-    App,
-    Options extends ExtractAppOptions<App> = ExtractAppOptions<App>,
-    Context extends ExtractAppContext<App> = ExtractAppContext<App>,
-    TransportClient extends ExtractAppTransportClient<App> = ExtractAppTransportClient<App>
-  >() =>
-  <Deps extends Dependencies, Input, Response, Output>(
-    procedure: BaseProcedure<
-      Deps,
-      Options,
-      Context,
-      TransportClient,
-      Input,
-      Response,
-      Output
-    >,
-    dependencies?: Deps,
-    enableMiddleware = true
-  ): ProcedureDeclaration<
-    Deps,
-    Options,
-    Context,
-    TransportClient,
-    Input,
-    Response,
-    Output
-  > => {
-    // @ts-expect-error
-    return declareProcedure(procedure, dependencies, enableMiddleware)
+  toJsonSchema(schema: any): any {
+    return {}
   }
+}

@@ -18,7 +18,6 @@ import {
 } from '@neemata/common'
 import {
   HttpTransportClient,
-  HttpTransportProtocol,
   HttpTransportServer,
   InternalError,
   fromJSON,
@@ -42,7 +41,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
   clients = new Map<string, WebsocketsTransportClient | HttpTransportClient>()
 
   constructor(
-    protected readonly options: WebsocketsTransportOptions<any>,
+    protected readonly options: WebsocketsTransportOptions,
     protected readonly application: ExtensionInstallOptions<
       WebsocketsTransportProcedureOptions,
       WebsocketsTransportApplicationContext
@@ -74,7 +73,6 @@ export class WebsocketsTransportServer extends HttpTransportServer {
           query,
           proxyRemoteAddress,
           remoteAddress,
-          protocol: HttpTransportProtocol.Websockets,
         }
         const context: Omit<WebsocketsTransportClientContext, 'websocket'> = {
           id: randomUUID(),
@@ -146,8 +144,9 @@ export class WebsocketsTransportServer extends HttpTransportServer {
 
     const data = ws.getUserData()
     const client = this.clients.get(data.id)
-    const streamDataLength = decodeNumber(payloadBuf, 'Uint32')
+    if (!client) return void ws.close()
 
+    const streamDataLength = decodeNumber(payloadBuf, 'Uint32')
     const streams = fromJSON(
       decodeText(
         payloadBuf.slice(
@@ -159,12 +158,9 @@ export class WebsocketsTransportServer extends HttpTransportServer {
 
     for (const [id, metadata] of streams) {
       const read = (size) => {
-        send(
-          ws,
-          MessageType.ClientStreamPull,
-          encodeNumber(id, 'Uint32'),
-          size ? encodeNumber(size, 'Uint32') : null
-        )
+        const buffers = [encodeNumber(id, 'Uint32')]
+        if (size) buffers.push(encodeNumber(size, 'Uint32'))
+        send(ws, MessageType.ClientStreamPull, ...buffers)
       }
       const stream = new Stream(
         id,
@@ -281,7 +277,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
     const id = decodeNumber(buffer, 'Uint32')
     const stream = streams.up.get(id)
     if (!stream) ws.close()
-    stream.destroy(new AbortStreamError('Aborted by client'))
+    else stream.destroy(new AbortStreamError('Aborted by client'))
   }
 
   async [MessageType.ServerStreamPull](ws: WebSocket, buffer: ArrayBuffer) {
@@ -313,7 +309,7 @@ const CLOSED_SOCKET_MESSAGE =
   'Invalid access of closed uWS.WebSocket/SSLWebSocket.'
 
 export const sendPayload = (ws: WebSocket, type: number, payload: any) => {
-  return send(ws, type, encodeText(toJSON(payload)))
+  return send(ws, type, encodeText(toJSON(payload)!))
 }
 
 const send = (ws: WebSocket, type: number, ...buffers: ArrayBuffer[]) => {

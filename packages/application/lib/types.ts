@@ -1,11 +1,16 @@
-import type { Scope as ProviderScope } from '@neemata/common'
-import type { Static, TSchema } from '@sinclair/typebox'
-import type { Api } from './api'
-import type { Application } from './application'
-import type { Container } from './container'
+import type { Api, Procedure } from './api'
+import { Application } from './application'
+import type { Container, DependencyContext, Provider } from './container'
 import type { Logger } from './logger'
-import type { TaskDeclaration, TaskInterface } from './tasks'
-import type { BaseTransport } from './transport'
+import type { Task, TaskInterface } from './tasks'
+import type { BaseTransportClient } from './transport'
+
+export enum Scope {
+  Global = 'Global',
+  Connection = 'Connection',
+  Call = 'Call',
+  Transient = 'Transient',
+}
 
 export enum Hook {
   BeforeInitialize = 'BeforeInitialize',
@@ -18,6 +23,11 @@ export enum Hook {
   AfterTerminate = 'AfterTerminate',
 }
 
+export enum WorkerType {
+  Api = 'Api',
+  Task = 'Task',
+}
+
 export enum WorkerMessageType {
   Ready = 'Ready',
   Start = 'Start',
@@ -27,52 +37,22 @@ export enum WorkerMessageType {
   ExecuteAbort = 'ExecuteAbort',
 }
 
-export enum WorkerType {
-  Api = 'Api',
-  Task = 'Task',
-}
-
 export type Callback = (...args: any[]) => any
-
 export type Pattern = RegExp | string | ((value: string) => boolean)
-
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
   ? U
   : []
-
 export type ErrorClass = new (...args: any[]) => Error
-
-export type Filter<T extends ErrorClass> = (error: InstanceType<T>) => Error
-
 export type Extra = Record<string, any>
-
-export type Dependencies = Record<
-  string,
-  ProviderDeclaration | ProviderDeclarationWithOptions
->
-
-export type Filters = Map<ErrorClass, Filter<ErrorClass>>
-export type Middlewares = Map<Pattern, Set<Middleware>>
-export type Commands<T extends string = string> = Map<T, Map<string, Command>>
-export type Hooks = Map<string, Set<(...args: any[]) => any>>
-export interface LoaderInterface<T> {
-  modules: Map<string, T>
-}
-
 export type Async<T> = T | Promise<T>
 
-export type ProcedureOption<T, Context extends Extra = {}> =
-  | T
-  | ((context: Context) => Async<T>)
+export type Filter<T extends ErrorClass> = (
+  error: InstanceType<T>,
+  ctx: any
+) => Error
 
-export type ProcedureContext<Client extends BaseClient> = {
-  client: Client
-  call: <
-    Declaration extends ProcedureDeclaration<any, any, any, any, any, any, any>
-  >(
-    declaration: Declaration,
-    ...args: OmitFirstItem<Parameters<Declaration['procedure']['handle']>>
-  ) => TaskInterface<Awaited<ReturnType<Declaration['procedure']['handle']>>>
+export interface LoaderInterface<T> {
+  modules: Map<string, T>
 }
 
 export type Command = (
@@ -83,99 +63,33 @@ export type Command = (
   ...args: any[]
 ) => any
 
-export type Middleware = (
+export type ClientProviderFn<T = any, C = any> = (transportData: T) => C
+
+export type GuardFn = () => Async<boolean>
+
+export type MiddlewareFn = (
   options: ExtensionMiddlewareOptions,
-  payload: any,
-  next: Next
+  next: Next,
+  payload: any
 ) => any
 
-export type ProcedureDataType<
-  Input,
-  Schema = Input extends Promise<any> ? Awaited<Input> : Input
-> = Schema extends import('zod').ZodSchema
-  ? import('zod').TypeOf<Schema>
-  : Schema extends TSchema
-  ? Static<Schema>
-  : unknown
+export type Guard = Provider<GuardFn>
 
-export type BaseProcedure<
-  Deps extends Dependencies,
-  Options extends Extra,
-  Context extends Extra,
-  Client extends BaseClient,
-  Input,
-  Response,
-  Output
-> = AsProcedureOptions<
-  Options,
-  DependencyContext<Context, Deps, ProviderScope, BaseClient>
-> & {
-  input?:
-    | Input
-    | ((
-        ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient>
-      ) => Input)
-  handle: (
-    ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient> &
-      ProcedureContext<Client>,
-    data: ProcedureDataType<Input>
-  ) => Response
-  output?:
-    | Output
-    | ((
-        ctx: DependencyContext<Context, Deps, ProviderScope, BaseClient>,
-        data: Awaited<Response>
-      ) => Output)
-}
+export type Middleware = Provider<MiddlewareFn>
 
-export interface ProcedureDeclaration<
-  Deps extends Dependencies,
-  Options extends Extra,
-  Context extends Extra,
-  Client extends BaseClient,
-  Input,
-  Response,
-  Output
-> extends Depender<Deps> {
-  procedure: BaseProcedure<
-    Deps,
-    Options,
-    Context,
-    Client,
-    Input,
-    Response,
-    Output
-  >
-}
+export type ClientProvider<T, C> = Provider<ClientProviderFn<T, C>>
 
-export interface Depender<Deps extends Dependencies> {
-  dependencies: Deps
-}
-
-export type AsProcedureOptions<
-  Options extends Extra = {},
-  Context extends Extra = {}
-> = {
-  [K in keyof Options]: ProcedureOption<Options[K], Context>
-}
+export type AnyApplication = Application<any, any, any, any, any, any>
 
 export type ExtensionMiddlewareOptions<
   Options extends Extra = {},
   Context extends Extra = {}
 > = {
-  client: BaseClient
+  client: BaseTransportClient
   name: string
-  context: DependencyContext<Extra, {}, ProviderScope, BaseClient>
+  context: DependencyContext<Options, Context>
   container: Container
-  procedure: BaseProcedure<
-    Dependencies,
-    Options,
-    Context,
-    BaseClient,
-    any,
-    any,
-    any
-  >
+  procedure: Procedure<Application, Options, Context>
 }
 
 export type Next = (payload?: any) => any
@@ -203,7 +117,7 @@ export interface ExtensionInstallOptions<
   Context extends Extra = {}
 > {
   type: WorkerType
-  api: Api<Options, Context>
+  api: Api
   container: Container
   logger: Logger
   callHook: CallHook<keyof HooksInterface>
@@ -213,7 +127,7 @@ export interface ExtensionInstallOptions<
       ? HooksInterface[T]
       : (...args: any[]) => any
   ): void
-  registerMiddleware(pattern: Pattern, middleware: Middleware): void
+  registerMiddleware(middleware: Middleware): void
   registerCommand(commandName: string, command: Command): void
   registerFilter<T extends ErrorClass>(error: T, filter: Filter<T>): void
 }
@@ -222,31 +136,20 @@ export interface ExtensionInterface<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {}
 > {
-  _: {
+  readonly _: {
     context: Context
     options: ProcedureOptions
   }
+  application: ExtensionInstallOptions<ProcedureOptions, Context>
   context?(): Context
-  install?(
-    application: ExtensionInstallOptions<ProcedureOptions, Context>
-  ): void
+  initialize?(): any
 }
 
-export type ResolveExtensionOptions<Extension> =
+export type ResolveExtensionProcedureOptions<Extension> =
   Extension extends ExtensionInterface<infer Options> ? Options : {}
 
 export type ResolveExtensionContext<Extension> =
-  Extension extends ExtensionInterface<infer Options, infer Context>
-    ? Context
-    : {}
-
-export type ResolveTransportClient<Transport> = Transport extends BaseTransport<
-  any,
-  any,
-  infer Client
->
-  ? Client
-  : never
+  Extension extends ExtensionInterface<any, infer Context> ? Context : {}
 
 export type UnionToIntersection<U> = (
   U extends any ? (k: U) => void : never
@@ -254,132 +157,31 @@ export type UnionToIntersection<U> = (
   ? I
   : never
 
-export type ResolvedDependencyInjection<
-  T extends ProviderDeclaration | ProviderDeclarationWithOptions
-> = Awaited<
-  T extends ProviderDeclaration<infer Type>
-    ? Type
-    : T extends ProviderDeclarationWithOptions<infer Type>
-    ? Type
-    : never
->
+export type InferSchema<
+  Input,
+  Schema = Input extends Promise<any> ? Awaited<Input> : Input
+> = Schema extends import('zod').ZodSchema
+  ? import('zod').TypeOf<Schema>
+  : Schema extends import('@sinclair/typebox').TSchema
+  ? import('@sinclair/typebox').Static<Schema>
+  : unknown
+
+export type Primitive = string | number | boolean | null
+export type Scalars = Primitive | Primitive[]
 
 export type GlobalContext = {
   logger: Logger
-  execute: <T extends TaskDeclaration<any, any, any, any>>(
+  execute: <T extends Task>(
     task: T,
-    ...args: OmitFirstItem<Parameters<T['task']['handle']>>
-  ) => TaskInterface<Awaited<ReturnType<T['task']['handle']>>>
+    ...args: OmitFirstItem<Parameters<T['handler']>>
+  ) => TaskInterface<Awaited<ReturnType<T['handler']>>>
 }
 
-export type DependencyContext<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Scope extends ProviderScope,
-  Client extends BaseClient
-> = Context & {
-  injections: {
-    [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
-  }
-  scope: ProviderScope
-} & GlobalContext &
-  (Scope extends Exclude<ProviderScope, ProviderScope.Global>
-    ? { client: Client }
-    : {})
-
-export type ProviderFactory<
-  Type,
-  Context extends Extra,
-  Deps extends Dependencies,
-  Scope extends ProviderScope,
-  Client extends BaseClient,
-  Options extends any
-> = (
-  ctx: DependencyContext<Context, Deps, Scope, Client>,
-  options?: Options
-) => Async<Type>
-
-export type ProviderDispose<
-  Type,
-  Context extends Extra,
-  Deps extends Dependencies,
-  Scope extends ProviderScope,
-  Client extends BaseClient
-> = (ctx: DependencyContext<Context, Deps, Scope, Client>, value: Type) => any
-
-export type Provider<
-  Type,
-  Context extends Extra,
-  Deps extends Dependencies,
-  Scope extends ProviderScope,
-  Client extends BaseClient,
-  Options extends any
-> = {
-  factory: ProviderFactory<Type, Context, Deps, Scope, Client, Options>
-  dispose?: ProviderDispose<Type, Context, Deps, Scope, Client>
-  scope?: Scope
-}
-
-export interface ProviderDeclaration<
-  Type = any,
-  Context extends Extra = Extra,
-  Deps extends Dependencies = Dependencies,
-  Scope extends ProviderScope = ProviderScope,
-  Client extends BaseClient = BaseClient,
-  Options extends any = any
-> extends Depender<Deps> {
-  (options: Options): ProviderDeclarationWithOptions<
-    Type,
-    Context,
-    Deps,
-    Scope,
-    Client,
-    Options
-  >
-  provider: Provider<Type, Context, Deps, Scope, Client, Options>
-}
-
-export interface ProviderDeclarationWithOptions<
-  Type = any,
-  Context extends Extra = Extra,
-  Deps extends Dependencies = Dependencies,
-  Scope extends ProviderScope = ProviderScope,
-  Client extends BaseClient = BaseClient,
-  Options extends any = any
-> extends Depender<Deps> {
-  provider?: Provider<Type, Context, Deps, Scope, Client, Options>
-  options: Options
-  declaration?: ProviderDeclaration
-}
-
-export type ExtractAppOptions<App> = App extends Application<
-  any,
-  any,
-  infer AppOptions
+export type Filters = Map<ErrorClass, Filter<ErrorClass>>
+export type Middlewares = Set<Middleware>
+export type Guards = Set<Guard>
+export type Commands<T extends string | symbol = string | symbol> = Map<
+  T,
+  Map<string, Command>
 >
-  ? AppOptions
-  : never
-
-export type ExtractAppContext<App> = App extends Application<
-  any,
-  any,
-  any,
-  infer AppContext
->
-  ? AppContext
-  : never
-
-export type ExtractAppTransportClient<App> = App extends Application<
-  any,
-  any,
-  any,
-  any
->
-  ? ResolveTransportClient<App['transport']>
-  : never
-
-export interface BaseClient<Data = any> {
-  id: string
-  send: (eventName: string, payload: any) => boolean
-  data: Data
-}
+export type Hooks = Map<string, Set<(...args: any[]) => any>>

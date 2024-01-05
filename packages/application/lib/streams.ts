@@ -1,26 +1,20 @@
 import { StreamMetadata } from '@neemata/common'
-import { PassThrough, TransformCallback, TransformOptions } from 'node:stream'
+import { PassThrough, TransformCallback } from 'node:stream'
 
 export abstract class StreamResponse<
   Payload = any,
   Chunk = any
 > extends PassThrough {
-  _!: {
-    chunk: Chunk
-    payload: Payload
-  }
-
-  constructor(public payload: Payload, options?: TransformOptions) {
-    super(options)
-  }
+  readonly chunk!: Chunk
+  readonly payload!: Payload
 }
 
 export class JsonStreamResponse<
   Payload = any,
   Chunk = any
 > extends StreamResponse<Payload, Chunk> {
-  constructor(readonly payload: Payload) {
-    super(payload, { writableObjectMode: true })
+  constructor() {
+    super({ writableObjectMode: true })
   }
 
   _transform(
@@ -43,14 +37,30 @@ export class JsonStreamResponse<
     if (typeof encodingOrCb === 'function') cb = encodingOrCb
     return super.write(chunk, undefined, cb)
   }
+
+  withChunk<Chunk>() {
+    return this as unknown as JsonStreamResponse<Payload, Chunk>
+  }
+
+  withPayload<Payload>(payload: Payload) {
+    // @ts-expect-error
+    this.payload = payload
+    return this as unknown as JsonStreamResponse<Payload, Chunk>
+  }
 }
 
 export class BinaryStreamResponse<Payload = any> extends StreamResponse<
   Payload,
   ArrayBuffer
 > {
-  constructor(payload: Payload, readonly type: string) {
-    super(payload)
+  constructor(readonly type: string) {
+    super()
+  }
+
+  withPayload<Payload>(payload: Payload) {
+    // @ts-expect-error
+    this.payload = payload
+    return this as unknown as BinaryStreamResponse<Payload>
   }
 }
 
@@ -66,23 +76,8 @@ export class Stream extends PassThrough {
     super({ highWaterMark, read })
   }
 
-  push(chunk?: Buffer) {
+  push(chunk: Buffer | null) {
     if (chunk !== null) this.bytesReceived += chunk.byteLength
     return super.push(chunk)
   }
-}
-
-export const createJsonResponse = <Payload>(payload?: Payload) => {
-  const createStream = <Chunk = any>() =>
-    new JsonStreamResponse<Payload, Chunk>(payload)
-  const stream = createStream()
-  const helper: typeof createStream = () => stream
-  return Object.assign(stream, { with: helper })
-}
-
-export const createBinaryResponse = <Payload>(
-  type: string,
-  payload?: Payload
-) => {
-  return new BinaryStreamResponse<Payload>(payload, type)
 }

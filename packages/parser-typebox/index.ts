@@ -13,12 +13,16 @@ export class TypeboxParserError extends Error {
 }
 
 export class TypeboxParser extends BaseParser {
+  constructor(private readonly checkBeforeCast = true) {
+    super()
+  }
+
   parse(schema: TSchema, data: any) {
-    if (Value.Check(schema, data)) {
-      return Value.Cast(schema, data)
+    if (this.checkBeforeCast && !Value.Check(schema, data)) {
+      throw new TypeboxParserError(Array.from(Value.Errors(schema, data)))
     }
 
-    throw new TypeboxParserError(Array.from(Value.Errors(schema, data)))
+    return Value.Cast(schema, data)
   }
 
   toJsonSchema(schema: TSchema) {

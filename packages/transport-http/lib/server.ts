@@ -1,6 +1,6 @@
 import {
   ApiError,
-  BaseClient,
+  BaseTransportClient,
   BinaryStreamResponse,
   Container,
   ErrorCode,
@@ -25,7 +25,6 @@ import {
   HttpTransportMethod,
   HttpTransportOptions,
   HttpTransportProcedureOptions,
-  HttpTransportProtocol,
   Req,
   Res,
 } from './types'
@@ -63,12 +62,12 @@ export const RequestTimeoutError = (message = 'Request Timeout') =>
 
 export class HttpTransportServer {
   protected server: uws.TemplatedApp
-  protected listeningSocket!: uws.us_listen_socket
+  protected listeningSocket?: uws.us_listen_socket
 
-  clients = new Map<string, BaseClient>()
+  clients = new Map<string, BaseTransportClient>()
 
   constructor(
-    protected readonly options: HttpTransportOptions<any>,
+    protected readonly options: HttpTransportOptions,
     protected readonly application: ExtensionInstallOptions<
       HttpTransportProcedureOptions,
       HttpTransportApplicationContext
@@ -81,6 +80,7 @@ export class HttpTransportServer {
       this.handleDefaultHeaders(req, res)
       res.end('OK')
     })
+
     this.server.any('/*', (res, req) => {
       if (!this.listeningSocket) return void res.close()
       this.handleDefaultHeaders(req, res)
@@ -92,12 +92,12 @@ export class HttpTransportServer {
   }
 
   async start() {
-    const { hostname, port, ssl } = this.options
+    const { hostname = '0.0.0.0', port, ssl } = this.options
     this.listeningSocket = await new Promise((r) => {
       // TODO: incorrect behavior when using unix sockets
       if (hostname.startsWith('unix:')) {
         this.server.listen_unix(r, resolve(hostname.slice(5)))
-      } else if (typeof port !== 'string') {
+      } else if (typeof port === 'number') {
         this.server.listen(hostname, port, r)
       }
     })
@@ -154,17 +154,17 @@ export class HttpTransportServer {
   }
 
   protected async handleRPC(
-    client: BaseClient,
+    client: BaseTransportClient,
     name: string,
     container: Container,
     payload: any
   ) {
     this.logger.debug('Calling [%s] procedure...', name)
-    const declaration = await this.application.api.find(name)
+    const procedure = await this.application.api.find(name)
     return this.application.api.call({
       client,
       name,
-      declaration,
+      procedure,
       payload,
       container,
     })
@@ -200,7 +200,6 @@ export class HttpTransportServer {
       query,
       proxyRemoteAddress,
       remoteAddress,
-      protocol: HttpTransportProtocol.Http,
       method: method as HttpTransportMethod,
     }
 
@@ -261,11 +260,7 @@ export class HttpTransportServer {
   }
 
   protected async getClientData(transportData: any) {
-    const declaration = this.options.clientProvider(transportData)
-    const clientData = this.options.clientProvider
-      ? await this.application.container.resolve(declaration)
-      : undefined
-    return clientData
+    return this.application.api.getClientData(transportData)
   }
 
   protected async handleBody(req: Req, res: Res, method: string, query: any) {
@@ -373,7 +368,7 @@ export class HttpTransportServer {
       )
       if (isProtocolSupported) {
         tryRespond(() => {
-          const payload = encodeText(toJSON(stream.payload))
+          const payload = encodeText(toJSON(stream.payload)!)
           res.writeHeader(STREAM_PAYLOAD_LENGTH_HEADER, `${payload.byteLength}`)
           res.write(payload)
         })

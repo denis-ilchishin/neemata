@@ -1,18 +1,17 @@
-import { BaseClient } from '@neemata/application'
-import { HttpTransportClientContext, HttpTransportProtocol } from './types'
+import { BaseTransportClient } from '@neemata/application'
+import { HttpTransportClientContext } from './types'
 
-export class HttpTransportClient<Data = any> implements BaseClient<Data> {
-  readonly id: string
-  readonly protocol = HttpTransportProtocol.Http
+export class HttpTransportClient extends BaseTransportClient {
+  readonly protocol = 'http'
 
   #context: HttpTransportClientContext
 
-  constructor(context: HttpTransportClientContext, public readonly data: Data) {
+  constructor(context: HttpTransportClientContext, data: any) {
+    super(context.id, data, 'http')
     this.#context = context
-    this.id = context.id
   }
 
-  send() {
+  _handle() {
     // HTTP transport doesn't support bi-directional communitcation,
     // so just ignore and return false
     return false

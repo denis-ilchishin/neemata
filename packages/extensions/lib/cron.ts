@@ -1,17 +1,12 @@
-import {
-  BaseExtension,
-  ExtensionInstallOptions,
-  Hook,
-  ProviderDeclaration,
-} from '@neemata/application'
-
 import cronParser, { type CronExpression } from 'cron-parser'
+
+import { BaseExtension, Hook, Provider } from '@neemata/application'
 
 type CronHandler = () => any
 
 type CronOptions = {
   expression: string | number
-  provider?: ProviderDeclaration<CronHandler>
+  provider?: Provider<CronHandler>
   handler?: CronHandler
 }
 
@@ -26,25 +21,28 @@ export class CronExtension extends BaseExtension {
   name = 'Cron'
 
   crons!: Map<string, CronOptions & Cron>
-  application!: ExtensionInstallOptions<{}, {}>
 
   constructor() {
     super()
     this.crons = new Map()
   }
 
-  install(application: ExtensionInstallOptions<{}, {}>) {
-    this.application = application
+  initialize() {
     const { logger, registerHook, container } = this.application
     registerHook(Hook.AfterInitialize, async () => {
       for (const [name, cron] of this.crons) {
         logger.info('Registering cron [%s] (%s)', name, cron.expression)
-        if (typeof cron.expression === 'string')
+
+        if (typeof cron.expression === 'string') {
           cron.cron = cronParser.parseExpression(cron.expression)
-        else cron.interval = cron.expression
+        } else {
+          cron.interval = cron.expression
+        }
+
         cron.handler = cron.provider
           ? await container.resolve(cron.provider)
           : cron.handler
+
         this.run(name)
       }
     })
@@ -62,7 +60,7 @@ export class CronExtension extends BaseExtension {
   }
 
   private run(name: string) {
-    const cron = this.crons.get(name)
+    const cron = this.crons.get(name)!
     let timeout: number
 
     if (cron.cron) {

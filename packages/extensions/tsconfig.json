@@ -14,10 +14,9 @@
     "declaration": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictNullChecks": false,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
   },
   "include": [
     "./index.ts",

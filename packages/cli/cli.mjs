@@ -1,11 +1,13 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --enable-source-maps
 
 import {
+  APP_COMMAND,
   Application,
   ApplicationServer,
   WorkerType,
   defer,
   importDefault,
+  providerWorkerOptions,
   watchApp,
 } from '@neemata/application'
 import dotenv from 'dotenv'
@@ -112,14 +114,14 @@ const commands = {
 
     if (entryApp instanceof ApplicationServer) {
       const { applicationPath } = entryApp.options
-      const bootstrap = await importDefault(applicationPath)
       const type = WorkerType.Task
       /** @type {import('@neemata/application').ApplicationWorkerOptions} */
       const options = {
         id: 0,
         type,
       }
-      app = await bootstrap(options)
+      providerWorkerOptions(options)
+      app = await importDefault(applicationPath)
     } else if (entryApp instanceof Application) {
       app = entryApp
     }
@@ -133,7 +135,7 @@ const commands = {
       extension = undefined
     }
 
-    const command = app.commands.get(extension)?.get(commandName)
+    const command = app.commands.get(extension ?? APP_COMMAND)?.get(commandName)
     if (!command) throw new Error('Command not found')
 
     const terminate = () => tryExit(() => defer(() => app.stop()))

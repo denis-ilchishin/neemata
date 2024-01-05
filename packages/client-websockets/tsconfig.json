@@ -10,7 +10,6 @@
     "moduleDetection": "force",
     "noEmit": true,
     "strict": true,
-    "strictNullChecks": false,
     "skipLibCheck": true,
     "noImplicitAny": false,
     "allowSyntheticDefaultImports": true

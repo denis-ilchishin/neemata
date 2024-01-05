@@ -1,48 +1,13 @@
-import { Scope } from '@neemata/common'
-import { Application, ApplicationOptions } from './application'
-import { Container, getProviderScope } from './container'
-import { Loader } from './loader'
+import { ApplicationOptions } from './application'
 import {
+  Container,
   Dependencies,
   DependencyContext,
   Depender,
-  Extra,
-  ExtractAppContext,
-  Hook,
-} from './types'
+} from './container'
+import { Loader } from './loader'
+import { AnyApplication, Extra, Hook } from './types'
 import { defer } from './utils/functions'
-
-export type Task<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Args extends any[],
-  Response
-> = (
-  ctx: DependencyContext<Context, Deps, Scope.Global, never> & {
-    signal: AbortSignal
-  },
-  ...args: Args
-) => Response
-
-export interface TaskProvider<
-  Context extends Extra = Extra,
-  Deps extends Dependencies = Dependencies,
-  Args extends any[] = any[],
-  Response = any
-> {
-  handle: Task<Context, Deps, Args, Response>
-  name?: string
-  parse?: (args: string[], kwargs: Record<string, any>) => Args | Readonly<Args>
-}
-
-export interface TaskDeclaration<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Args extends any[],
-  Response
-> extends Depender<Deps> {
-  task: TaskProvider<Context, Deps, Args, Response>
-}
 
 export type TaskInterface<Res = any> = {
   result: Promise<Res>
@@ -55,32 +20,83 @@ export type TasksRunner = (
   ...args: any[]
 ) => Promise<any>
 
-export class Tasks extends Loader<
-  TaskDeclaration<any, any, any[], TaskProvider>
-> {
+type Handler<
+  Context extends Extra,
+  Deps extends Dependencies,
+  Args extends any[]
+> = (ctx: DependencyContext<Context, Deps>, ...args: Args) => any
+
+export class Task<
+  TaskContext extends Extra = {},
+  TaskDeps extends Dependencies = {},
+  TaskArgs extends any[] = any[],
+  TaskHandler extends Handler<TaskContext, TaskDeps, TaskArgs> = Handler<
+    TaskContext,
+    TaskDeps,
+    TaskArgs
+  >
+> implements Depender<TaskDeps>
+{
+  readonly name!: string
+  readonly dependencies!: TaskDeps
+  readonly handler!: TaskHandler
+  readonly parser!: (
+    args: string[],
+    kwargs: Record<string, any>
+  ) => TaskArgs | Readonly<TaskArgs>
+
+  withArgs<NewArgs extends any[]>() {
+    const task = new Task<TaskContext, TaskDeps, NewArgs>()
+    return task
+  }
+
+  withDependencies<NewDeps extends Dependencies>(dependencies: NewDeps) {
+    const task = new Task<TaskContext, NewDeps, TaskArgs>()
+    Object.assign(task, this, { dependencies })
+    return task
+  }
+
+  withHandler<NewHandler extends Handler<TaskContext, TaskDeps, TaskArgs>>(
+    handler: NewHandler
+  ) {
+    const task = new Task<TaskContext, TaskDeps, TaskArgs, NewHandler>()
+    Object.assign(task, this, { handler })
+    return task
+  }
+
+  withParser(parser: this['parser']) {
+    const task = new Task<TaskContext, TaskDeps, TaskArgs, TaskHandler>()
+    Object.assign(task, this, { parser })
+    return task
+  }
+
+  withName(name: string) {
+    const task = new Task<TaskContext, TaskDeps, TaskArgs, TaskHandler>()
+    Object.assign(task, this, { name })
+    return task
+  }
+}
+
+export class Tasks extends Loader<Task> {
   constructor(
-    private readonly application: Application<any, any, any, any>,
+    private readonly application: AnyApplication,
     private readonly options: ApplicationOptions['tasks'] = {}
   ) {
     super(options.path || '')
   }
 
-  protected set(
-    name: string,
-    path: string,
-    declaration: TaskDeclaration<any, any, any[], any>
-  ) {
-    if (!declaration.task.name) declaration.task.name = name
-    this.application.logger.info(
-      'Resolve [%s] task',
-      declaration.task.name,
-      path
-    )
-    super.set(declaration.task.name, path, declaration)
+  protected set(name: string, path: string, task: Task) {
+    // @ts-expect-error
+    if (!task.name) task.name = name
+    this.application.logger.info('Resolve [%s] task', task.name, path)
+    super.set(task.name, path, task)
   }
 
-  registerTask(declaration: TaskDeclaration<any, any, any[], any>) {
-    this.modules.set(declaration.task.name, declaration)
+  registerTask(task: Task) {
+    if (!task.name) throw new Error('Task name is required')
+    if (this.modules.has(task.name))
+      this.application.logger.warn('Task [%s] already registered', task.name)
+    this.modules.set(task.name, task)
   }
 
   execute(
@@ -92,9 +108,9 @@ export class Tasks extends Loader<
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const result = defer(async () => {
       if (!this.modules.has(name)) throw new Error('Task not found')
-      if (!this.options.runner) {
+      if (!this.options!.runner) {
         return new Promise((resolve, reject) => {
-          const { dependencies, task } = this.modules.get(name)
+          const { dependencies, handler } = this.modules.get(name)!
           const extra = { signal: ac.signal }
           ac.signal.addEventListener('abort', () => reject(ac.signal.reason), {
             once: true,
@@ -102,18 +118,17 @@ export class Tasks extends Loader<
           defer(async () => {
             ac.signal.throwIfAborted()
             const context = await container.createContext(dependencies, extra)
-            return await task.handle(context, ...args)
+            return await handler(context, ...args)
           })
             .then(resolve)
             .catch(reject)
         })
       } else {
-        return this.options.runner(ac.signal, name, ...args)
+        return this.options!.runner(ac.signal, name, ...args)
       }
     })
 
     this.handleTermination(result, abort)
-
     return { abort, result }
   }
 
@@ -121,8 +136,8 @@ export class Tasks extends Loader<
     const [name, ...taskArgs] = args
     const task = this.modules.get(name)
     if (!task) throw new Error('Task not found')
-    const { parse } = task.task
-    const parsedArgs = parse ? parse(taskArgs, kwargs) : []
+    const { parser } = task
+    const parsedArgs = parser ? parser(taskArgs, kwargs) : []
     return this.execute(container, name, ...parsedArgs)
   }
 
@@ -141,28 +156,3 @@ export class Tasks extends Loader<
     result.finally(unregisterHook)
   }
 }
-
-export const declareTask = (
-  task: TaskProvider<any, any>,
-  dependencies?: Dependencies
-): TaskDeclaration<any, any, any[], any> => {
-  for (const dep of Object.values(dependencies ?? {})) {
-    const scope = getProviderScope(dep)
-    if (scope !== Scope.Global)
-      throw new Error('Task cannot depend on non-global providers')
-  }
-  return {
-    task,
-    dependencies,
-  }
-}
-
-export const createTypedDeclareTask =
-  <App, Context extends ExtractAppContext<App> = ExtractAppContext<App>>() =>
-  <Deps extends Dependencies, Args extends any[], Response>(
-    task: TaskProvider<Context, Deps, Args, Response>,
-    dependencies?: Deps
-  ): TaskDeclaration<Context, Deps, Args, Response> => {
-    // @ts-expect-error
-    return declareTask(task, dependencies)
-  }

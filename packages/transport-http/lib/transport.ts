@@ -1,37 +1,29 @@
-import { BaseTransport, ExtensionInstallOptions } from '@neemata/application'
+import { BaseTransport } from '@neemata/application'
 import { HttpTransportClient } from './client'
 import { HttpTransportServer } from './server'
 import {
   HttpTransportApplicationContext,
+  HttpTransportData,
   HttpTransportOptions,
   HttpTransportProcedureOptions,
 } from './types'
 
-export class HttpTransport<ClientData> extends BaseTransport<
+export class HttpTransport extends BaseTransport<
   HttpTransportProcedureOptions,
   HttpTransportApplicationContext,
-  HttpTransportClient<ClientData>
+  HttpTransportClient,
+  HttpTransportData
 > {
   name = 'HTTP Transport'
 
-  server: HttpTransportServer
-  application!: ExtensionInstallOptions<
-    HttpTransportProcedureOptions,
-    HttpTransportApplicationContext
-  >
+  server!: HttpTransportServer
 
-  constructor(readonly options: HttpTransportOptions<ClientData>) {
-    super(options.clientProvider)
+  constructor(readonly options: HttpTransportOptions) {
+    super()
   }
 
-  install(
-    application: ExtensionInstallOptions<
-      HttpTransportProcedureOptions,
-      HttpTransportApplicationContext
-    >
-  ) {
-    this.application = application
-    this.server = new HttpTransportServer(this.options, application)
+  initialize() {
+    this.server = new HttpTransportServer(this.options, this.application)
   }
 
   async start() {

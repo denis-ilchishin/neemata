@@ -1,39 +1,43 @@
 import {
   ApiError,
-  BaseClient,
   BaseTransport,
+  BaseTransportClient,
   Container,
   ErrorCode,
-  ExtensionInstallOptions,
   Hook,
-  ProviderDeclaration,
   Scope,
 } from '@neemata/application'
 
 import amqplib from 'amqplib'
 
-export type TransportOptions<ClientData> = {
+export type TransportOptions = {
   connection: amqplib.Options.Connect
   requestQueue: string
-  clientProvider?: ProviderDeclaration<ClientData>
 }
 
 type TransportProcedureOptions = {}
-type TransportContext = {
-  // connection: amqplib.Connection
+type TransportContext = {}
+type ClientTransportContext = {
+  clientId: string
+  headers: Record<string, string>
 }
 
-export class AmqpClient<Data = any> implements BaseClient<Data> {
-  constructor() {}
+export class AmqpClient extends BaseTransportClient {
+  readonly protocol = 'amqp'
 
-  id: string
-  send: (eventName: string, payload: any) => boolean
-  data: Data
+  constructor(data: any) {
+    super(undefined, data, 'amqp')
+  }
+
+  _handle(eventName: string, payload: any) {
+    return false
+  }
 }
 
-export class Transport<ClientData> extends BaseTransport<
+export class Transport extends BaseTransport<
   TransportProcedureOptions,
-  TransportContext
+  TransportContext,
+  AmqpClient
 > {
   name = 'AMQP transport'
   clients = new Map<
@@ -45,24 +49,14 @@ export class Transport<ClientData> extends BaseTransport<
     }
   >()
 
-  application!: ExtensionInstallOptions<
-    TransportProcedureOptions,
-    TransportContext
-  >
   connection!: amqplib.Connection
   channel!: amqplib.Channel
 
-  constructor(private readonly options: TransportOptions<ClientData>) {
-    super(options.clientProvider)
+  constructor(private readonly options: TransportOptions) {
+    super()
   }
 
-  install(
-    application: ExtensionInstallOptions<
-      TransportProcedureOptions,
-      TransportContext
-    >
-  ) {
-    this.application = application
+  initialize() {
     this.application.registerHook(Hook.BeforeTerminate, async () => {
       const ids = Array.from(this.clients.keys())
       await Promise.allSettled(ids.map((id) => this.handleClientDisconnect(id)))
@@ -90,9 +84,10 @@ export class Transport<ClientData> extends BaseTransport<
     await this.connection?.close()
   }
 
-  private async handleRPC(msg: amqplib.ConsumeMessage) {
-    const { correlationId, replyTo } = msg.properties
-    const client = this.getClient(replyTo)
+  private async handleRPC(msg: amqplib.ConsumeMessage | null) {
+    if (!msg) return void 0
+
+    const { correlationId, replyTo, appId, headers } = msg.properties
     const respond = (data: any) =>
       this.channel.sendToQueue(replyTo, this.serialize(data), {
         correlationId,
@@ -100,13 +95,14 @@ export class Transport<ClientData> extends BaseTransport<
       })
 
     try {
-      const { procedure, payload } = this.deserialize(msg.content)
-      const declaration = await this.application.api.find(procedure)
+      const client = await this.getClient(replyTo, { clientId: appId, headers })
+      const { procedure: name, payload } = this.deserialize(msg.content)
+      const procedure = await this.application.api.find(name)
       const container = client.container.createScope(Scope.Call)
       const response = await this.application.api.call({
         client: client.client,
-        name: procedure,
-        declaration,
+        name,
+        procedure,
         payload,
         container,
       })
@@ -131,13 +127,14 @@ export class Transport<ClientData> extends BaseTransport<
     return JSON.parse(data.toString())
   }
 
-  private getClient(queue: string) {
-    if (!this.clients.has(queue)) this.createClient(queue)
-    return this.clients.get(queue)
+  private async getClient(queue: string, ctx: ClientTransportContext) {
+    if (!this.clients.has(queue)) await this.createClient(queue, ctx)
+    return this.clients.get(queue)!
   }
 
-  private createClient(queue: string) {
-    const client = new AmqpClient()
+  private async createClient(queue: string, ctx: ClientTransportContext) {
+    const clientData = await this.application.api.getClientData(ctx)
+    const client = new AmqpClient(clientData)
     const container = this.application.container.createScope(Scope.Connection)
     const interval = setInterval(async () => {
       const channel = await this.connection.createChannel()
@@ -152,7 +149,7 @@ export class Transport<ClientData> extends BaseTransport<
 
   private async handleClientDisconnect(queue: string) {
     if (this.clients.has(queue)) {
-      const client = this.clients.get(queue)
+      const client = this.clients.get(queue)!
       clearInterval(client.interval)
       this.clients.delete(queue)
       await client.container.dispose()

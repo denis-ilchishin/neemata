@@ -1,12 +1,16 @@
-import { LoggingOptions, createLogger } from '../lib/logger'
-import { Api, BaseParser } from './api'
-import { Container } from './container'
+import { merge } from '..'
+import { Api, BaseParser, Procedure } from './api'
+import { Container, Provider } from './container'
+import { Event } from './events'
 import { BaseExtension } from './extension'
-import { TaskDeclaration, Tasks, TasksRunner } from './tasks'
-import { BaseTransport } from './transport'
+import { Logger, LoggingOptions, createLogger } from './logger'
+import { Task, Tasks, TasksRunner } from './tasks'
+import { BaseTransport, BaseTransportClient } from './transport'
 import {
   CallHook,
   Callback,
+  ClientProvider,
+  ClientProviderFn,
   Command,
   Commands,
   ErrorClass,
@@ -14,13 +18,16 @@ import {
   Extra,
   Filter,
   Filters,
+  Guard,
+  GuardFn,
+  Guards,
   Hook,
   Hooks,
   Middleware,
+  MiddlewareFn,
   Middlewares,
-  Pattern,
   ResolveExtensionContext,
-  ResolveExtensionOptions,
+  ResolveExtensionProcedureOptions,
   UnionToIntersection,
   WorkerType,
 } from './types'
@@ -28,11 +35,18 @@ import {
 export type ApplicationOptions = {
   type: WorkerType
   logging?: LoggingOptions
-  api?: {
-    parser?: BaseParser
+  api: {
+    timeout?: number
+    parsers?:
+      | BaseParser
+      | {
+          input?: BaseParser
+          output?: BaseParser
+        }
     path?: string
   }
   tasks?: {
+    timeout?: number
     path?: string
     runner?: TasksRunner
   }
@@ -45,49 +59,65 @@ export type ApplicationWorkerOptions = {
   workerOptions?: any
 }
 
-export class Application<
-  Transport extends BaseTransport = BaseTransport,
-  Extensions extends Record<string, BaseExtension> = {},
-  Options extends Extra = UnionToIntersection<
-    ResolveExtensionOptions<Extensions[keyof Extensions]>
-  > &
-    ResolveExtensionOptions<Transport>,
-  Context extends Extra = UnionToIntersection<
-    ResolveExtensionContext<Extensions[keyof Extensions]>
-  > &
-    ResolveExtensionContext<Transport>
-> {
-  api: Api<Options, Context>
-  tasks: Tasks
-  logger: import('pino').Logger
-  container: Container
-  context: Context = {} as Context
+export const APP_COMMAND = Symbol('appCommand')
 
-  hooks: Hooks
-  commands: Commands
-  filters: Filters
-  middlewares: Middlewares
+export class Application<
+  AppTransport extends BaseTransport = BaseTransport,
+  AppExtensions extends Record<string, BaseExtension> = {},
+  AppProcedureOptions extends Extra = UnionToIntersection<
+    ResolveExtensionProcedureOptions<AppExtensions[keyof AppExtensions]>
+  > &
+    ResolveExtensionProcedureOptions<AppTransport>,
+  AppContext extends Extra = UnionToIntersection<
+    ResolveExtensionContext<AppExtensions[keyof AppExtensions]>
+  > &
+    ResolveExtensionContext<AppTransport>,
+  AppClientData = unknown,
+  AppEvents extends Record<string, Event> = {}
+> {
+  readonly _!: {
+    transport: AppTransport
+    context: AppContext
+    options: AppProcedureOptions
+    clientData: AppClientData
+    client: AppTransport['_']['client'] &
+      BaseTransportClient<AppClientData, AppEvents>
+    events: AppEvents
+  }
+
+  readonly api: Api
+  readonly tasks: Tasks
+  readonly logger: Logger
+  readonly container: Container
+  readonly context: AppContext = {} as AppContext
+
+  readonly hooks: Hooks
+  readonly commands: Commands
+  readonly filters: Filters
+  readonly middlewares: Middlewares
+  readonly guards: Guards
 
   constructor(
-    readonly transport: Transport,
     readonly options: ApplicationOptions,
-    readonly extensions: Extensions = {} as Extensions
+    readonly transport: AppTransport,
+    readonly extensions: AppExtensions = {} as AppExtensions
   ) {
     this.logger = createLogger(
       this.options.logging,
       `${this.options.type}Worker`
     )
 
-    this.middlewares = new Map()
-    this.filters = new Map()
     this.hooks = new Map()
     this.commands = new Map()
+    this.filters = new Map()
+    this.middlewares = new Set()
+    this.guards = new Set()
 
     for (const hook of Object.values(Hook)) {
       this.hooks.set(hook, new Set())
     }
 
-    this.commands.set(undefined, new Map())
+    this.commands.set(APP_COMMAND, new Map())
     for (const extension in this.extensions) {
       this.commands.set(extension, new Map())
     }
@@ -95,10 +125,7 @@ export class Application<
     this.api = new Api(this, this.options.api)
     this.tasks = new Tasks(this, this.options.tasks)
 
-    this.container = new Container(
-      this,
-      this.isApiWorker ? [this.api, this.tasks] : [this.tasks]
-    )
+    this.container = new Container(this, [this.api, this.tasks])
 
     this.initExtensions()
     this.initCommandsAndHooks()
@@ -107,7 +134,7 @@ export class Application<
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
     await this.tasks.load()
-    if (this.isApiWorker) await this.api.load()
+    await this.api.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
     this.initContext()
@@ -130,13 +157,14 @@ export class Application<
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    if (this.isApiWorker) this.api.clear()
+    this.api.clear()
     this.tasks.clear()
     await this.callHook(Hook.AfterTerminate)
   }
 
-  execute(declaration: TaskDeclaration<any, any, any[], any>, ...args: any[]) {
-    return this.tasks.execute(this.container, declaration.task.name, ...args)
+  execute(task: Task, ...args: any[]) {
+    if (!task.name) throw new Error('Task name is required')
+    return this.tasks.execute(this.container, task.name, ...args)
   }
 
   registerHook<T extends string>(hookName: T, hook: (...args: any[]) => any) {
@@ -145,25 +173,88 @@ export class Application<
     hooks.add(hook)
   }
 
-  unregisterHook<T extends string>(hookName: T, hook: Callback) {
-    this.hooks.get(hookName)?.delete(hook)
-  }
-
-  registerCommand(name: string, command: string, callback: Command) {
-    this.commands.get(name).set(command, callback)
+  registerCommand(name: string | symbol, command: string, callback: Command) {
+    this.commands.get(name)?.set(command, callback)
   }
 
   registerFilter<T extends ErrorClass>(errorClass: T, filter: Filter<T>) {
     this.filters.set(errorClass, filter)
   }
 
-  registerMiddleware(pattern: Pattern, middleware: Middleware) {
-    let middlewares = this.middlewares.get(pattern)
-    if (!middlewares) this.middlewares.set(pattern, (middlewares = new Set()))
-    middlewares.add(middleware)
+  registerMiddleware(middleware: Middleware) {
+    this.middlewares.add(middleware)
   }
 
-  // TODO: some hooks might be better to call concurrently
+  registerGuard(guard: Guard) {
+    this.guards.add(guard)
+  }
+
+  registerClientProvider(
+    provider: ClientProvider<AppTransport['_']['transportData'], AppClientData>
+  ) {
+    this.api.clientProvider = provider
+  }
+
+  unregisterHook<T extends string>(hookName: T, hook: Callback) {
+    this.hooks.get(hookName)?.delete(hook)
+  }
+
+  withClientData<T>() {
+    return this as unknown as Application<
+      AppTransport,
+      AppExtensions,
+      AppProcedureOptions,
+      AppContext,
+      T,
+      AppEvents
+    >
+  }
+
+  withEvents<T extends Record<string, Event>>(events: T) {
+    this.api.events = merge(this.api.events, events)
+    return this as unknown as Application<
+      AppTransport,
+      AppExtensions,
+      AppProcedureOptions,
+      AppContext,
+      AppClientData,
+      AppEvents & T
+    >
+  }
+
+  procedure() {
+    return new Procedure<this>()
+  }
+
+  provider() {
+    return new Provider<any, this>()
+  }
+
+  middleware() {
+    return new Provider<MiddlewareFn, this>()
+  }
+
+  guard() {
+    return new Provider<GuardFn | GuardFn[], this>()
+  }
+
+  clientProvider() {
+    return new Provider<
+      ClientProviderFn<
+        this['_']['transport']['_']['transportData'],
+        AppClientData
+      >,
+      this
+    >()
+  }
+
+  task() {
+    return new Task<AppContext>()
+  }
+
+  // TODO: some hooks might be better to call concurrently,
+  // and some of them should be called in reverse order.
+  // Probably, need to completely reconsider the hooks system.
   private async callHook(hook: Hook, ...args: any[]) {
     const hooks = this.hooks.get(hook)
     if (!hooks) return
@@ -172,7 +263,7 @@ export class Application<
 
   private initContext() {
     for (const key in this.context) delete this.context[key]
-    const mixins = []
+    const mixins: any[] = []
     const extensions = [...Object.values(this.extensions), this.transport]
     for (const extension of extensions) {
       if (extension.context) {
@@ -186,23 +277,20 @@ export class Application<
   }
 
   private initExtensions() {
-    const installations = [
+    const extensions = [
       ...Object.entries(this.extensions),
       ['transport', this.transport],
     ] as const
 
-    const { api, container } = this
-    for (const [name, extension] of installations) {
-      if (!extension.install) continue
+    const { api, container, logger } = this
+    for (const [name, extension] of extensions) {
       const callHook: CallHook<any> = this.callHook.bind(this)
       const registerHook = this.registerHook.bind(this)
       const registerMiddleware = this.registerMiddleware.bind(this)
       const registerFilter = this.registerFilter.bind(this)
       const registerCommand = this.registerCommand.bind(this, name)
-      const type = this.options.type
-      const logger = this.logger
-      ;(extension as ExtensionInterface<any, any>).install({
-        type,
+      ;(extension as ExtensionInterface<any, any>).application = {
+        type: this.options.type,
         logger,
         api,
         container,
@@ -211,20 +299,17 @@ export class Application<
         registerFilter,
         registerMiddleware,
         callHook,
-      })
+      }
+      extension.initialize?.()
     }
   }
 
   private initCommandsAndHooks() {
     const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(undefined, 'task', (arg) => taskCommand(arg).result)
+    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg).result)
   }
 
   private get isApiWorker() {
     return this.options.type === WorkerType.Api
   }
 }
-
-export const declareApplication = <T extends any>(
-  callback: (options: ApplicationWorkerOptions, ...args: any[]) => T
-) => callback

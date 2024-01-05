@@ -14,9 +14,8 @@
     "declaration": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictNullChecks": false,
     "sourceMap": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
   },
   "include": [
     "./index.ts"

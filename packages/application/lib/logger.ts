@@ -46,16 +46,19 @@ const levelLabels = {
   [Infinity]: 'SILENT',
 }
 
-export const createLogger = (options: LoggingOptions, $group: string) => {
-  if (!options.destinations || !options.destinations.length) {
-    options.destinations = [createConsoleDestination('info')]
+export const createLogger = (options: LoggingOptions = {}, $group: string) => {
+  let { destinations, pinoOptions } = options
+
+  if (!destinations || !destinations?.length) {
+    destinations = [createConsoleDestination('info')]
   }
-  const lowestLevelValue = options.destinations.reduce(
+
+  const lowestLevelValue = destinations!.reduce(
     (acc, destination) =>
       Math.min(
         acc,
         'stream' in destination
-          ? pino.levels.values[destination.level]
+          ? pino.levels.values[destination.level!]
           : Infinity
       ),
     Infinity
@@ -64,10 +67,10 @@ export const createLogger = (options: LoggingOptions, $group: string) => {
   return pino(
     {
       timestamp: stdTimeFunctions.isoTime,
-      ...options.pinoOptions,
+      ...pinoOptions,
       level,
     },
-    pino.multistream(options.destinations)
+    pino.multistream(destinations!)
   ).child({ $group })
 }
 

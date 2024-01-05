@@ -1,4 +1,6 @@
-import EventEmitter, { once } from 'events'
+// import EventEmitter, { once } from 'events'
+
+import { EventEmitter, once } from './event-emitter'
 
 export enum StreamDataType {
   Binary = 'Binary',
@@ -53,29 +55,18 @@ export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
   }
 }
 
-type StreamInferfaceEvent = {
-  start: () => void
-  end: () => void
-  progress: (bytesLength: number) => void
-  error: (error?: any) => void
-  close: () => void
+type StreamInferfaceEvents = {
+  start: void
+  end: void
+  progress: number
+  error: any
+  close: void
 }
 
-interface StreamInferface {
-  on<Event extends keyof StreamInferfaceEvent>(
-    event: Event,
-    listener: StreamInferfaceEvent[Event]
-  ): this
-  once<Event extends keyof StreamInferfaceEvent>(
-    event: Event,
-    listener: StreamInferfaceEvent[Event]
-  ): this
-}
-
-export class UpStream extends EventEmitter implements StreamInferface {
+export class UpStream extends EventEmitter<StreamInferfaceEvents> {
   private source: ReadableStream
-  private reader: ReadableStreamDefaultReader<Uint8Array>
-  private readBuffer: ArrayBuffer
+  private reader?: ReadableStreamDefaultReader<Uint8Array>
+  private readBuffer?: ArrayBuffer
 
   bytesSent = 0
   paused = false
@@ -87,6 +78,7 @@ export class UpStream extends EventEmitter implements StreamInferface {
   ) {
     super()
 
+    // @ts-expect-error
     this.source =
       source instanceof ReadableStream
         ? source
@@ -103,7 +95,7 @@ export class UpStream extends EventEmitter implements StreamInferface {
   }
 
   destroy(error?: Error) {
-    this.reader.cancel(error)
+    this.reader?.cancel(error)
     if (error) this.emit('error', error)
     this.emit('close')
     this.readBuffer = undefined
@@ -122,16 +114,18 @@ export class UpStream extends EventEmitter implements StreamInferface {
   async _read(size: number): Promise<{ done?: boolean; chunk?: ArrayBuffer }> {
     if (!this.bytesSent) this.emit('start')
     if (this.bytesSent && this.paused) await once(this, 'resume')
-    if (this.readBuffer?.byteLength > 0) {
+    if (this.readBuffer && this.readBuffer.byteLength > 0) {
       const end = Math.min(size, this.readBuffer.byteLength)
       const chunk = this.readBuffer.slice(0, end)
       this.readBuffer =
-        this.readBuffer.byteLength > size ? this.readBuffer.slice(end) : null
+        this.readBuffer.byteLength > size
+          ? this.readBuffer.slice(end)
+          : undefined
       this.bytesSent = this.bytesSent + chunk.byteLength
       this.emit('progress', this.bytesSent)
       return { chunk }
     } else {
-      const { done, value } = await this.reader.read()
+      const { done, value } = await this.reader!.read()
       if (done) {
         return { done }
       } else {

@@ -53,17 +53,17 @@ export type ResolveEvents<App extends AnyApplication> = {
   [K in keyof App['_']['events']]: App['_']['events'][K]['payload']
 }
 
-export type ResolveProcedures<Api extends Record<string, any>> = {
-  [K in keyof Api as Api[K] extends Procedure
+export type ResolveProcedures<Procedures extends Record<string, any>> = {
+  [K in keyof Procedures as Procedures[K] extends Procedure
     ? K
-    : never]: Api[K] extends Procedure
+    : never]: Procedures[K] extends Procedure
     ? {
-        input: ResolveApiInput<InferSchema<Api>>
+        input: ResolveApiInput<InferSchema<Procedures[K]['_']['input']>>
         output: ResolveApiOutput<
           Awaited<
-            Api[K]['_']['output'] extends unknown
-              ? ReturnType<Api[K]['handler']>
-              : InferSchema<Api[K]['_']['output']>
+            null extends Procedures[K]['_']['output']
+              ? ReturnType<Procedures[K]['handler']>
+              : InferSchema<Procedures[K]['_']['output']>
           >
         >
       }

@@ -19,12 +19,10 @@ import {
   Filter,
   Filters,
   Guard,
-  GuardFn,
   Guards,
   Hook,
   Hooks,
   Middleware,
-  MiddlewareFn,
   Middlewares,
   ResolveExtensionContext,
   ResolveExtensionProcedureOptions,
@@ -230,12 +228,8 @@ export class Application<
     return new Provider<any, this>()
   }
 
-  middleware() {
-    return new Provider<MiddlewareFn, this>()
-  }
-
-  guard() {
-    return new Provider<GuardFn | GuardFn[], this>()
+  task() {
+    return new Task<AppContext>()
   }
 
   clientProvider() {
@@ -246,10 +240,6 @@ export class Application<
       >,
       this
     >()
-  }
-
-  task() {
-    return new Task<AppContext>()
   }
 
   // TODO: some hooks might be better to call concurrently,

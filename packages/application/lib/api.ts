@@ -75,7 +75,6 @@ export class Procedure<
     guards: GuardFn[]
     options: App['_']['options']
     timeout: number
-    rateKey: string
   }
 
   dependencies!: ProcedureDeps
@@ -307,7 +306,6 @@ export class Api extends Loader<Procedure> {
     const callContext = { client, call: nestedCall }
 
     const context = await container.createContext(dependencies, callContext)
-
     const handleProcedure = await this.createProcedureHandler(
       callOptions,
       context,
@@ -541,10 +539,11 @@ export class Api extends Loader<Procedure> {
     payload: any,
     context: any
   ) {
-    if (!this.parsers[type]) return payload
+    const parser = procedure.parsers[type] ?? this.parsers[type]
+    if (!parser) return payload
     const schema = await this.resolveProcedureOption(procedure, type, context)
     if (!schema) return payload
-    return this.parsers[type]!.parse(schema, payload, context)
+    return parser!.parse(schema, payload, context)
   }
 }
 

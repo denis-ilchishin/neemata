@@ -133,11 +133,11 @@ export class Application<
 
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
+    this.initContext()
     await this.tasks.load()
     await this.api.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
-    this.initContext()
   }
 
   async start() {

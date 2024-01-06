@@ -232,8 +232,8 @@ export class Container {
       }
     }
 
-    const declarations = this.findCurrentScopeDeclarations()
-    await Promise.all(declarations.map((val) => this.resolve(val)))
+    const providers = this.findCurrentScopeDeclarations()
+    await Promise.all(providers.map((val) => this.resolve(val)))
   }
 
   createScope(scope: Scope, params: any = {}) {
@@ -296,11 +296,11 @@ export class Container {
       const resolution = this.createContext(dependencies)
         .then((ctx) => factory(merge(this.params, ctx), options))
         .then((instance) => {
-          if (this.scope === scope) this.instances.set(value, instance)
-          if (this.scope !== Scope.Transient) this.resolvers.delete(value)
+          if (scope === this.scope) this.instances.set(value, instance)
+          if (scope !== Scope.Transient) this.resolvers.delete(value)
           return instance
         })
-      if (this.scope !== Scope.Transient) this.resolvers.set(value, resolution)
+      if (scope !== Scope.Transient) this.resolvers.set(value, resolution)
       return resolution as any
     }
   }

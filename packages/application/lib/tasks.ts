@@ -88,7 +88,7 @@ export class Tasks extends Loader<Task> {
   protected set(name: string, path: string, task: Task) {
     // @ts-expect-error
     if (!task.name) task.name = name
-    this.application.logger.info('Resolve [%s] task', task.name, path)
+    this.application.logger.debug('Resolve [%s] task', task.name, path)
     super.set(task.name, path, task)
   }
 

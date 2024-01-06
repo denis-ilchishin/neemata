@@ -381,7 +381,7 @@ export class Api extends Loader<Procedure> {
   }
 
   protected set(name: string, path: string, module: any): void {
-    this.application.logger.info('Resolve [%s] procedure', name, path)
+    this.application.logger.debug('Resolve [%s] procedure', name, path)
     super.set(name, path, module)
   }
 

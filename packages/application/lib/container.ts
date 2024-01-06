@@ -244,7 +244,7 @@ export class Container {
     // TODO: here might need to find correct order of disposing
     // to prevent first disposal of a provider
     // that other disposing provider depends on
-    this.application.logger.debug('Disposing [%s] scope context...', this.scope)
+    this.application.logger.trace('Disposing [%s] scope context...', this.scope)
     for (const [{ dispose, options, dependencies }, value] of this.instances) {
       try {
         if (dispose) {

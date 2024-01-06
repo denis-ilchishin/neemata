@@ -23,11 +23,5 @@
         "types": "./dist/index.d.ts"
       }
     }
-  },
-  "dependencies": {
-    "events": "^3.3.0"
-  },
-  "devDependencies": {
-    "pino": "^8.15.1"
   }
 }

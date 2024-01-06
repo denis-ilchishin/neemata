@@ -1,5 +1,3 @@
-// import EventEmitter, { once } from 'events'
-
 import { EventEmitter, once } from './event-emitter'
 
 export enum StreamDataType {

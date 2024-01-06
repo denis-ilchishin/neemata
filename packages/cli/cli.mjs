@@ -53,7 +53,7 @@ const entryPath = resolve(
 )
 
 if (swc) {
-  const url = new URL('./swc.mjs', import.meta.url)
+  const url = new URL('./swc-loader.mjs', import.meta.url)
   process.env.NEEMATA_SWC = url.toString()
   register(url)
 }

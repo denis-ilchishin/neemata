@@ -6,7 +6,7 @@ import {
   ResolveApiProcedureType,
 } from '@neemata/common'
 import amqplib from 'amqplib'
-import { hostname } from 'os'
+import { hostname } from 'node:os'
 
 export { AmqpClient, ApiError, ErrorCode }
 
@@ -79,12 +79,15 @@ class AmqpClient<
       this.clear(new ApiError('Connection error', 'Connection error'))
       this.connect()
     })
+
+    this.emit('_neemata:open')
   }
 
   async disconnect() {
     this.clear(new ApiError(ErrorCode.ConnectionError, 'Connection closed'))
     await this.channel?.close()
     await this.connection?.close()
+    this.emit('_neemata:close')
   }
 
   async reconnect(): Promise<void> {
@@ -105,6 +108,7 @@ class AmqpClient<
       : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
+    const { timeout = this.options.timeout } = options
     // TODO: implement AMQP message timeout
     const correlationId = (this.callId++).toString()
     this.channel.sendToQueue(
@@ -123,7 +127,6 @@ class AmqpClient<
     )
 
     return new Promise((resolve, reject) => {
-      const timeout = options.timeout || this.options.timeout
       const timer = timeout
         ? setTimeout(() => {
             reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))

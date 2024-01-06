@@ -108,7 +108,7 @@ class WebsocketsClient<
     this.ws.onerror = (event) => {
       this.isHealthy = false
     }
-    await once(this, 'neemata:open')
+    await once(this, '_neemata:open')
     this.emit('_neemata:connect')
   }
 
@@ -162,7 +162,7 @@ class WebsocketsClient<
       }
     }, timeout || 30000)
 
-    if (!this.isConnected) await once(this, 'neemata:connect')
+    if (!this.isConnected) await once(this, '_neemata:connect')
 
     return new Promise((resolve, reject) => {
       this.calls.set(callId, { resolve, reject, timer })

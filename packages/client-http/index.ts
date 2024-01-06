@@ -70,16 +70,21 @@ class HttpClient<
       : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
-    const { timeout = options.timeout } = options
+    const { timeout = options.timeout, headers = {}, URLParams } = options
     const ac = new AbortController()
     const signal = timeout ? AbortSignal.timeout(timeout) : undefined
     if (signal) {
+      // TODO: AbortSignal.any not yet fully supported
+      // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static
       signal.addEventListener('abort', () => ac.abort(new Error('Timeout')), {
         once: true,
       })
     }
     return await fetch(
-      this.applyURLParams(new URL(`api/${procedure as string}`, this.url)),
+      this.applyURLParams(
+        new URL(`api/${procedure as string}`, this.url),
+        URLParams
+      ),
       {
         signal: ac.signal,
         method: 'POST',
@@ -90,7 +95,7 @@ class HttpClient<
           'Content-Type': 'application/json',
           'X-Neemata-Stream-Protocol-Support': '1',
           ...this.headers,
-          ...(options.headers ?? {}),
+          ...headers,
         },
       }
     ).then(async (res) => {

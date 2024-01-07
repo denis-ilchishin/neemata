@@ -1,5 +1,5 @@
 ## Neemata
-Node.js RPC application server
+Node.js RPC application server (**POF**)
 
 [Example](https://github.com/denis-ilchishin/neemata-starter)
 

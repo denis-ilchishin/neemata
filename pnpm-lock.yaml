@@ -137,6 +137,9 @@ importers:
       '@neemata/common':
         specifier: workspace:*
         version: link:../common
+      uWebSockets.js:
+        specifier: uNetworking/uWebSockets.js#v20.38.0
+        version: github.com/uNetworking/uWebSockets.js/560035d4ad6caeda563deee1d3d68143462a305b
 
 packages:
 
@@ -1774,4 +1777,3 @@ packages:
     resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/560035d4ad6caeda563deee1d3d68143462a305b}
     name: uWebSockets.js
     version: 20.38.0
-    dev: false

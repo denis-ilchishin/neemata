@@ -1,26 +1,25 @@
 import {
   ApiError,
-  BaseTransportClient,
+  BaseTransportConnection,
   BinaryStreamResponse,
   Container,
   ErrorCode,
-  ExtensionInstallOptions,
+  ExtensionApplication,
   JsonStreamResponse,
   Scope,
   StreamResponse,
   defer,
 } from '@neemata/application'
 import { StreamDataType, encodeText } from '@neemata/common'
-import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'
 import qs from 'qs'
 import uws from 'uWebSockets.js'
-import { HttpTransportClient } from './client'
+import { HttpTransport } from '..'
+import { HttpTransportConnection } from './connection'
 import {
   Headers,
   HttpTransportApplicationContext,
-  HttpTransportClientContext,
   HttpTransportData,
   HttpTransportMethod,
   HttpTransportOptions,
@@ -60,40 +59,77 @@ export const ForbiddenError = (message = 'Forbidden') =>
 export const RequestTimeoutError = (message = 'Request Timeout') =>
   new ApiError(ErrorCode.RequestTimeout, message)
 
-export class HttpTransportServer {
-  protected server: uws.TemplatedApp
-  protected listeningSocket?: uws.us_listen_socket
+export const getRequestData = (
+  req: Req,
+  res: Res,
+  qsOptions?: qs.IParseOptions
+) => {
+  const method = req.getMethod()
+  const url = getRequestUrl(req)
+  const query = qs.parse(req.getQuery(), qsOptions)
+  const headers = getRequestHeaders(req)
+  const proxyRemoteAddress = Buffer.from(
+    res.getProxiedRemoteAddressAsText()
+  ).toString()
+  const remoteAddress = Buffer.from(res.getRemoteAddressAsText()).toString()
 
-  clients = new Map<string, BaseTransportClient>()
+  return { method, url, query, headers, proxyRemoteAddress, remoteAddress }
+}
+
+export const setCors = (res: Res, headers: Headers) => {
+  // TODO: configurable cors
+  const origin = headers['origin']
+  if (origin) res.writeHeader(CORS_ORIGIN_HEADER, origin)
+}
+
+export const handleDefaultHeaders = (req: Req, res: Res) => {
+  const headers = getRequestHeaders(req)
+  setDefaultHeaders(res)
+  setCors(res, headers)
+}
+
+export const getRequestHeaders = (req: Req) => {
+  const headers = {}
+  req.forEach((key, value) => (headers[key] = value))
+  return headers
+}
+
+export const setDefaultHeaders = (res: Res) => {
+  for (const [key, value] of Object.entries(HEADERS))
+    res.writeHeader(key, value)
+}
+
+export const getRequestUrl = (req: Req) => {
+  return new URL(req.getUrl(), 'http://' + (req.getHeader('host') || 'unknown'))
+}
+
+export abstract class BaseHttpTransportServer {
+  protected server!: uws.TemplatedApp
+  protected socket?: uws.us_listen_socket
 
   constructor(
-    protected readonly options: HttpTransportOptions,
-    protected readonly application: ExtensionInstallOptions<
-      HttpTransportProcedureOptions,
-      HttpTransportApplicationContext
-    >
+    protected options: HttpTransportOptions,
+    protected application: ExtensionApplication
   ) {
     this.server = options.ssl ? uws.SSLApp(options.ssl) : uws.App()
 
     this.server.get(this.basePath('health'), (res, req) => {
-      if (!this.listeningSocket) return void res.close()
-      this.handleDefaultHeaders(req, res)
+      if (!this.socket) return void res.close()
+      handleDefaultHeaders(req, res)
       res.end('OK')
     })
 
     this.server.any('/*', (res, req) => {
-      if (!this.listeningSocket) return void res.close()
-      this.handleDefaultHeaders(req, res)
+      if (!this.socket) return void res.close()
+      handleDefaultHeaders(req, res)
       res.writeStatus('404 Not Found')
-      res.end('Not Found')
+      res.endWithoutBody()
     })
-
-    this.bindHandlers()
   }
 
   async start() {
     const { hostname = '0.0.0.0', port, ssl } = this.options
-    this.listeningSocket = await new Promise((r) => {
+    this.socket = await new Promise((r) => {
       // TODO: incorrect behavior when using unix sockets
       if (hostname.startsWith('unix:')) {
         this.server.listen_unix(r, resolve(hostname.slice(5)))
@@ -112,11 +148,7 @@ export class HttpTransportServer {
 
   async stop() {
     this.server.close()
-    this.listeningSocket = undefined
-  }
-
-  protected get logger() {
-    return this.application.logger
+    this.socket = undefined
   }
 
   protected get api() {
@@ -127,12 +159,60 @@ export class HttpTransportServer {
     return this.application.container
   }
 
-  protected bindHandlers() {
+  protected get logger() {
+    return this.application.logger
+  }
+
+  protected basePath(...parts: string[]) {
+    return '/' + parts.join('/')
+  }
+
+  protected async getConnectionData(transportData: any) {
+    return this.application.api.getConnectionData(transportData)
+  }
+
+  protected handleContainerDisposal(container: Container) {
+    return defer(() =>
+      container.dispose().catch((cause) => {
+        const message = 'Error while container disposal (potential memory leak)'
+        const error = new Error(message, { cause })
+        this.logger.error(error)
+      })
+    )
+  }
+
+  protected async handleRPC(
+    connection: BaseTransportConnection,
+    name: string,
+    container: Container,
+    payload: any
+  ) {
+    this.logger.debug('Calling [%s] procedure...', name)
+    const procedure = await this.application.api.find(name)
+    return this.application.api.call({
+      connection,
+      name,
+      procedure,
+      payload,
+      container,
+    })
+  }
+}
+
+export class HttpTransportServer extends BaseHttpTransportServer {
+  constructor(
+    protected readonly transport: HttpTransport,
+    application: ExtensionApplication<
+      HttpTransportProcedureOptions,
+      HttpTransportApplicationContext
+    >
+  ) {
+    super(transport.options, application)
     this.server.post(this.basePath('api', '*'), this.handleRequest.bind(this))
-    // this.server.get(this.basePath('api', '*'), this.handleRequest.bind(this))
+    this.server.get(this.basePath('api', '*'), this.handleRequest.bind(this))
     this.server.options(this.basePath('*'), (res, req) => {
-      if (!this.listeningSocket) return void res.close()
-      this.handleDefaultHeaders(req, res)
+      if (!this.socket) return void res.close()
+      handleDefaultHeaders(req, res)
       if (
         req.getUrl().startsWith(this.basePath('api')) &&
         req.getMethod() === HttpTransportMethod.Post
@@ -143,124 +223,74 @@ export class HttpTransportServer {
     })
   }
 
-  protected basePath(...parts: string[]) {
-    return '/' + parts.join('/')
-  }
-
-  protected setCors(res: Res, headers: Headers) {
-    //TODO: configurable cors
-    const origin = headers['origin']
-    if (origin) res.writeHeader(CORS_ORIGIN_HEADER, origin)
-  }
-
-  protected async handleRPC(
-    client: BaseTransportClient,
-    name: string,
-    container: Container,
-    payload: any
-  ) {
-    this.logger.debug('Calling [%s] procedure...', name)
-    const procedure = await this.application.api.find(name)
-    return this.application.api.call({
-      client,
-      name,
-      procedure,
-      payload,
-      container,
-    })
-  }
-
-  protected handleDispose(container: Container) {
-    return defer(() =>
-      container.dispose().catch((cause) => {
-        const message = 'Error while container disposal (potential memory leak)'
-        const error = new Error(message, { cause })
-        this.logger.error(error)
-      })
-    )
-  }
-
   protected async handleRequest(res: Res, req: Req) {
-    if (!this.listeningSocket) return void res.close()
+    if (!this.socket) return void res.close()
 
     let isAborted = false
     res.onAborted(() => (isAborted = true))
     const tryRespond = (cb) => !isAborted && res.cork(cb)
 
     const { headers, method, proxyRemoteAddress, query, remoteAddress, url } =
-      this.getRequestData(req, res)
+      getRequestData(req, res, this.transport.options.qsOptions)
 
     const procedureName = url.pathname.substring(this.basePath('api/').length)
-    const resHeaders = new Map<string, string>()
-    const setResponseHeader = (name: string, value: string) =>
-      resHeaders.set(name, value)
+    const resHeaders = new Headers()
 
     const transportData: HttpTransportData = {
+      transport: 'http',
       headers,
       query,
       proxyRemoteAddress,
       remoteAddress,
       method: method as HttpTransportMethod,
     }
-
-    const clientContext: HttpTransportClientContext = {
-      id: randomUUID(),
-      setResponseHeader,
-      ...transportData,
-    }
-
+    const container = this.application.container.createScope(Scope.Call)
     try {
       const body = await this.handleBody(req, res, method, query)
-      const container = this.application.container.createScope(Scope.Call)
-      const clientData = await this.getClientData(clientContext)
-      const client = new HttpTransportClient(clientContext, clientData)
-      this.clients.set(client.id, client)
+
+      const connectionData = await this.getConnectionData(transportData)
+      const connection = new HttpTransportConnection(
+        transportData,
+        connectionData
+      )
+
+      // TODO: is there any reason to keep connection for http/1 transport?
+      // It doesn't support streams and bidi communication anyway,
+      // so any of usefull stuff is not available
+      // this.transport.addConnection(connection)
+
       const response = await this.handleRPC(
-        client,
+        connection,
         procedureName,
         container,
         body
       )
       const isStream = response instanceof StreamResponse
       tryRespond(() => {
-        this.setCors(res, headers)
-        this.setDefaultHeaders(res)
+        setCors(res, headers)
+        setDefaultHeaders(res)
         for (const [name, value] of resHeaders) res.writeHeader(name, value)
-        if (isStream) this.handleHttpStreamResponse(req, res, headers, response)
-        else this.handleHttpResponse(req, res, headers, { response })
+        if (isStream) this.handleStreamResponse(req, res, headers, response)
+        else this.handleResponse(req, res, headers, { response })
       })
-      this.handleDispose(container)
     } catch (error) {
       tryRespond(() => {
-        this.setDefaultHeaders(res)
-        this.setCors(res, headers)
+        setDefaultHeaders(res)
+        setCors(res, headers)
         res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
         if (error instanceof ApiError) {
-          this.handleHttpResponse(req, res, headers, { error })
+          this.handleResponse(req, res, headers, { error })
         } else {
           this.logger.error(new Error('Unexpected error', { cause: error }))
-          res.writeStatus('500 Internal Transport Error')
-          this.handleHttpResponse(req, res, headers, { error: InternalError() })
+          res.writeStatus('500 Internal Server Error')
+          this.handleResponse(req, res, headers, {
+            error: InternalError(),
+          })
         }
       })
+    } finally {
+      this.handleContainerDisposal(container)
     }
-  }
-
-  protected getRequestData(req: Req, res: Res) {
-    const method = req.getMethod()
-    const url = this.getRequestUrl(req)
-    const query = qs.parse(req.getQuery(), this.options.qsOptions)
-    const headers = this.getRequestHeaders(req)
-    const proxyRemoteAddress = Buffer.from(
-      res.getProxiedRemoteAddressAsText()
-    ).toString()
-    const remoteAddress = Buffer.from(res.getRemoteAddressAsText()).toString()
-
-    return { method, url, query, headers, proxyRemoteAddress, remoteAddress }
-  }
-
-  protected async getClientData(transportData: any) {
-    return this.application.api.getClientData(transportData)
   }
 
   protected async handleBody(req: Req, res: Res, method: string, query: any) {
@@ -280,7 +310,7 @@ export class HttpTransportServer {
     }
   }
 
-  protected handleHttpResponse(
+  protected async handleResponse(
     req: Req,
     res: Res,
     headers: Headers,
@@ -290,7 +320,7 @@ export class HttpTransportServer {
     res.end(toJSON(data))
   }
 
-  protected handleHttpStreamResponse(
+  protected handleStreamResponse(
     req: Req,
     res: Res,
     headers: Headers,
@@ -304,6 +334,7 @@ export class HttpTransportServer {
     res.onAborted(() => {
       isAborted = true
       stream.destroy(new Error('Aborted by client'))
+      resolve()
     })
     stream.on('error', () => tryRespond(() => res.close()))
     stream.on('end', () =>
@@ -313,6 +344,7 @@ export class HttpTransportServer {
         } else {
           res.end()
         }
+        resolve()
       })
     )
     stream.on('data', (chunk) => {
@@ -349,55 +381,25 @@ export class HttpTransportServer {
     )
     res.writeHeader(STREAM_DATA_TYPE_HEADER, streamType)
     if (stream instanceof JsonStreamResponse) {
-      tryRespond(() => {
-        // wrap all data into array, so any client
-        // can consume it as json array
-        if (!isProtocolSupported) {
-          res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
-          res.write(encodeText('['))
-        } else {
-          res.writeHeader(CONTENT_TYPE_HEADER, 'application/octet-stream')
-        }
+      if (!isProtocolSupported) {
+        res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
+        res.write(encodeText('['))
+      } else {
+        res.writeHeader(CONTENT_TYPE_HEADER, 'application/octet-stream')
+      }
 
-        res.write(toJSON(stream.payload) + '\n')
-      })
+      res.write(toJSON(stream.payload) + '\n')
     } else if (stream instanceof BinaryStreamResponse) {
-      res.writeHeader(
-        CONTENT_TYPE_HEADER,
-        isProtocolSupported ? 'application/octet-stream' : stream.type
-      )
       if (isProtocolSupported) {
-        tryRespond(() => {
-          const payload = encodeText(toJSON(stream.payload)!)
-          res.writeHeader(STREAM_PAYLOAD_LENGTH_HEADER, `${payload.byteLength}`)
-          res.write(payload)
-        })
+        const payload = encodeText(toJSON(stream.payload)!)
+        res.writeHeader(
+          CONTENT_TYPE_HEADER,
+          isProtocolSupported ? 'application/octet-stream' : stream.type
+        )
+        res.writeHeader(STREAM_PAYLOAD_LENGTH_HEADER, `${payload.byteLength}`)
+        res.write(payload)
       }
     }
-  }
-
-  protected handleDefaultHeaders(req: Req, res: Res) {
-    const headers = this.getRequestHeaders(req)
-    this.setDefaultHeaders(res)
-    this.setCors(res, headers)
-  }
-
-  protected getRequestHeaders(req: Req) {
-    const headers = {}
-    req.forEach((key, value) => (headers[key] = value))
-    return headers
-  }
-
-  protected setDefaultHeaders(res: Res) {
-    for (const [key, value] of Object.entries(HEADERS))
-      res.writeHeader(key, value)
-  }
-
-  protected getRequestUrl(req: Req) {
-    return new URL(
-      req.getUrl(),
-      'http://' + (req.getHeader('host') || 'unknown')
-    )
   }
 }
 

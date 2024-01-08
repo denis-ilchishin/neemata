@@ -18,17 +18,13 @@ export type HttpTransportOptions = {
 export type HttpTransportProcedureOptions = {}
 
 export type HttpTransportData = {
+  transport: 'http'
   headers: Record<string, string>
   query: any
   proxyRemoteAddress: string
   remoteAddress: string
   method: HttpTransportMethod
 }
-
-export type HttpTransportClientContext = {
-  id: string
-  setResponseHeader: (key: string, value: string) => any
-} & HttpTransportData
 
 export type HttpTransportApplicationContext = {}
 

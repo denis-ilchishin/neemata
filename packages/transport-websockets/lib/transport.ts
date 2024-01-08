@@ -1,6 +1,4 @@
 import { BaseTransport } from '@neemata/application'
-import { HttpTransportClient, HttpTransportData } from '@neemata/transport-http'
-import { WebsocketsTransportClient } from './client'
 import { WebsocketsTransportServer } from './server'
 import {
   WebsocketsTransportApplicationContext,
@@ -10,16 +8,11 @@ import {
 } from './types'
 
 export class WebsocketsTransport<
-  Options extends WebsocketsTransportOptions
+  Options extends WebsocketsTransportOptions = WebsocketsTransportOptions
 > extends BaseTransport<
   WebsocketsTransportProcedureOptions,
   WebsocketsTransportApplicationContext,
-  Options['http'] extends true
-    ? WebsocketsTransportClient | HttpTransportClient
-    : WebsocketsTransportClient,
-  Options['http'] extends true
-    ? WebsocketsTransportData | HttpTransportData
-    : WebsocketsTransportData
+  WebsocketsTransportData
 > {
   name = 'Websockets Transport'
   server!: WebsocketsTransportServer
@@ -29,7 +22,7 @@ export class WebsocketsTransport<
   }
 
   initialize() {
-    this.server = new WebsocketsTransportServer(this.options, this.application)
+    this.server = new WebsocketsTransportServer(this, this.application)
   }
 
   async start() {

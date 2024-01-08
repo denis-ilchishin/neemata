@@ -88,11 +88,12 @@ export async function resolve(specifier, context, nextResolve) {
     }
 
     if (customUrl) {
+      const { url } = await nextResolve(`${customUrl}`, context)
       return {
         shortCircuit: true,
         format: 'module',
         importAttributes: context.importAttributes,
-        url: customUrl.toString(),
+        url: url.toString(),
       }
     }
   }

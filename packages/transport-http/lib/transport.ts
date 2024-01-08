@@ -1,5 +1,4 @@
 import { BaseTransport } from '@neemata/application'
-import { HttpTransportClient } from './client'
 import { HttpTransportServer } from './server'
 import {
   HttpTransportApplicationContext,
@@ -11,11 +10,9 @@ import {
 export class HttpTransport extends BaseTransport<
   HttpTransportProcedureOptions,
   HttpTransportApplicationContext,
-  HttpTransportClient,
   HttpTransportData
 > {
   name = 'HTTP Transport'
-
   server!: HttpTransportServer
 
   constructor(readonly options: HttpTransportOptions) {
@@ -23,7 +20,7 @@ export class HttpTransport extends BaseTransport<
   }
 
   initialize() {
-    this.server = new HttpTransportServer(this.options, this.application)
+    this.server = new HttpTransportServer(this, this.application)
   }
 
   async start() {

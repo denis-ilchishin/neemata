@@ -54,12 +54,16 @@ export function isLib(val) {
 }
 
 export async function resolve(specifier, context, nextResolve) {
-  if (!isLib(specifier)) {
-    const url = fileUrl(specifier, context.parentURL)
+  const resolved = await nextResolve(`${specifier}`, context)
+  if (!isLib(resolved.url)) {
+    const url = fileUrl(resolved.url, context.parentURL)
     url.searchParams.set('t', `${tsmp}`)
-    specifier = `${url}`
+    return {
+      ...resolved,
+      url: `${url}`,
+    }
   }
-  return nextResolve(specifier, context)
+  return resolved
 }
 
 export async function load(specifier, context, nextLoad) {
@@ -73,5 +77,5 @@ export async function load(specifier, context, nextLoad) {
       watchers.set(pathToWatch, watcher)
     }
   }
-  return nextLoad(specifier, context)
+  return nextLoad(`${specifier}`, context)
 }

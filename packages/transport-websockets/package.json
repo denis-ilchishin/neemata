@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@neemata/common": "workspace:*",
-    "@neemata/application": "workspace:*"
+    "@neemata/application": "workspace:*",
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.38.0"
   }
 }

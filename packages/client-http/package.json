@@ -24,7 +24,10 @@
       }
     }
   },
-  "dependencies": {
+  "devDependencies": {
+    "@neemata/common": "workspace:*"
+  },
+  "peerDependencies": {
     "@neemata/common": "workspace:*"
   }
 }

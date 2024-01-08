@@ -20,15 +20,15 @@
   "engines": {
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
+  "dependencies": {
+    "@neemata/transport-http": "workspace:*"
+  },
   "peerDependencies": {
     "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*",
-    "@neemata/transport-http": "workspace:*"
+    "@neemata/common": "workspace:*"
   },
   "devDependencies": {
     "@neemata/common": "workspace:*",
-    "@neemata/application": "workspace:*",
-    "@neemata/transport-http": "workspace:*",
-    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"
+    "@neemata/application": "workspace:*"
   }
 }

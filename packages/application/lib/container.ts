@@ -36,7 +36,9 @@ export type Dependencies<DependencyScope extends Scope = Scope> = Record<
   >
 >
 
-export type ResolvedDependencyInjection<T extends Provider> = Awaited<T['type']>
+export type ResolvedDependencyInjection<T extends Provider> = Awaited<
+  T['value']
+>
 
 export interface Depender<Deps extends Dependencies> {
   dependencies: Deps
@@ -45,12 +47,11 @@ export interface Depender<Deps extends Dependencies> {
 export type DependencyContext<
   Context extends Extra,
   Deps extends Dependencies
-> = GlobalContext &
-  Context & {
-    injections: {
-      [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
-    }
-  }
+> = {
+  app: GlobalContext & Context
+} & {
+  [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
+}
 
 export type ProviderFactoryType<
   App extends AnyApplication,
@@ -59,16 +60,17 @@ export type ProviderFactoryType<
   ProviderScope extends Scope,
   ProviderType = any
 > = (
-  ctx: DependencyContext<App['_']['context'], ProviderDeps> &
-    (ProviderScope extends Exclude<Scope, Scope.Global | Scope.Transient>
-      ? {
-          client: App['_']['client']
-        }
-      : ProviderScope extends Scope.Transient
-      ? {
-          client?: App['_']['client']
-        }
-      : {}),
+  ctx: DependencyContext<
+    App['_']['context'] &
+      (ProviderScope extends Exclude<Scope, Scope.Global>
+        ? {
+            connection: ProviderScope extends Scope.Transient
+              ? App['_']['connection'] | undefined
+              : App['_']['connection']
+          }
+        : {}),
+    ProviderDeps
+  >,
   options: ProviderOptions
 ) => ProviderType
 
@@ -84,10 +86,10 @@ export type ProviderDisposeType<
 ) => any
 
 export class Provider<
-  ProviderType = any,
+  ProviderValue = any,
   App extends AnyApplication = AnyApplication,
   ProviderOptions extends any = unknown,
-  ProviderDeps extends Dependencies = Dependencies,
+  ProviderDeps extends Dependencies = {},
   ProviderScope extends Scope = Scope,
   ProviderFactory extends ProviderFactoryType<
     App,
@@ -96,36 +98,45 @@ export class Provider<
     ProviderScope
   > = ProviderFactoryType<App, ProviderOptions, ProviderDeps, ProviderScope>,
   ProviderDispose extends ProviderDisposeType<
-    ProviderType,
+    ProviderValue,
     App,
     ProviderOptions,
     ProviderDeps
-  > = ProviderDisposeType<ProviderType, App, ProviderOptions, ProviderDeps>
+  > = ProviderDisposeType<ProviderValue, App, ProviderOptions, ProviderDeps>
 > implements Depender<ProviderDeps>
 {
-  readonly type!: ProviderType
+  static override<T extends Provider<any, any, any, any, any, any, any>>(
+    newProvider: T,
+    original: any,
+    overrides: { [K in keyof Provider]?: any } = {}
+  ): T {
+    Object.assign(newProvider, original, overrides)
+    return newProvider
+  }
+
+  readonly value!: ProviderValue
   readonly dependencies: ProviderDeps = {} as ProviderDeps
   readonly scope: ProviderScope = Scope.Global as ProviderScope
   readonly factory!: ProviderFactory
   readonly dispose!: ProviderDispose
   readonly options!: ProviderOptions
+  readonly description!: string
 
   withDependencies<Deps extends Dependencies>(dependencies: Deps) {
     const provider = new Provider<
-      ProviderType,
+      ProviderValue,
       App,
       ProviderOptions,
       Deps,
       ProviderScope,
       ProviderFactoryType<App, ProviderOptions, Deps, ProviderScope>
     >()
-    Object.assign(provider, this, { dependencies })
-    return provider
+    return Provider.override(provider, this, { dependencies })
   }
 
   withScope<S extends Scope>(scope: S) {
     const provider = new Provider<
-      ProviderType,
+      ProviderValue,
       App,
       ProviderOptions,
       ProviderDeps,
@@ -133,22 +144,20 @@ export class Provider<
       ProviderFactoryType<App, ProviderOptions, ProviderDeps, S>,
       ProviderDispose
     >()
-    Object.assign(provider, this, { scope })
-    return provider
+    return Provider.override(provider, this, { scope })
   }
 
   withOptionsType<Options>() {
     const provider = new Provider<
-      ProviderType,
+      ProviderValue,
       App,
       Options,
       ProviderDeps,
       ProviderScope,
       ProviderFactoryType<App, Options, ProviderDeps, ProviderScope>,
-      ProviderDisposeType<ProviderType, App, Options, ProviderDeps>
+      ProviderDisposeType<ProviderValue, App, Options, ProviderDeps>
     >()
-    Object.assign(provider, this)
-    return provider
+    return Provider.override(provider, this)
   }
 
   withFactory<
@@ -157,7 +166,7 @@ export class Provider<
       ProviderOptions,
       ProviderDeps,
       ProviderScope,
-      ProviderType extends never ? unknown : ProviderType
+      ProviderValue extends never ? any : ProviderValue
     >,
     T extends Awaited<ReturnType<F>>
   >(factory: F) {
@@ -170,13 +179,31 @@ export class Provider<
       F,
       ProviderDisposeType<T, App, ProviderOptions, ProviderDeps>
     >()
-    Object.assign(provider, this, { factory })
-    return provider
+    return Provider.override(provider, this, { factory, value: undefined })
+  }
+
+  withValue<T extends ProviderValue extends never ? any : ProviderValue>(
+    value: T
+  ) {
+    const provider = new Provider<
+      T,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      ProviderScope,
+      never,
+      never
+    >()
+    return Provider.override(provider, this, {
+      value,
+      factory: undefined,
+      dispose: undefined,
+    })
   }
 
   withDisposal(dispose: ProviderDispose) {
     const provider = new Provider<
-      ProviderType,
+      ProviderValue,
       App,
       ProviderOptions,
       ProviderDeps,
@@ -184,13 +211,12 @@ export class Provider<
       ProviderFactory,
       ProviderDispose
     >()
-    Object.assign(provider, this, { dispose })
-    return provider
+    return Provider.override(provider, this, { dispose })
   }
 
   withOptions(options: ProviderOptions) {
     const provider = new Provider<
-      ProviderType,
+      ProviderValue,
       App,
       ProviderOptions,
       ProviderDeps,
@@ -198,8 +224,20 @@ export class Provider<
       ProviderFactory,
       ProviderDispose
     >()
-    Object.assign(provider, this, { options, scope: Scope.Transient })
-    return provider
+    return Provider.override(provider, this, { options })
+  }
+
+  withDescpription(description: string) {
+    const provider = new Provider<
+      ProviderValue,
+      App,
+      ProviderOptions,
+      ProviderDeps,
+      ProviderScope,
+      ProviderFactory,
+      ProviderDispose
+    >()
+    return Provider.override(provider, this, { description })
   }
 }
 
@@ -281,46 +319,49 @@ export class Container {
   }
 
   async resolve<T extends Provider>(
-    value: T
+    provider: T,
+    ...extra: Extra[]
   ): Promise<ResolvedDependencyInjection<T>> {
-    const { factory, scope, dependencies, options } = value
-
-    if (this.instances.has(value)) {
-      return this.instances.get(value)
-    } else if (this.resolvers.has(value)) {
-      return this.resolvers.get(value)
+    if (this.instances.has(provider)) {
+      return this.instances.get(provider)
+    } else if (this.resolvers.has(provider)) {
+      return this.resolvers.get(provider)
     } else {
+      const { value, factory, scope, dependencies, options } = provider
+      if (typeof value !== 'undefined') return value
       const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
-      if (this.parent && isStricter && this.parent.isResolved(value))
-        return this.parent.resolve(value)
-      const resolution = this.createContext(dependencies)
+      if (this.parent && isStricter && this.parent.isResolved(provider))
+        return this.parent.resolve(provider)
+      const resolution = this.createContext(dependencies, ...extra)
         .then((ctx) => factory(merge(this.params, ctx), options))
         .then((instance) => {
-          if (scope === this.scope) this.instances.set(value, instance)
-          if (scope !== Scope.Transient) this.resolvers.delete(value)
+          if (scope === this.scope) this.instances.set(provider, instance)
+          if (scope !== Scope.Transient) this.resolvers.delete(provider)
           return instance
         })
-      if (scope !== Scope.Transient) this.resolvers.set(value, resolution)
+      if (scope !== Scope.Transient) this.resolvers.set(provider, resolution)
       return resolution as any
     }
   }
 
-  private async resolveDependecies(dependencies: Dependencies) {
+  private async resolveDependecies(
+    dependencies: Dependencies,
+    ...extra: Extra[]
+  ) {
     const injections: any = {}
     if (!dependencies) return injections
     const resolvers: Promise<any>[] = []
     for (const [key, dependency] of Object.entries(dependencies)) {
-      const resolver = this.resolve(dependency)
-      resolver.then((value) => (injections[key] = value))
-      resolvers.push(resolver)
+      const resolver = this.resolve(dependency, ...extra)
+      resolvers.push(resolver.then((value) => (injections[key] = value)))
     }
     await Promise.all(resolvers)
-    return Object.freeze(injections)
+    return injections
   }
 
   async createContext(dependencies: Dependencies, ...extra: Extra[]) {
-    const injections = await this.resolveDependecies(dependencies)
-    const context = merge(this.application.context, ...extra, { injections })
-    return Object.freeze(context)
+    const injections = await this.resolveDependecies(dependencies, ...extra)
+    const context = { app: merge(this.application.context, ...extra) }
+    return Object.freeze(merge(context, injections))
   }
 }

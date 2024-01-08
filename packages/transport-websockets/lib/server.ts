@@ -1,6 +1,6 @@
 import {
   ApiError,
-  ExtensionInstallOptions,
+  ExtensionApplication,
   JsonStreamResponse,
   Scope,
   Stream,
@@ -8,6 +8,7 @@ import {
 } from '@neemata/application'
 import {
   AbortStreamError,
+  ErrorCode,
   STREAM_SERIALIZE_KEY,
   StreamDataType,
   concat,
@@ -17,79 +18,72 @@ import {
   encodeText,
 } from '@neemata/common'
 import {
-  HttpTransportClient,
-  HttpTransportServer,
+  BaseHttpTransportServer,
   InternalError,
   fromJSON,
+  getRequestData,
   toJSON,
 } from '@neemata/transport-http'
 import { randomUUID } from 'node:crypto'
-import { WebsocketsTransportClient } from './client'
 import { MessageType } from './common'
+import { WebsocketsTransportConnection } from './connection'
+import { WebsocketsTransport } from './transport'
 import {
   WebSocket,
   WebSocketUserData,
   WebsocketsTransportApplicationContext,
-  WebsocketsTransportClientContext,
   WebsocketsTransportData,
-  WebsocketsTransportOptions,
   WebsocketsTransportProcedureOptions,
 } from './types'
 
-export class WebsocketsTransportServer extends HttpTransportServer {
+export class WebsocketsTransportServer extends BaseHttpTransportServer {
   sockets = new Set<WebSocket>()
-  clients = new Map<string, WebsocketsTransportClient | HttpTransportClient>()
 
   constructor(
-    protected readonly options: WebsocketsTransportOptions,
-    protected readonly application: ExtensionInstallOptions<
+    protected readonly transport: WebsocketsTransport,
+    protected readonly application: ExtensionApplication<
       WebsocketsTransportProcedureOptions,
       WebsocketsTransportApplicationContext
     >
   ) {
-    super(options, application)
-  }
-
-  protected bindHandlers(): void {
-    if (this.options.http) super.bindHandlers()
+    super(transport.options, application)
 
     this.server.ws(this.basePath('api'), {
-      maxPayloadLength: this.options.maxPayloadLength,
+      maxPayloadLength: this.transport.options.maxPayloadLength,
       sendPingsAutomatically: true,
       upgrade: async (res, req, socket) => {
         if (!socket) return void res.close()
         let isAborted = false
         res.onAborted(() => (isAborted = true))
         const { headers, proxyRemoteAddress, query, remoteAddress } =
-          this.getRequestData(req, res)
-
-        const streams = {
-          up: new Map(),
-          down: new Map(),
-          streamId: 0,
-        }
+          getRequestData(req, res, this.transport.options.qsOptions)
         const transportData: WebsocketsTransportData = {
+          transport: 'websockets',
           headers,
           query,
           proxyRemoteAddress,
           remoteAddress,
         }
-        const context: Omit<WebsocketsTransportClientContext, 'websocket'> = {
-          id: randomUUID(),
-          ...transportData,
-        }
 
         const container = this.container.createScope(Scope.Connection)
 
-        const wsData: WebSocketUserData = {
-          id: randomUUID(),
-          streams,
-          container,
-          context,
-        }
-
         try {
+          const connectionData = await this.getConnectionData(transportData)
+          const streams = {
+            up: new Map(),
+            down: new Map(),
+            streamId: 0,
+          }
+          const wsData: WebSocketUserData = {
+            id: randomUUID(),
+            streams,
+            container,
+            connectionData,
+            transportData,
+          }
+
           if (isAborted) throw new Error('Aborted')
+
           res.cork(() => {
             res.upgrade(
               wsData,
@@ -99,19 +93,34 @@ export class WebsocketsTransportServer extends HttpTransportServer {
               socket
             )
           })
-        } catch (error) {
-          res.close()
-          this.handleDispose(container)
+        } catch (error: any) {
+          this.handleContainerDisposal(container)
+          if (error.message === 'Aborted') return void res.close()
+          res.cork(() => {
+            if (
+              error instanceof ApiError &&
+              error.code === ErrorCode.Unauthorized
+            ) {
+              res.writeStatus('401 Unauthorized').end()
+            } else {
+              res.writeStatus('500 Internal Server Error').end()
+              this.logger.error(error)
+            }
+          })
         }
       },
       open: async (ws: WebSocket) => {
         this.sockets.add(ws)
-        const { id, context } = ws.getUserData()
+        const { id, connectionData, transportData } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
         try {
-          const clientData = await this.getClientData(context)
-          const client = new WebsocketsTransportClient(id, clientData, ws)
-          this.clients.set(id, client)
+          const connection = new WebsocketsTransportConnection(
+            transportData,
+            connectionData,
+            ws,
+            id
+          )
+          this.transport.addConnection(connection)
         } catch (error) {
           ws.close()
         }
@@ -129,12 +138,12 @@ export class WebsocketsTransportServer extends HttpTransportServer {
       close: async (ws, code, message) => {
         const { id, container, streams } = ws.getUserData()
         this.sockets.delete(ws)
-        this.clients.delete(id)
-        streams.up.forEach((stream) => stream.destroy())
-        streams.down.forEach((stream) => stream.destroy())
+        this.transport.removeConnection(id)
+        for (const [_, stream] of streams.up) stream.destroy()
+        for (const [_, stream] of streams.down) stream.destroy()
         streams.up.clear()
         streams.down.clear()
-        this.handleDispose(container)
+        this.handleContainerDisposal(container)
       },
     })
   }
@@ -143,8 +152,8 @@ export class WebsocketsTransportServer extends HttpTransportServer {
     // TODO: refactor this mess
 
     const data = ws.getUserData()
-    const client = this.clients.get(data.id)
-    if (!client) return void ws.close()
+    const connection = this.transport.getConnection(data.id)
+    if (!connection) return void ws.close()
 
     const streamDataLength = decodeNumber(payloadBuf, 'Uint32')
     const streams = fromJSON(
@@ -166,7 +175,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
         id,
         metadata,
         read,
-        this.options.maxStreamChunkLength
+        this.transport.options.maxStreamChunkLength
       )
       data.streams.up.set(id, stream)
       stream.on('error', (cause) =>
@@ -194,7 +203,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
     const container = data.container.createScope(Scope.Call)
     try {
       const response = await this.handleRPC(
-        client,
+        connection,
         procedure,
         container,
         payload
@@ -248,7 +257,7 @@ export class WebsocketsTransportServer extends HttpTransportServer {
         sendPayload(ws, MessageType.Rpc, [callId, null, InternalError()])
       }
     } finally {
-      this.handleDispose(container)
+      this.handleContainerDisposal(container)
     }
   }
 

@@ -2,7 +2,7 @@ import {
   AnyApplication,
   BaseExtension,
   Hook,
-  InferSchema,
+  InferSchemaOutput,
   Procedure,
   StreamResponse,
 } from '@neemata/application'
@@ -58,12 +58,12 @@ export type ResolveProcedures<Procedures extends Record<string, any>> = {
     ? K
     : never]: Procedures[K] extends Procedure
     ? {
-        input: ResolveApiInput<InferSchema<Procedures[K]['_']['input']>>
+        input: ResolveApiInput<InferSchemaOutput<Procedures[K]['_']['input']>>
         output: ResolveApiOutput<
           Awaited<
             null extends Procedures[K]['_']['output']
               ? ReturnType<Procedures[K]['handler']>
-              : InferSchema<Procedures[K]['_']['output']>
+              : InferSchemaOutput<Procedures[K]['_']['output']>
           >
         >
       }

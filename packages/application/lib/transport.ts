@@ -1,51 +1,58 @@
 import { randomUUID } from 'node:crypto'
 
+import { BaseExtension } from '..'
 import { Event } from './events'
-import { ExtensionInstallOptions, ExtensionInterface, Extra } from './types'
+import { Extra } from './types'
 
+export interface BaseTransportData {
+  transport: string
+}
 export abstract class BaseTransport<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {},
-  Client extends BaseTransportClient = BaseTransportClient,
-  TransportData = unknown
-> implements ExtensionInterface<ProcedureOptions, Context>
-{
-  readonly application!: ExtensionInstallOptions<ProcedureOptions, Context>
-  readonly _!: {
-    options: ProcedureOptions
-    context: Context
-    client: Client
-    transportData: TransportData
-  }
-
-  context?(): Context
-
-  abstract name: string
+  TransportData extends BaseTransportData = any
+> extends BaseExtension<
+  ProcedureOptions,
+  Context,
+  { transportData: TransportData }
+> {
   abstract start(): any
   abstract stop(): any
-  abstract initialize?(): any
+
+  addConnection(connection: BaseTransportConnection) {
+    this.application.connections.set(connection.id, connection)
+  }
+
+  removeConnection(
+    connection: BaseTransportConnection | BaseTransportConnection['id']
+  ) {
+    this.application.connections.delete(
+      connection instanceof BaseTransportConnection ? connection.id : connection
+    )
+  }
+
+  hasConnection(connection: BaseTransportConnection) {
+    return this.application.connections.has(connection.id)
+  }
+
+  getConnection(id: BaseTransportConnection['id']) {
+    return this.application.connections.get(id)
+  }
 }
 
-export abstract class BaseTransportClient<
+export abstract class BaseTransportConnection<
   Data = unknown,
+  TransportData = unknown,
   Events extends Record<string, Event> = {}
 > {
-  readonly id: string
-  readonly protocol: string
-  readonly data: Data
+  constructor(
+    readonly transportData: TransportData,
+    readonly data: Data,
+    readonly id: string = randomUUID()
+  ) {}
 
-  constructor(id: string = randomUUID(), data: any, protocol: string) {
-    this.id = id
-    this.data = data
-    this.protocol = protocol
-  }
-
-  send<E extends keyof Events>(
+  abstract send<E extends keyof Events>(
     eventName: E,
     payload: Events[E]['payload']
-  ): boolean {
-    return this._handle(eventName as string, payload)
-  }
-
-  abstract _handle(eventName: string, payload: any): boolean
+  ): boolean
 }

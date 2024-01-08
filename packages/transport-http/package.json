@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "qs": "^6.11.2",
-    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.34.0"
+    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.38.0"
   },
   "peerDependencies": {
     "@neemata/application": "workspace:*",

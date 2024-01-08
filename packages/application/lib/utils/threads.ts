@@ -1,5 +1,6 @@
 import EventEmitter from 'node:events'
 import { ApplicationWorkerOptions } from '../application'
+import { WorkerType } from '../types'
 
 export const bindPortMessageHandler = (port: EventEmitter) => {
   port.on('message', (message) => {
@@ -35,5 +36,10 @@ export const providerWorkerOptions = (opts: ApplicationWorkerOptions) => {
 }
 
 export const injectWorkerOptions = (): ApplicationWorkerOptions => {
-  return globalThis[WORKER_OPTIONS_KEY]
+  return (
+    globalThis[WORKER_OPTIONS_KEY] ?? {
+      id: 0,
+      type: WorkerType.Api,
+    }
+  )
 }

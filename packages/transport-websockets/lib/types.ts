@@ -1,10 +1,14 @@
-import { Container, Stream } from '@neemata/application'
+import {
+  BaseTransportConnection,
+  Container,
+  Stream,
+} from '@neemata/application'
 import { HttpTransportOptions } from '@neemata/transport-http'
 import { Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
 
 export type WebSocketUserData = {
-  id: string
+  id: BaseTransportConnection['id']
   streams: {
     /**
      * Client to server streams
@@ -17,26 +21,21 @@ export type WebSocketUserData = {
     streamId: number
   }
   container: Container
-  context: WebsocketsTransportData
+  connectionData: any
+  transportData: any
 }
 
 export type WebSocket = uws.WebSocket<WebSocketUserData>
 
-export type WebsocketsTransportOptions = HttpTransportOptions & {
-  http?: boolean
-}
+export type WebsocketsTransportOptions = HttpTransportOptions
 
 export type WebsocketsTransportData = {
+  transport: 'websockets'
   headers: Record<string, string>
   query: any
   proxyRemoteAddress: string
   remoteAddress: string
 }
-
-export type WebsocketsTransportClientContext = {
-  id: string
-  websocket: WebSocket
-} & WebsocketsTransportData
 
 export type WebsocketsTransportProcedureOptions = {}
 export type WebsocketsTransportApplicationContext = {}

@@ -11,7 +11,6 @@ export type SchemaExtensionOptions<> = {
   }
   include?: Array<RegExp | string>
   exclude?: Array<RegExp | string>
-  metadata?: (procedure: any) => Record<string, any>
 }
 
 export class SchemaExtension extends BaseExtension {
@@ -38,7 +37,7 @@ export class SchemaExtension extends BaseExtension {
   }
 
   private async jsonSchema() {
-    const { api, container } = this.application
+    const { api } = this.application
     const jsonSchemas = {}
 
     for (const [name, procedure] of api.modules) {
@@ -58,24 +57,17 @@ export class SchemaExtension extends BaseExtension {
         if (matched) continue
       }
 
-      const getJsonSchema = async (type: 'input' | 'output') => {
-        const context = this.application.container.createContext(
-          procedure.dependencies
-        )
-        const schema = await this.application.api.resolveProcedureOption(
-          procedure,
-          type,
-          context
-        )
-        return this.application.api.parsers[type]?.toJsonSchema(schema) ?? {}
+      const getJsonSchema = (type: 'input' | 'output') => {
+        const schema = procedure[type]
+        const { [type]: globalParser } = this.application.api.parsers
+        const { [type]: parser = globalParser } = procedure.parsers
+        return parser?.toJsonSchema(schema) ?? {}
       }
 
-      const [input, output] = await Promise.all([
-        getJsonSchema('input'),
-        getJsonSchema('output'),
-      ])
-      const metadata = this.options.metadata?.(procedure) ?? {}
-      jsonSchemas[name] = { input, output, metadata }
+      const input = getJsonSchema('input')
+      const output = getJsonSchema('output')
+
+      jsonSchemas[name] = { input, output, description: procedure.description }
     }
     return jsonSchemas
   }
@@ -98,24 +90,8 @@ export class SchemaExtension extends BaseExtension {
   private async typescript(schemas: any) {
     const { interfaceName = 'Api' } = this.options.variants?.typescript ?? {}
 
-    const metadataSchema = (metadata: JSONSchema): JSONSchema => {
-      const keys = Object.keys(metadata)
-      const properties = {}
-      for (const key of keys) {
-        const type = typeof metadata
-        const oneOf = [metadata[key]]
-        properties[key] = { type, oneOf }
-      }
-      return {
-        type: 'object',
-        properties,
-        required: keys,
-        additionalProperties: false,
-      }
-    }
-
-    const procedureSchema = (input, output, metadata): JSONSchema => {
-      const required = new Set(['metadata', 'output', 'input'])
+    const procedureSchema = (input, output, description): JSONSchema => {
+      const required = new Set(['output', 'input'])
 
       // "zod-to-json-schema" .optinal() workaround
       const isZodToJsonSchemaOptional = (schema) => {
@@ -138,8 +114,8 @@ export class SchemaExtension extends BaseExtension {
         properties: {
           input,
           output,
-          metadata: metadataSchema(metadata),
         },
+        description,
         required: Array.from(required),
         additionalProperties: false,
       }
@@ -153,11 +129,11 @@ export class SchemaExtension extends BaseExtension {
     }
 
     for (const entry of Object.entries<any>(schemas)) {
-      const [procedure, { input, output, metadata }] = entry
+      const [procedure, { input, output, description }] = entry
       proceduresSchema.properties![procedure] = procedureSchema(
         input,
         output,
-        metadata
+        description
       )
       proceduresSchema.required = [
         ...(proceduresSchema.required as string[]),

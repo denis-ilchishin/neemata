@@ -1,9 +1,9 @@
 import type { Api, Procedure } from './api'
 import { Application } from './application'
-import type { Container, DependencyContext, Provider } from './container'
+import type { Container, Provider } from './container'
 import type { Logger } from './logger'
 import type { Task, TaskInterface } from './tasks'
-import type { BaseTransportClient } from './transport'
+import type { BaseTransportConnection } from './transport'
 
 export enum Scope {
   Global = 'Global',
@@ -46,10 +46,7 @@ export type ErrorClass = new (...args: any[]) => Error
 export type Extra = Record<string, any>
 export type Async<T> = T | Promise<T>
 
-export type Filter<T extends ErrorClass> = (
-  error: InstanceType<T>,
-  ctx: any
-) => Error
+export type Filter<T extends ErrorClass> = (error: InstanceType<T>) => Error
 
 export interface LoaderInterface<T> {
   modules: Map<string, T>
@@ -63,12 +60,19 @@ export type Command = (
   ...args: any[]
 ) => any
 
-export type ClientProviderFn<T = any, C = any> = (transportData: T) => C
+export type ConnectionFn<T = any, C = any> = (transportData: T) => C
 
-export type GuardFn = () => Async<boolean>
+export type GuardOptions<App extends AnyApplication = AnyApplication> = {
+  connection: App['_']['connection']
+  name: string
+}
 
-export type MiddlewareFn = (
-  options: ExtensionMiddlewareOptions,
+export type GuardFn<App extends AnyApplication = AnyApplication> = (
+  options: GuardOptions<App>
+) => Async<boolean>
+
+export type MiddlewareFn<App extends AnyApplication = AnyApplication> = (
+  options: MiddlewareContext<App>,
   next: Next,
   payload: any
 ) => any
@@ -77,19 +81,15 @@ export type Guard = Provider<GuardFn>
 
 export type Middleware = Provider<MiddlewareFn>
 
-export type ClientProvider<T, C> = Provider<ClientProviderFn<T, C>>
+export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
 export type AnyApplication = Application<any, any, any, any, any, any>
 
-export type ExtensionMiddlewareOptions<
-  Options extends Extra = {},
-  Context extends Extra = {}
-> = {
-  client: BaseTransportClient
+export type MiddlewareContext<App extends AnyApplication = AnyApplication> = {
+  connection: App['_']['connection']
   name: string
-  context: DependencyContext<Options, Context>
   container: Container
-  procedure: Procedure<Application, Options, Context>
+  procedure: Procedure
 }
 
 export type Next = (payload?: any) => any
@@ -112,7 +112,7 @@ export type CallHook<T extends string> = (
     : any[]
 ) => Promise<void>
 
-export interface ExtensionInstallOptions<
+export interface ExtensionApplication<
   Options extends Extra = {},
   Context extends Extra = {}
 > {
@@ -120,7 +120,7 @@ export interface ExtensionInstallOptions<
   api: Api
   container: Container
   logger: Logger
-  callHook: CallHook<keyof HooksInterface>
+  connections: Map<BaseTransportConnection['id'], BaseTransportConnection>
   registerHook<T extends string>(
     hookName: T,
     hook: T extends keyof HooksInterface
@@ -140,7 +140,7 @@ export interface ExtensionInterface<
     context: Context
     options: ProcedureOptions
   }
-  application: ExtensionInstallOptions<ProcedureOptions, Context>
+  readonly application: AnyApplication
   context?(): Context
   initialize?(): any
 }
@@ -157,11 +157,14 @@ export type UnionToIntersection<U> = (
   ? I
   : never
 
-export type InferSchema<
-  Input,
-  Schema = Input extends Promise<any> ? Awaited<Input> : Input
-> = Schema extends import('zod').ZodSchema
+export type InferSchemaOutput<Schema> = Schema extends import('zod').ZodSchema
   ? import('zod').TypeOf<Schema>
+  : Schema extends import('@sinclair/typebox').TSchema
+  ? import('@sinclair/typebox').Static<Schema>
+  : unknown
+
+export type InferSchemaInput<Schema> = Schema extends import('zod').ZodSchema
+  ? import('zod').input<Schema>
   : Schema extends import('@sinclair/typebox').TSchema
   ? import('@sinclair/typebox').Static<Schema>
   : unknown

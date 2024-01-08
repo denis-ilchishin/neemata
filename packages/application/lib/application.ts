@@ -1,28 +1,26 @@
-import { merge } from '..'
 import { Api, BaseParser, Procedure } from './api'
 import { Container, Provider } from './container'
 import { Event } from './events'
 import { BaseExtension } from './extension'
 import { Logger, LoggingOptions, createLogger } from './logger'
 import { Task, Tasks, TasksRunner } from './tasks'
-import { BaseTransport, BaseTransportClient } from './transport'
+import { BaseTransport, BaseTransportConnection } from './transport'
 import {
-  CallHook,
-  Callback,
-  ClientProvider,
-  ClientProviderFn,
   Command,
   Commands,
+  ConnectionFn,
+  ConnectionProvider,
   ErrorClass,
-  ExtensionInterface,
   Extra,
   Filter,
   Filters,
   Guard,
+  GuardFn,
   Guards,
   Hook,
   Hooks,
   Middleware,
+  MiddlewareFn,
   Middlewares,
   ResolveExtensionContext,
   ResolveExtensionProcedureOptions,
@@ -60,7 +58,7 @@ export type ApplicationWorkerOptions = {
 export const APP_COMMAND = Symbol('appCommand')
 
 export class Application<
-  AppTransport extends BaseTransport = BaseTransport,
+  AppTransport extends Record<string, BaseTransport> = {},
   AppExtensions extends Record<string, BaseExtension> = {},
   AppProcedureOptions extends Extra = UnionToIntersection<
     ResolveExtensionProcedureOptions<AppExtensions[keyof AppExtensions]>
@@ -70,24 +68,35 @@ export class Application<
     ResolveExtensionContext<AppExtensions[keyof AppExtensions]>
   > &
     ResolveExtensionContext<AppTransport>,
-  AppClientData = unknown,
+  AppConnectionData = unknown,
   AppEvents extends Record<string, Event> = {}
 > {
   readonly _!: {
-    transport: AppTransport
+    transport: AppTransport[keyof AppTransport]
     context: AppContext
     options: AppProcedureOptions
-    clientData: AppClientData
-    client: AppTransport['_']['client'] &
-      BaseTransportClient<AppClientData, AppEvents>
+    transportData: AppTransport[keyof AppTransport]['_']['transportData']
+    connectionData: AppConnectionData
+    connection: BaseTransportConnection<
+      AppConnectionData,
+      AppTransport[keyof AppTransport]['_']['transportData'],
+      AppEvents
+    >
     events: AppEvents
   }
 
+  readonly transports: { transport: BaseTransport; alias: string }[] = []
+  readonly extensions: { extension: BaseExtension; alias: string }[] = []
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
   readonly container: Container
+  readonly events: Record<string, Event> = {}
   readonly context: AppContext = {} as AppContext
+  readonly connections = new Map<
+    this['_']['connection']['id'],
+    this['_']['connection']
+  >()
 
   readonly hooks: Hooks
   readonly commands: Commands
@@ -95,11 +104,7 @@ export class Application<
   readonly middlewares: Middlewares
   readonly guards: Guards
 
-  constructor(
-    readonly options: ApplicationOptions,
-    readonly transport: AppTransport,
-    readonly extensions: AppExtensions = {} as AppExtensions
-  ) {
+  constructor(readonly options: ApplicationOptions) {
     this.logger = createLogger(
       this.options.logging,
       `${this.options.type}Worker`
@@ -116,16 +121,11 @@ export class Application<
     }
 
     this.commands.set(APP_COMMAND, new Map())
-    for (const extension in this.extensions) {
-      this.commands.set(extension, new Map())
-    }
-
     this.api = new Api(this, this.options.api)
     this.tasks = new Tasks(this, this.options.tasks)
 
     this.container = new Container(this, [this.api, this.tasks])
 
-    this.initExtensions()
     this.initCommandsAndHooks()
   }
 
@@ -141,13 +141,21 @@ export class Application<
   async start() {
     await this.initialize()
     await this.callHook(Hook.BeforeStart)
-    if (this.isApiWorker) await this.transport.start()
+    if (this.isApiWorker) {
+      for (const { transport } of this.transports) {
+        await transport.start()
+      }
+    }
     await this.callHook(Hook.AfterStart)
   }
 
   async stop() {
     await this.callHook(Hook.BeforeStop)
-    if (this.isApiWorker) await this.transport.stop()
+    if (this.isApiWorker) {
+      for (const { transport } of this.transports) {
+        await transport.stop()
+      }
+    }
     await this.callHook(Hook.AfterStop)
     await this.terminate()
   }
@@ -169,35 +177,40 @@ export class Application<
     let hooks = this.hooks.get(hookName)
     if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
     hooks.add(hook)
+    return this
   }
 
   registerCommand(name: string | symbol, command: string, callback: Command) {
     this.commands.get(name)?.set(command, callback)
+    return this
   }
 
   registerFilter<T extends ErrorClass>(errorClass: T, filter: Filter<T>) {
     this.filters.set(errorClass, filter)
+    return this
   }
 
   registerMiddleware(middleware: Middleware) {
     this.middlewares.add(middleware)
+    return this
   }
 
   registerGuard(guard: Guard) {
     this.guards.add(guard)
+    return this
   }
 
-  registerClientProvider(
-    provider: ClientProvider<AppTransport['_']['transportData'], AppClientData>
+  registerConnection(
+    connection: ConnectionProvider<
+      this['_']['transport']['_']['transportData'],
+      AppConnectionData
+    >
   ) {
-    this.api.clientProvider = provider
+    this.api.connection = connection
+    return this
   }
 
-  unregisterHook<T extends string>(hookName: T, hook: Callback) {
-    this.hooks.get(hookName)?.delete(hook)
-  }
-
-  withClientData<T>() {
+  withConnection<T>() {
     return this as unknown as Application<
       AppTransport,
       AppExtensions,
@@ -209,14 +222,54 @@ export class Application<
   }
 
   withEvents<T extends Record<string, Event>>(events: T) {
-    this.api.events = merge(this.api.events, events)
+    Object.assign(this.events, events)
     return this as unknown as Application<
       AppTransport,
       AppExtensions,
       AppProcedureOptions,
       AppContext,
-      AppClientData,
+      AppConnectionData,
       AppEvents & T
+    >
+  }
+
+  withTransport<T extends BaseTransport, Alias extends string>(
+    transport: T,
+    alias: Alias
+  ) {
+    const exists = this.transports.some(
+      (t) => t.alias === alias || t.transport === transport
+    )
+    if (exists) throw new Error(`Transport already registered`)
+    this.transports.push({ transport, alias })
+    this.initExtension(transport, alias)
+    return this as unknown as Application<
+      AppTransport & { [K in Alias]: T },
+      AppExtensions,
+      AppProcedureOptions,
+      AppContext,
+      AppConnectionData,
+      AppEvents
+    >
+  }
+
+  withExtension<T extends BaseExtension, Alias extends string>(
+    extension: T,
+    alias: Alias
+  ) {
+    const exists = this.extensions.some(
+      (t) => t.alias === alias || t.extension === extension
+    )
+    if (exists) throw new Error(`Extension already registered`)
+    this.extensions.push({ extension, alias })
+    this.initExtension(extension, alias)
+    return this as unknown as Application<
+      AppTransport,
+      AppExtensions & { [K in Alias]: T },
+      AppProcedureOptions,
+      AppContext,
+      AppConnectionData,
+      AppEvents
     >
   }
 
@@ -228,33 +281,50 @@ export class Application<
     return new Provider<any, this>()
   }
 
+  guard() {
+    return new Provider<GuardFn<this>, this>()
+  }
+
+  middleware() {
+    return new Provider<MiddlewareFn<this>, this>()
+  }
+
   task() {
     return new Task<AppContext>()
   }
 
-  clientProvider() {
+  connection() {
     return new Provider<
-      ClientProviderFn<
-        this['_']['transport']['_']['transportData'],
-        AppClientData
-      >,
+      ConnectionFn<this['_']['transportData'], AppConnectionData>,
       this
     >()
   }
 
-  // TODO: some hooks might be better to call concurrently,
-  // and some of them should be called in reverse order.
-  // Probably, need to completely reconsider the hooks system.
-  private async callHook(hook: Hook, ...args: any[]) {
-    const hooks = this.hooks.get(hook)
-    if (!hooks) return
-    for (const hook of hooks) await hook(...args)
+  private async callHook(
+    hook: Hook | { hook: Hook; concurrent?: boolean; reverse?: boolean },
+    ...args: any[]
+  ) {
+    const { concurrent = false, reverse = false } =
+      typeof hook === 'object' ? hook : {}
+    hook = typeof hook === 'object' ? hook.hook : hook
+    const hooksSet = this.hooks.get(hook)
+    if (!hooksSet) return
+    let hooks = Array.from(hooksSet)
+    if (concurrent) {
+      await Promise.all(Array.from(hooks).map((hook) => hook(...args)))
+    } else {
+      hooks = reverse ? hooks.reverse() : hooks
+      for (const hook of hooks) await hook(...args)
+    }
   }
 
   private initContext() {
     for (const key in this.context) delete this.context[key]
     const mixins: any[] = []
-    const extensions = [...Object.values(this.extensions), this.transport]
+    const extensions = [
+      ...this.transports.map((t) => t.transport),
+      ...this.extensions.map((e) => e.extension),
+    ]
     for (const extension of extensions) {
       if (extension.context) {
         mixins.push(extension.context())
@@ -266,32 +336,36 @@ export class Application<
     })
   }
 
-  private initExtensions() {
-    const extensions = [
-      ...Object.entries(this.extensions),
-      ['transport', this.transport],
-    ] as const
-
-    const { api, container, logger } = this
-    for (const [name, extension] of extensions) {
-      const callHook: CallHook<any> = this.callHook.bind(this)
-      const registerHook = this.registerHook.bind(this)
-      const registerMiddleware = this.registerMiddleware.bind(this)
-      const registerFilter = this.registerFilter.bind(this)
-      const registerCommand = this.registerCommand.bind(this, name)
-      ;(extension as ExtensionInterface<any, any>).application = {
-        type: this.options.type,
-        logger,
-        api,
-        container,
-        registerCommand,
-        registerHook,
-        registerFilter,
-        registerMiddleware,
-        callHook,
-      }
-      extension.initialize?.()
+  private initExtension(extension: BaseExtension, alias: string) {
+    this.commands.set(alias, new Map())
+    const logger = this.logger.child({ $group: extension.name })
+    const registerHook = (...args: any[]) => {
+      // @ts-expect-error
+      this.registerHook(...args)
     }
+    const registerMiddleware = (...args: any[]) => {
+      // @ts-expect-error
+      this.registerMiddleware(...args)
+    }
+    const registerFilter = (...args: any[]) => {
+      // @ts-expect-error
+      this.registerFilter(...args)
+    }
+    const registerCommand = (...args: any[]) => {
+      // @ts-expect-error
+      this.registerCommand(alias, ...args)
+    }
+    extension.assign({
+      type: this.options.type,
+      api: this.api,
+      connections: this.connections,
+      container: this.container,
+      logger,
+      registerHook,
+      registerMiddleware,
+      registerFilter,
+      registerCommand,
+    })
   }
 
   private initCommandsAndHooks() {

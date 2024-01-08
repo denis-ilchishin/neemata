@@ -31,7 +31,7 @@ export class Loader<T> implements LoaderInterface<T> {
             const path = join(dir, entry.name)
             try {
               const { default: module } = await import(path)
-              if (typeof module !== 'undefined') this.set(name, path, module)
+              if (typeof module !== 'undefined') this.set(name, module, path)
             } catch (cause) {
               throw new LoaderError(`Unable to import module ${path}`, {
                 cause,
@@ -45,10 +45,10 @@ export class Loader<T> implements LoaderInterface<T> {
     await read(this.root)
   }
 
-  protected set(name: string, path: string, module: any) {
+  protected set(name: string, module: any, path?: string) {
     this.modules.set(name, module)
     this.names.set(module, name)
-    this.paths.set(name, path)
+    if (path) this.paths.set(name, path)
   }
 
   clear() {

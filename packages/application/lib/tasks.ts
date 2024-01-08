@@ -85,18 +85,18 @@ export class Tasks extends Loader<Task> {
     super(options.path || '')
   }
 
-  protected set(name: string, path: string, task: Task) {
+  protected set(name: string, task: Task, path?: string) {
     // @ts-expect-error
     if (!task.name) task.name = name
     this.application.logger.debug('Resolve [%s] task', task.name, path)
-    super.set(task.name, path, task)
+    super.set(task.name, task, path)
   }
 
   registerTask(task: Task) {
     if (!task.name) throw new Error('Task name is required')
     if (this.modules.has(task.name))
-      this.application.logger.warn('Task [%s] already registered', task.name)
-    this.modules.set(task.name, task)
+      throw new Error(`Task ${task.name} already registered`)
+    this.set(task.name, task)
   }
 
   execute(
@@ -150,7 +150,7 @@ export class Tasks extends Loader<Task> {
       await result.finally(unregisterHook)
     }
     const unregisterHook = () => {
-      this.application.unregisterHook(Hook.BeforeTerminate, abortExecution)
+      this.application.hooks.get(Hook.BeforeTerminate)?.delete(abortExecution)
     }
     this.application.registerHook(Hook.BeforeTerminate, abortExecution)
     result.finally(unregisterHook)

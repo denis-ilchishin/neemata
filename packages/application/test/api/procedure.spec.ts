@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { BaseParser, Procedure } from '../../lib/api'
-import { Provider } from '../../lib/container'
+import { BaseParser, Procedure } from '@/api'
+import { Provider } from '@/container'
 
 class Parser extends BaseParser {
   parse() {}

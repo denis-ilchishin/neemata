@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { Provider } from '../../lib/container'
-import { Scope } from '../../lib/types'
+import { Provider } from '@/container'
+import { Scope } from '@/types'
 
 describe.sequential('Provider', () => {
   let provider: Provider

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { Application } from '../../lib/application'
+import { Application } from '@/application'
 import { defaultApp } from '../_app'
 
 describe.sequential('Application', () => {

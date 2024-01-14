@@ -1,10 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { afterEach } from 'node:test'
-import { Application } from '../../lib/application'
-import { Container, Provider } from '../../lib/container'
-import { EventManager } from '../../lib/events'
-import { Scope } from '../../lib/types'
+import { Application } from '@/application'
+import { Container, Provider } from '@/container'
+import { EventManager } from '@/events'
+import { Scope } from '@/types'
 import { defaultApp } from '../_app'
 
 describe.sequential('Container', () => {

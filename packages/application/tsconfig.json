@@ -16,12 +16,16 @@
     "strict": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./lib/*"
+      ],
+    }
   },
   "include": [
     "./index.ts",
     "./lib/**/*.ts",
+    "./test/**/*.ts"
   ],
-  "exclude": [
-    "./test/**/*",
-  ]
 }

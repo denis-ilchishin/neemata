@@ -21,9 +21,10 @@ export class SchemaExtension extends BaseExtension {
   }
 
   initialize(): void {
-    const { api, registerCommand } = this.application
+    const { loader, registerCommand } = this.application
     if (this.options.procedureName) {
-      api.registerProcedure(
+      loader.register(
+        'procedures',
         this.options.procedureName,
         new Procedure()
           .withHandler(this.jsonSchema.bind(this))
@@ -37,10 +38,12 @@ export class SchemaExtension extends BaseExtension {
   }
 
   private async jsonSchema() {
-    const { api } = this.application
+    const { loader } = this.application
     const jsonSchemas = {}
 
-    for (const [name, procedure] of api.modules) {
+    for (const [name, { module: procedure }] of Object.entries(
+      loader.procedures
+    )) {
       if (name === this.options.procedureName) continue
 
       if (this.options.include) {

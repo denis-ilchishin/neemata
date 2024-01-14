@@ -1,10 +1,4 @@
-import {
-  AnyApplication,
-  Extra,
-  GlobalContext,
-  LoaderInterface,
-  Scope,
-} from './types'
+import { AnyApplication, Extra, GlobalContext, Merge, Scope } from './types'
 import { merge } from './utils/functions'
 
 const ScopeStrictness = {
@@ -48,7 +42,7 @@ export type DependencyContext<
   Context extends Extra,
   Deps extends Dependencies
 > = {
-  app: GlobalContext & Context
+  context: GlobalContext & Context
 } & {
   [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
 }
@@ -127,7 +121,7 @@ export class Provider<
       ProviderValue,
       App,
       ProviderOptions,
-      Deps,
+      Merge<ProviderDeps, Deps>,
       ProviderScope,
       ProviderFactoryType<App, ProviderOptions, Deps, ProviderScope>
     >()
@@ -248,7 +242,6 @@ export class Container {
 
   constructor(
     private readonly application: AnyApplication,
-    private readonly loaders: LoaderInterface<Depender<Dependencies>>[],
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},
     private readonly parent?: Container
@@ -264,10 +257,8 @@ export class Container {
       }
     }
 
-    for (const loader of this.loaders) {
-      for (const depender of loader.modules.values()) {
-        traverse(depender.dependencies)
-      }
+    for (const depender of this.application.loader.dependers()) {
+      traverse(depender.dependencies)
     }
 
     const providers = this.findCurrentScopeDeclarations()
@@ -275,7 +266,7 @@ export class Container {
   }
 
   createScope(scope: Scope, params: any = {}) {
-    return new Container(this.application, this.loaders, scope, params, this)
+    return new Container(this.application, scope, params, this)
   }
 
   async dispose() {
@@ -361,7 +352,7 @@ export class Container {
 
   async createContext(dependencies: Dependencies, ...extra: Extra[]) {
     const injections = await this.resolveDependecies(dependencies, ...extra)
-    const context = { app: merge(this.application.context, ...extra) }
+    const context = { context: merge(this.application.context, ...extra) }
     return Object.freeze(merge(context, injections))
   }
 }

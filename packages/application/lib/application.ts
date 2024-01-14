@@ -1,9 +1,11 @@
+import { BaseCustomLoader, Loader } from '..'
 import { Api, BaseParser, Procedure } from './api'
 import { Container, Provider } from './container'
-import { Event } from './events'
+import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
 import { Logger, LoggingOptions, createLogger } from './logger'
-import { Task, Tasks, TasksRunner } from './tasks'
+import { BaseSubscriptionManager } from './subscription'
+import { BaseTaskRunner, Task, Tasks } from './tasks'
 import { BaseTransport, BaseTransportConnection } from './transport'
 import {
   Command,
@@ -30,28 +32,31 @@ import {
 
 export type ApplicationOptions = {
   type: WorkerType
-  logging?: LoggingOptions
-  api: {
-    timeout?: number
+  loaders: BaseCustomLoader[]
+  procedures: {
+    timeout: number
     parsers?:
       | BaseParser
       | {
           input?: BaseParser
           output?: BaseParser
         }
-    path?: string
   }
-  tasks?: {
-    timeout?: number
-    path?: string
-    runner?: TasksRunner
+  tasks: {
+    timeout: number
+    runner?: BaseTaskRunner
   }
+  events: {
+    timeout: number
+    parser?: BaseParser
+  }
+  logging?: LoggingOptions
 }
 
 export type ApplicationWorkerOptions = {
   id: number
   type: WorkerType
-  tasksRunner?: TasksRunner
+  tasksRunner?: BaseTaskRunner
   workerOptions?: any
 }
 
@@ -69,19 +74,35 @@ export class Application<
   > &
     ResolveExtensionContext<AppTransport>,
   AppConnectionData = unknown,
+  AppProcedures extends Record<string, Procedure> = {},
+  AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {}
 > {
   readonly _!: {
     transport: AppTransport[keyof AppTransport]
-    context: AppContext
+    context: AppContext & {
+      eventManager: EventManager<
+        Application<
+          AppTransport,
+          AppExtensions,
+          AppProcedureOptions,
+          AppContext,
+          AppConnectionData,
+          AppProcedures,
+          AppTasks,
+          AppEvents
+        >
+      >
+    }
     options: AppProcedureOptions
     transportData: AppTransport[keyof AppTransport]['_']['transportData']
     connectionData: AppConnectionData
     connection: BaseTransportConnection<
       AppConnectionData,
-      AppTransport[keyof AppTransport]['_']['transportData'],
-      AppEvents
+      AppTransport[keyof AppTransport]['_']['transportData']
     >
+    procedures: AppProcedures
+    tasks: AppTasks
     events: AppEvents
   }
 
@@ -90,8 +111,10 @@ export class Application<
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
+  readonly loader: Loader
   readonly container: Container
-  readonly events: Record<string, Event> = {}
+  readonly eventManager: EventManager<this>
+  readonly subManager!: BaseSubscriptionManager
   readonly context: AppContext = {} as AppContext
   readonly connections = new Map<
     this['_']['connection']['id'],
@@ -121,10 +144,12 @@ export class Application<
     }
 
     this.commands.set(APP_COMMAND, new Map())
-    this.api = new Api(this, this.options.api)
-    this.tasks = new Tasks(this, this.options.tasks)
 
-    this.container = new Container(this, [this.api, this.tasks])
+    this.loader = new Loader(this)
+    this.eventManager = new EventManager(this)
+    this.api = new Api(this)
+    this.tasks = new Tasks(this)
+    this.container = new Container(this)
 
     this.initCommandsAndHooks()
   }
@@ -132,8 +157,7 @@ export class Application<
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
     this.initContext()
-    await this.tasks.load()
-    await this.api.load()
+    await this.loader.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
   }
@@ -163,8 +187,7 @@ export class Application<
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    this.api.clear()
-    this.tasks.clear()
+    this.loader.clear()
     await this.callHook(Hook.AfterTerminate)
   }
 
@@ -217,19 +240,57 @@ export class Application<
       AppProcedureOptions,
       AppContext,
       T,
+      AppProcedures,
+      AppTasks,
       AppEvents
     >
   }
 
   withEvents<T extends Record<string, Event>>(events: T) {
-    Object.assign(this.events, events)
+    for (const [name, event] of Object.entries(events)) {
+      this.loader.register('events', name, event)
+    }
     return this as unknown as Application<
       AppTransport,
       AppExtensions,
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
+      AppProcedures,
+      AppTasks,
       AppEvents & T
+    >
+  }
+
+  withProcedures<T extends Record<string, Procedure>>(procedures: T) {
+    for (const [name, procedure] of Object.entries(procedures)) {
+      this.loader.register('procedures', name, procedure)
+    }
+    return this as unknown as Application<
+      AppTransport,
+      AppExtensions,
+      AppProcedureOptions,
+      AppContext,
+      AppConnectionData,
+      AppProcedures & T,
+      AppTasks,
+      AppEvents
+    >
+  }
+
+  withTasks<T extends Record<string, Task>>(tasks: T) {
+    for (const [name, task] of Object.entries(tasks)) {
+      this.loader.register('tasks', name, task)
+    }
+    return this as unknown as Application<
+      AppTransport,
+      AppExtensions,
+      AppProcedureOptions,
+      AppContext,
+      AppConnectionData,
+      AppProcedures & T,
+      AppTasks,
+      AppEvents
     >
   }
 
@@ -249,6 +310,8 @@ export class Application<
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
+      AppProcedures,
+      AppTasks,
       AppEvents
     >
   }
@@ -269,8 +332,19 @@ export class Application<
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
+      AppProcedures,
+      AppTasks,
       AppEvents
     >
+  }
+
+  withSubscriptionManager(subManager: BaseSubscriptionManager) {
+    if (this.subManager)
+      throw new Error('Subscription manager already registered')
+    // @ts-expect-error
+    this.subManager = subManager
+    this.initExtension(subManager, 'subManager')
+    return this
   }
 
   procedure() {
@@ -290,7 +364,11 @@ export class Application<
   }
 
   task() {
-    return new Task<AppContext>()
+    return new Task<this['_']['context']>()
+  }
+
+  event() {
+    return new Event()
   }
 
   connection() {
@@ -333,6 +411,7 @@ export class Application<
     Object.assign(this.context, ...mixins, {
       logger: this.logger,
       execute: this.execute.bind(this),
+      eventManager: this.eventManager,
     })
   }
 
@@ -360,6 +439,7 @@ export class Application<
       api: this.api,
       connections: this.connections,
       container: this.container,
+      loader: this.loader,
       logger,
       registerHook,
       registerMiddleware,

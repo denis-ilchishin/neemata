@@ -26,13 +26,13 @@
   },
   "devDependencies": {
     "@neemata/common": "workspace:*",
-    "@sinclair/typebox": "^0.31.23",
-    "zod": "^3.22.4"
+    "@sinclair/typebox": "^0.31.0",
+    "zod": "^3.0.0"
   },
   "peerDependencies": {
     "@neemata/common": "workspace:*",
-    "@sinclair/typebox": "^0.31.23",
-    "zod": "^3.22.4"
+    "@sinclair/typebox": "^0.30.0",
+    "zod": "^3.0.0"
   },
   "peerDependenciesMeta": {
     "@sinclair/typebox": {

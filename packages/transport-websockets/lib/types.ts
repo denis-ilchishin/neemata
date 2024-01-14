@@ -2,10 +2,38 @@ import {
   BaseTransportConnection,
   Container,
   Stream,
+  Subscription,
 } from '@neemata/application'
-import { HttpTransportOptions } from '@neemata/transport-http'
 import { Readable } from 'node:stream'
-import uws from 'uWebSockets.js'
+import uws, { AppOptions, HttpRequest, HttpResponse } from 'uWebSockets.js'
+import { HttpTransportMethod } from './common'
+
+export type HttpTransportOptions = {
+  port?: number
+  hostname?: string
+  ssl?: AppOptions
+  maxPayloadLength?: number
+  maxStreamChunkLength?: number
+}
+
+export type HttpTransportProcedureOptions = {
+  allowHttp: HttpTransportMethod
+}
+
+export type HttpTransportData = {
+  transport: 'http'
+  headers: Record<string, string>
+  query: URLSearchParams
+  proxyRemoteAddress: string
+  remoteAddress: string
+  method: HttpTransportMethod
+}
+
+export type HttpTransportApplicationContext = {}
+
+export type Headers = Record<string, string>
+export type Req = HttpRequest
+export type Res = HttpResponse
 
 export type WebSocketUserData = {
   id: BaseTransportConnection['id']
@@ -20,6 +48,7 @@ export type WebSocketUserData = {
     down: Map<number, Readable>
     streamId: number
   }
+  subscriptions: Map<string, Subscription>
   container: Container
   connectionData: any
   transportData: any
@@ -32,7 +61,7 @@ export type WebsocketsTransportOptions = HttpTransportOptions
 export type WebsocketsTransportData = {
   transport: 'websockets'
   headers: Record<string, string>
-  query: any
+  query: URLSearchParams
   proxyRemoteAddress: string
   remoteAddress: string
 }

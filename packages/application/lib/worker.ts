@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { register } from 'node:module'
 import {
   MessagePort,
@@ -8,6 +7,7 @@ import {
 } from 'node:worker_threads'
 
 import { Application, ApplicationWorkerOptions } from './application'
+import { WorkerThreadsTaskRunner } from './task-runners/worker-threads'
 import { WorkerMessageType, WorkerType } from './types'
 import { importDefault } from './utils/functions'
 import {
@@ -40,7 +40,9 @@ async function start(parentPort: MessagePort) {
   const isApiWorker = type === WorkerType.Api
   const isTaskWorker = type === WorkerType.Task
   const tasksRunner =
-    isApiWorker && hasTaskRunners ? customTaskRunner : undefined
+    isApiWorker && hasTaskRunners
+      ? new WorkerThreadsTaskRunner(parentPort)
+      : undefined
 
   providerWorkerOptions({
     id,
@@ -64,8 +66,15 @@ async function start(parentPort: MessagePort) {
   })
 
   parentPort.on(WorkerMessageType.Stop, async () => {
-    await app.stop()
-    process.exit(0)
+    await app
+      .stop()
+      .then(() => {
+        process.exit(0)
+      })
+      .catch((err) => {
+        app.logger.error(err)
+        process.exit(1)
+      })
   })
 
   if (isTaskWorker) {
@@ -74,7 +83,6 @@ async function start(parentPort: MessagePort) {
       const bc = createBroadcastChannel(id)
       try {
         const task = app.tasks.execute(app.container, name, ...args)
-
         bc.emitter.on(WorkerMessageType.ExecuteAbort, (payload) => {
           const { reason } = payload
           task.abort(reason)
@@ -93,40 +101,6 @@ async function start(parentPort: MessagePort) {
         bc.close()
       }
     })
-  }
-
-  function customTaskRunner(signal: AbortSignal, name: string, ...args: any[]) {
-    if (!name) throw new Error('Task name is required')
-    const id = randomUUID()
-
-    // TODO: performance is 15-17% worse than passing events via the main thread manually
-    // mini bench (node v20.9.0, M1 mbp): 21-22k vs 25-26k per seconds
-    // need to investigate further and see if there's a way to improve this
-    const bc = createBroadcastChannel(id)
-
-    const result = new Promise((resolve, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason), {
-        once: true,
-      })
-      bc.emitter.once(WorkerMessageType.ExecuteResult, (payload) => {
-        const { error, result } = payload
-        if (error) reject(error)
-        else resolve(result)
-        bc.close()
-      })
-    })
-
-    parentPort.postMessage({
-      type: WorkerMessageType.ExecuteInvoke,
-      payload: { id, name, args },
-    })
-
-    const abort = () =>
-      bc.channel.postMessage({ type: WorkerMessageType.ExecuteAbort })
-
-    signal.addEventListener('abort', abort, { once: true })
-
-    return result
   }
 
   return app

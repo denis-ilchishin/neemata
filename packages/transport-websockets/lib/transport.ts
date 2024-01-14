@@ -1,6 +1,9 @@
 import { BaseTransport } from '@neemata/application'
 import { WebsocketsTransportServer } from './server'
 import {
+  HttpTransportApplicationContext,
+  HttpTransportData,
+  HttpTransportProcedureOptions,
   WebsocketsTransportApplicationContext,
   WebsocketsTransportData,
   WebsocketsTransportOptions,
@@ -10,9 +13,9 @@ import {
 export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions
 > extends BaseTransport<
-  WebsocketsTransportProcedureOptions,
-  WebsocketsTransportApplicationContext,
-  WebsocketsTransportData
+  HttpTransportProcedureOptions & WebsocketsTransportProcedureOptions,
+  HttpTransportApplicationContext & WebsocketsTransportApplicationContext,
+  HttpTransportData | WebsocketsTransportData
 > {
   name = 'Websockets Transport'
   server!: WebsocketsTransportServer

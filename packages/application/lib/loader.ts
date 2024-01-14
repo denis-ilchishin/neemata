@@ -1,59 +1,163 @@
-import { readdir } from 'node:fs/promises'
-import { join, sep } from 'node:path'
-import { LoaderInterface } from './types'
+import type { Procedure } from './api'
+import { Provider, getProviderScope, type Depender } from './container'
+import type { Event } from './events'
+import type { Task } from './tasks'
+import { Scope, type AnyApplication } from './types'
 
 export class LoaderError extends Error {}
 
-export class Loader<T> implements LoaderInterface<T> {
-  readonly modules = new Map<string, T>()
-  readonly names = new Map<T, string>()
-  readonly paths = new Map<string, string>()
+export type LoaderModuleType = 'procedures' | 'tasks' | 'events'
 
-  constructor(protected readonly root: string) {}
+type LoaderModule<T> = {
+  module: T
+  path?: string
+  exportName?: string
+}
+
+const scopeErrorMessage = (name, scope = 'Global') =>
+  `${name} must be a ${scope} scope (including all nested dependencies)`
+
+const hasNonInvalidScopeDeps = (providers: Provider[], scope = Scope.Global) =>
+  providers.some((guard) => getProviderScope(guard) !== scope)
+
+export interface BaseCustomLoader {
+  load(): Promise<{
+    procedures: Record<string, Required<LoaderModule<Procedure>>>
+    tasks: Record<string, Required<LoaderModule<Task>>>
+    events: Record<string, Required<LoaderModule<Event>>>
+  }>
+
+  paths(): string[]
+}
+
+export class Loader {
+  procedures: Record<string, LoaderModule<Procedure>> = {}
+  tasks: Record<string, LoaderModule<Task>> = {}
+  events: Record<string, LoaderModule<Event>> = {}
+
+  constructor(private readonly application: AnyApplication) {}
 
   async load() {
-    if (!this.root) return
-    const read = async (dir: string, level = 0) => {
-      const entries = await readdir(dir, { withFileTypes: true })
-      for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue
-        if (entry.isFile()) {
-          if (entry.name.endsWith('.d.ts')) continue
-          let [baseName, ...leading] = entry.name.split('.')
-          const ext = leading.join('.')
-          if (['js', 'mjs', 'cjs', 'ts', 'mts', 'cts'].includes(ext)) {
-            const levelName = dir
-              .slice(this.root.length + 1)
-              .split(sep)
-              .join('/')
-            const entryName = level && baseName === 'index' ? null : baseName
-            const name = [levelName, entryName].filter(Boolean).join('/')
-            const path = join(dir, entry.name)
-            try {
-              const { default: module } = await import(path)
-              if (typeof module !== 'undefined') this.set(name, module, path)
-            } catch (cause) {
-              throw new LoaderError(`Unable to import module ${path}`, {
-                cause,
-              })
-            }
-          }
+    const { loaders } = this.application.options
+    for (const loader of loaders) {
+      const loaded = await loader.load()
+      for (const [type, modules] of Object.entries(loaded)) {
+        for (const [name, module] of Object.entries(modules)) {
+          this.register(
+            type as LoaderModuleType,
+            name,
+            module.module,
+            module.path,
+            module.exportName
+          )
         }
-        if (entry.isDirectory()) await read(join(dir, entry.name), level + 1)
       }
     }
-    await read(this.root)
-  }
-
-  protected set(name: string, module: any, path?: string) {
-    this.modules.set(name, module)
-    this.names.set(module, name)
-    if (path) this.paths.set(name, path)
   }
 
   clear() {
-    this.modules.clear()
-    this.names.clear()
-    this.paths.clear()
+    this.procedures = {}
+    this.tasks = {}
+    this.events = {}
+  }
+
+  procedure(name: string) {
+    return this.findModule('procedures', name) as Procedure | undefined
+  }
+
+  task(name: string) {
+    return this.findModule('tasks', name) as Task | undefined
+  }
+
+  event(name: string) {
+    return this.findModule('events', name) as Event | undefined
+  }
+
+  dependers(): Depender<any>[] {
+    return [
+      ...Object.values(this.procedures).map(({ module }) => module),
+      ...Object.values(this.tasks).map(({ module }) => module),
+    ]
+  }
+
+  register(
+    type: LoaderModuleType,
+    name: string,
+    module: Procedure | Task | Event,
+    path?: string,
+    exportName?: string
+  ) {
+    module.name = name
+
+    switch (type) {
+      case 'procedures':
+        this.registerProcedure(name, module as Procedure, path, exportName)
+        break
+      case 'tasks':
+        this.registerTask(name, module as Task, path, exportName)
+        break
+      case 'events':
+        this.registerEvent(name, module as Event, path, exportName)
+        break
+    }
+
+    this.application.logger.debug(
+      'Registering %s [%s]',
+      type.slice(0, -1),
+      name
+    )
+  }
+
+  private registerProcedure(
+    name: string,
+    procedure: Procedure,
+    path?: string,
+    exportName?: string
+  ) {
+    if (typeof procedure.handler === 'undefined')
+      throw new Error('Procedure handler is not defined')
+
+    if (name in this.procedures)
+      throw new Error(`Procedure ${name} already registered`)
+
+    if (hasNonInvalidScopeDeps(procedure.guards))
+      throw new Error(scopeErrorMessage('Guards'))
+
+    if (hasNonInvalidScopeDeps(procedure.middlewares))
+      throw new Error(scopeErrorMessage('Middlewares'))
+
+    this.procedures[name] = { module: procedure, path, exportName }
+  }
+
+  private registerTask(
+    name: string,
+    task: Task,
+    path?: string,
+    exportName?: string
+  ) {
+    if (typeof task.handler === 'undefined')
+      throw new Error('Task handler is not defined')
+
+    if (name in this.tasks) throw new Error(`Task ${name} already registered`)
+
+    if (hasNonInvalidScopeDeps(Object.values(task.dependencies)))
+      throw new Error(scopeErrorMessage('Task dependencies'))
+
+    this.tasks[name] = { module: task, path, exportName }
+  }
+
+  private registerEvent(
+    name: string,
+    event: Event,
+    path?: string,
+    exportName?: string
+  ) {
+    if (name in this.events) throw new Error(`Event ${name} already registered`)
+    this.events[name] = { module: event, path, exportName }
+  }
+
+  private findModule(type: LoaderModuleType, name: string) {
+    const found = this[type][name]
+    if (found) return found.module
   }
 }

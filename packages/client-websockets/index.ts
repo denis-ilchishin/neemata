@@ -8,7 +8,7 @@ import {
   EventsType,
   ResolveApiProcedureType,
   StreamDataType,
-  StreamMetadata,
+  Subscription,
   UpStream,
   concat,
   decodeNumber,
@@ -16,10 +16,23 @@ import {
   encodeNumber,
   encodeText,
   once,
+  type StreamMetadata,
 } from '@neemata/common'
-import { MessageType } from '../transport-websockets/lib/common'
 
-export { ApiError, ErrorCode, WebsocketsClient }
+import {
+  HttpPayloadGetParam,
+  MessageType,
+} from '../transport-websockets/lib/common'
+
+export {
+  ApiError,
+  DownStream,
+  ErrorCode,
+  Subscription,
+  UpStream,
+  WebsocketsClient,
+  type StreamMetadata,
+}
 
 type Options = {
   host: string
@@ -33,6 +46,11 @@ type RPCOptions = {
   timeout?: number
 }
 
+type HTTPRPCOptions = RPCOptions & {
+  URLParams?: URLSearchParams
+  headers?: Record<string, string>
+}
+
 // to make dynamic private keys
 const KEY: Record<MessageType, symbol> = Object.fromEntries(
   Object.values(MessageType).map((type) => [type as any, Symbol()])
@@ -42,7 +60,6 @@ class WebsocketsClient<
   Procedures extends any = never,
   Events extends EventsType = never
 > extends BaseClient<Procedures, Events, RPCOptions> {
-  private readonly url: URL
   private ws!: WebSocket
   private autoreconnect!: boolean
   private URLParams: URLSearchParams = new URLSearchParams()
@@ -51,18 +68,17 @@ class WebsocketsClient<
   private attempts = 0
   private callId = 0
   private calls = new Map<number, Call>()
+  private subscriptions = new Map<string, Subscription>()
 
   constructor(private readonly options: Options) {
     super()
-    this.url = new URL(`${options.secure ? 'wss' : 'ws'}://${options.host}`)
   }
 
   async healthCheck() {
     while (!this.isHealthy) {
       try {
-        const signal = AbortSignal.timeout(5000)
-        const url = new URL('health', this.url)
-        url.protocol = this.options.secure ? 'https' : 'http'
+        const signal = AbortSignal.timeout(10000)
+        const url = this.getURL('health', 'http')
         const { ok } = await fetch(url, { signal })
         this.isHealthy = ok
       } catch (e) {}
@@ -80,7 +96,7 @@ class WebsocketsClient<
     this.autoreconnect = this.options.autoreconnect ?? true // reset default autoreconnect value
     await this.healthCheck()
 
-    this.ws = new WebSocket(this.applyURLParams(new URL('api', this.url)))
+    this.ws = new WebSocket(this.getURL('api', 'ws'))
     this.ws.binaryType = 'arraybuffer'
 
     this.ws.onmessage = (event) => {
@@ -114,7 +130,7 @@ class WebsocketsClient<
 
   async disconnect() {
     this.autoreconnect = false
-    this.ws.close(1000)
+    this.ws?.close(1000)
     await once(this, 'close')
   }
 
@@ -170,13 +186,88 @@ class WebsocketsClient<
     })
   }
 
+  async rpcHttp<P extends keyof Procedures>(
+    procedure: P,
+    ...args: Procedures extends never
+      ? [any?, HTTPRPCOptions?]
+      : null extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
+  ): Promise<
+    Procedures extends never
+      ? any
+      : ResolveApiProcedureType<Procedures, P, 'output'>
+  > {
+    const [payload, options = {}] = args
+    const { timeout = options.timeout, headers = {}, URLParams } = options
+    const ac = new AbortController()
+    const timeoutSignal = timeout ? AbortSignal.timeout(timeout) : undefined
+    if (timeoutSignal) {
+      // TODO: AbortSignal.any not yet fully supported
+      // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static
+      timeoutSignal.addEventListener(
+        'abort',
+        () => ac.abort(new Error('Timeout')),
+        {
+          once: true,
+        }
+      )
+    }
+
+    return await fetch(
+      this.getURL(`api/${procedure as string}`, 'http', URLParams),
+      {
+        signal: ac.signal,
+        method: 'POST',
+        body: JSON.stringify(payload),
+        credentials: 'include',
+        cache: 'no-cache',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...headers,
+        },
+      }
+    )
+      .then((res) => res.json())
+      .then(({ response, error }) => {
+        if (error) throw new ApiError(error.code, error.message, error.data)
+        return response
+      })
+  }
+
+  url<P extends keyof Procedures>(
+    procedure: P,
+    ...args: Procedures extends never
+      ? [any?, HTTPRPCOptions?]
+      : null extends ResolveApiProcedureType<Procedures, P, 'input'>
+      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
+      : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
+  ): URL {
+    const [payload, options = {}] = args
+    const { URLParams = new URLSearchParams() } = options
+    URLParams.set(HttpPayloadGetParam, JSON.stringify(payload))
+    return this.getURL(`api/${procedure as string}`, 'http', URLParams)
+  }
+
   setURLParams(params: URLSearchParams) {
     this.URLParams = params
   }
 
-  private applyURLParams(url: URL) {
+  private getURL(path = '', protocol: 'ws' | 'http', params?: URLSearchParams) {
+    const url = new URL(
+      `${this.options.secure ? protocol + 's' : protocol}://${
+        this.options.host
+      }/${path}`
+    )
     for (const [key, value] of this.URLParams.entries())
       url.searchParams.set(key, value)
+
+    if (params) {
+      for (const [key, value] of params.entries())
+        url.searchParams.set(key, value)
+    }
+
     return url
   }
 
@@ -195,7 +286,14 @@ class WebsocketsClient<
       stream.ac.abort(error)
     }
 
+    for (const subscription of this.subscriptions.values()) {
+      subscription.unsubscribe()
+    }
+
     this.calls.clear()
+    this.streams.up.clear()
+    this.streams.down.clear()
+    this.subscriptions.clear()
   }
 
   private async send(type: MessageType, ...payload: ArrayBuffer[]) {
@@ -246,6 +344,26 @@ class WebsocketsClient<
       resolve({ payload, stream: stream.interface })
     } else {
       this.send(MessageType.ServerStreamAbort, encodeNumber(streamId, 'Uint32'))
+    }
+  }
+
+  [KEY[MessageType.RpcSubscription]](buffer: ArrayBuffer) {
+    const [callId, key] = JSON.parse(decodeText(buffer))
+    const call = this.calls.get(callId)
+    if (call) {
+      const { resolve, timer } = call
+      if (timer) clearTimeout(timer)
+      this.calls.delete(callId)
+      const subscription = new Subscription(key, () => {
+        subscription.emit('end')
+        this.subscriptions.delete(key)
+        this.send(
+          MessageType.ClientUnsubscribe,
+          encodeText(JSON.stringify([key]))
+        )
+      })
+      this.subscriptions.set(key, subscription)
+      resolve(subscription)
     }
   }
 
@@ -304,6 +422,18 @@ class WebsocketsClient<
     const stream = this.streams.down.get(streamId)
     if (stream) stream.writable.abort(new AbortStreamError('Aborted by server'))
     this.streams.down.delete(streamId)
+  }
+
+  [KEY[MessageType.ServerSubscriptionEmit]](buffer: ArrayBuffer) {
+    const [key, payload] = JSON.parse(decodeText(buffer))
+    const subscription = this.subscriptions.get(key)
+    if (subscription) subscription.emit('data', payload)
+  }
+
+  [KEY[MessageType.ServerUnsubscribe]](buffer: ArrayBuffer) {
+    const [key] = JSON.parse(decodeText(buffer))
+    const subscription = this.subscriptions.get(key)
+    subscription?.unsubscribe()
   }
 }
 

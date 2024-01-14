@@ -1,4 +1,3 @@
-import { debounce } from '@neemata/application'
 import { watch } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { sep } from 'node:path'
@@ -26,13 +25,21 @@ async function isIgnored(path) {
     return true
 }
 
-const onChange = debounce(() => {
+const onChange = () => {
   tsmp = Date.now()
   port.postMessage('change')
-}, 250)
+}
 
 export async function initialize(data) {
   port = data.port
+  for (const path of data.paths) {
+    const watcher = watch(
+      path,
+      { persistent: false, recursive: true },
+      onChange
+    )
+    watchers.set(path, watcher)
+  }
 }
 
 export function fileUrl(val, parentURL) {

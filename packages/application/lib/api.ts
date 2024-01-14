@@ -1,5 +1,4 @@
 import { ApiError, ErrorCode } from '@neemata/common'
-import { ApplicationOptions } from './application'
 import {
   Container,
   Dependencies,
@@ -8,16 +7,17 @@ import {
   Provider,
   getProviderScope,
 } from './container'
-import { Loader } from './loader'
 import { BaseTransportConnection } from './transport'
 import {
   AnyApplication,
   Async,
   ConnectionFn,
   ConnectionProvider,
+  Extra,
   Guard,
   InferSchemaInput,
   InferSchemaOutput,
+  Merge,
   Middleware,
   MiddlewareContext,
   Scope,
@@ -73,7 +73,8 @@ export class Procedure<
     ProcedureDeps,
     ProcedureInput,
     ProcedureOutput
-  > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>
+  > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>,
+  ProcedureOptions extends App['_']['options'] = {}
 > implements Depender<ProcedureDeps>
 {
   static override<T extends Procedure>(
@@ -90,32 +91,32 @@ export class Procedure<
     output: ProcedureOutput
     middlewares: Middleware[]
     guards: Guard[]
-    options: App['_']['options']
+    options: ProcedureOptions
     timeout: number
     description: string
     tags: string[]
   }
+  name!: string
+  readonly handler!: ProcedureHandler
+  readonly dependencies: ProcedureDeps = {} as ProcedureDeps
+  readonly timeout!: this['_']['timeout']
 
-  handler!: ProcedureHandler
-  dependencies!: ProcedureDeps
-  timeout!: this['_']['timeout']
+  readonly input!: this['_']['input']
+  readonly output!: this['_']['output']
+  readonly parsers: { input?: BaseParser; output?: BaseParser } = {}
 
-  input!: this['_']['input']
-  output!: this['_']['output']
-  parsers: { input?: BaseParser; output?: BaseParser } = {}
+  readonly options: Extra = {}
+  readonly guards: this['_']['guards'] = []
+  readonly middlewares: this['_']['middlewares'] = []
+  readonly middlewareEnabled = true
 
-  options: this['_']['options'] = {}
-  guards: this['_']['guards'] = []
-  middlewares: this['_']['middlewares'] = []
-  middlewareEnabled = true
-
-  tags: this['_']['tags'] = []
-  description!: this['_']['description']
+  readonly tags: this['_']['tags'] = []
+  readonly description!: this['_']['description']
 
   withDependencies<Deps extends Dependencies>(dependencies: Deps) {
     const procedure = new Procedure<
       App,
-      ProcedureDeps & Deps,
+      Merge<ProcedureDeps, Deps>,
       ProcedureInput,
       ProcedureOutput,
       ProcedureHandlerType<
@@ -123,7 +124,8 @@ export class Procedure<
         ProcedureDeps & Deps,
         ProcedureInput,
         ProcedureOutput
-      >
+      >,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       dependencies: merge(this.dependencies, dependencies),
@@ -136,7 +138,8 @@ export class Procedure<
       ProcedureDeps,
       Input,
       ProcedureOutput,
-      ProcedureHandlerType<App, ProcedureDeps, Input, ProcedureOutput>
+      ProcedureHandlerType<App, ProcedureDeps, Input, ProcedureOutput>,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { input })
   }
@@ -147,18 +150,20 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       Output,
-      ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, Output>
+      ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, Output>,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { output })
   }
 
-  withOptions(options: this['options']) {
+  withOptions<NewOptions extends App['_']['options']>(options: NewOptions) {
     const procedure = new Procedure<
       App,
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      Merge<ProcedureOptions, NewOptions>
     >()
     return Procedure.override(procedure, this, {
       options: merge(this.options, options),
@@ -178,7 +183,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      H
+      H,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { handler })
   }
@@ -189,7 +195,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       guards: [...this.guards, ...guards],
@@ -202,7 +209,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       middlewares: [...this.middlewares, ...middlewares],
@@ -215,7 +223,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { middlewareEnabled: enabled })
   }
@@ -228,7 +237,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { timeout })
   }
@@ -239,7 +249,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       parsers: { input: parser, output: parser },
@@ -252,7 +263,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       parsers: { ...this.parsers, input: parser },
@@ -265,7 +277,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       parsers: { ...this.parsers, output: parser },
@@ -278,7 +291,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, { description })
   }
@@ -289,7 +303,8 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler
+      ProcedureHandler,
+      ProcedureOptions
     >()
     return Procedure.override(procedure, this, {
       tags: [...this.tags, ...tags],
@@ -299,7 +314,7 @@ export class Procedure<
 
 type ProcedureCallOptions = {
   connection: BaseTransportConnection
-  name: string
+  path: [Procedure, ...Procedure[]]
   procedure: Procedure
   payload: any
   container: Container
@@ -308,7 +323,7 @@ type ProcedureCallOptions = {
 const NotFound = (name: string) =>
   new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
 
-export class Api extends Loader<Procedure> {
+export class Api {
   connection?: ConnectionProvider<any, any>
   connectionFn?: ConnectionFn<any, any>
   parsers: {
@@ -318,9 +333,8 @@ export class Api extends Loader<Procedure> {
 
   constructor(
     private readonly application: AnyApplication,
-    readonly options: ApplicationOptions['api']
+    private readonly options = application.options.procedures
   ) {
-    super(options.path ?? '')
     if (options.parsers instanceof BaseParser) {
       this.parsers = {
         input: options.parsers,
@@ -332,7 +346,7 @@ export class Api extends Loader<Procedure> {
   }
 
   async find(name: string) {
-    const procedure = this.modules.get(name)
+    const procedure = this.application.loader.procedure(name)
     if (!procedure) throw NotFound(name)
     return procedure
   }
@@ -355,17 +369,11 @@ export class Api extends Loader<Procedure> {
     }
   }
 
-  registerProcedure(name: string, procedure: Procedure) {
-    this.set(name, procedure)
-  }
-
   async getConnectionData(data: any) {
     return this.connectionFn?.(data)
   }
 
   async load(): Promise<void> {
-    await super.load()
-
     if (!this.connection) {
       this.application.logger.warn('Connection provider is not defined')
     } else if (getProviderScope(this.connection) !== Scope.Global) {
@@ -377,27 +385,17 @@ export class Api extends Loader<Procedure> {
     }
   }
 
-  protected set(name: string, procedure: Procedure, path?: string): void {
-    if (typeof procedure.handler === 'undefined')
-      throw new Error('Procedure handler is not defined')
-
-    if (this.modules.has(name))
-      throw new Error(`Procedure ${name} already registered`)
-
-    if (hasNonInvalidScopeDeps(procedure.guards))
-      throw new Error(scopeErrorMessage('Guard'))
-
-    if (hasNonInvalidScopeDeps(procedure.middlewares))
-      throw new Error(scopeErrorMessage('Middleware'))
-
-    this.application.logger.debug('Resolve [%s] procedure', name)
-    super.set(name, procedure, path)
-  }
-
   private createNestedCall(callOptions: ProcedureCallOptions) {
     return (procedure: Procedure, payload: any) => {
-      const name = this.names.get(procedure)!
-      return this.call({ ...callOptions, name, procedure, payload }, false)
+      return this.call(
+        {
+          ...callOptions,
+          path: [...callOptions.path, procedure],
+          procedure,
+          payload,
+        },
+        false
+      )
     }
   }
 
@@ -405,11 +403,11 @@ export class Api extends Loader<Procedure> {
     callOptions: ProcedureCallOptions,
     withMiddleware: boolean
   ) {
-    const { connection, name, procedure, container } = callOptions
+    const { connection, path, procedure, container } = callOptions
 
     const middlewareCtx: MiddlewareContext = {
       connection,
-      name,
+      path,
       procedure,
       container,
     }
@@ -451,7 +449,10 @@ export class Api extends Loader<Procedure> {
         try {
           return await this.handleSchema(procedure, 'output', result, context)
         } catch (cause) {
-          const error = new Error(`Procedure [${name}] output error`, { cause })
+          const error = new Error(
+            `Procedure [${procedure.name}] output error`,
+            { cause }
+          )
           this.application.logger.error(error)
           throw new ApiError(
             ErrorCode.InternalServerError,
@@ -495,11 +496,11 @@ export class Api extends Loader<Procedure> {
   }
 
   private async handleGuards(callOptions: ProcedureCallOptions) {
-    const { procedure, container, name, connection } = callOptions
+    const { procedure, container, path, connection } = callOptions
     const guards = await Promise.all(
       procedure.guards.map((p) => container.resolve(p))
     )
-    const guardOptions = Object.freeze({ connection, name })
+    const guardOptions = Object.freeze({ connection, path })
     for (const guard of guards) {
       const result = await guard(guardOptions)
       if (result === false) throw new ApiError(ErrorCode.Forbidden)

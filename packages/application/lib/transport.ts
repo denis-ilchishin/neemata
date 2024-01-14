@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { BaseExtension } from '..'
 import { Event } from './events'
+import { Subscription } from './subscription'
 import { Extra } from './types'
 
 export interface BaseTransportData {
@@ -24,11 +25,15 @@ export abstract class BaseTransport<
   }
 
   removeConnection(
-    connection: BaseTransportConnection | BaseTransportConnection['id']
+    connectionOrId: BaseTransportConnection | BaseTransportConnection['id']
   ) {
-    this.application.connections.delete(
-      connection instanceof BaseTransportConnection ? connection.id : connection
-    )
+    const connection =
+      connectionOrId instanceof BaseTransportConnection
+        ? connectionOrId
+        : this.application.connections.get(connectionOrId)
+    if (connection) {
+      this.application.connections.delete(connection.id)
+    }
   }
 
   hasConnection(connection: BaseTransportConnection) {
@@ -42,17 +47,18 @@ export abstract class BaseTransport<
 
 export abstract class BaseTransportConnection<
   Data = unknown,
-  TransportData = unknown,
-  Events extends Record<string, Event> = {}
+  TransportData = unknown
 > {
   constructor(
     readonly transportData: TransportData,
     readonly data: Data,
-    readonly id: string = randomUUID()
+    readonly id: string = randomUUID(),
+    readonly subscriptions = new Map<string, Subscription>()
   ) {}
 
-  abstract send<E extends keyof Events>(
-    eventName: E,
-    payload: Events[E]['payload']
-  ): boolean
+  send<E extends Event>(event: E, payload: E['_']['payload']) {
+    return this.sendEvent(event.name, payload)
+  }
+
+  protected abstract sendEvent(eventName: string, payload: any): boolean
 }

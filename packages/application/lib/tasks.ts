@@ -1,12 +1,10 @@
-import { ApplicationOptions } from './application'
 import {
   Container,
   Dependencies,
   DependencyContext,
   Depender,
 } from './container'
-import { Loader } from './loader'
-import { AnyApplication, Extra, Hook } from './types'
+import { AnyApplication, Extra, Hook, Merge } from './types'
 import { defer } from './utils/functions'
 
 export type TaskInterface<Res = any> = {
@@ -26,6 +24,14 @@ type Handler<
   Args extends any[]
 > = (ctx: DependencyContext<Context, Deps>, ...args: Args) => any
 
+export abstract class BaseTaskRunner {
+  abstract execute(
+    signal: AbortSignal,
+    name: string,
+    ...args: any[]
+  ): Promise<any>
+}
+
 export class Task<
   TaskContext extends Extra = {},
   TaskDeps extends Dependencies = {},
@@ -37,8 +43,8 @@ export class Task<
   >
 > implements Depender<TaskDeps>
 {
-  readonly name!: string
-  readonly dependencies!: TaskDeps
+  name!: string
+  readonly dependencies: TaskDeps = {} as TaskDeps
   readonly handler!: TaskHandler
   readonly parser!: (
     args: string[],
@@ -51,7 +57,7 @@ export class Task<
   }
 
   withDependencies<NewDeps extends Dependencies>(dependencies: NewDeps) {
-    const task = new Task<TaskContext, NewDeps, TaskArgs>()
+    const task = new Task<TaskContext, Merge<TaskDeps, NewDeps>, TaskArgs>()
     Object.assign(task, this, { dependencies })
     return task
   }
@@ -77,27 +83,11 @@ export class Task<
   }
 }
 
-export class Tasks extends Loader<Task> {
+export class Tasks {
   constructor(
     private readonly application: AnyApplication,
-    private readonly options: ApplicationOptions['tasks'] = {}
-  ) {
-    super(options.path || '')
-  }
-
-  protected set(name: string, task: Task, path?: string) {
-    // @ts-expect-error
-    if (!task.name) task.name = name
-    this.application.logger.debug('Resolve [%s] task', task.name, path)
-    super.set(task.name, task, path)
-  }
-
-  registerTask(task: Task) {
-    if (!task.name) throw new Error('Task name is required')
-    if (this.modules.has(task.name))
-      throw new Error(`Task ${task.name} already registered`)
-    this.set(task.name, task)
-  }
+    private readonly options = application.options.tasks
+  ) {}
 
   execute(
     container: Container,
@@ -107,10 +97,11 @@ export class Tasks extends Loader<Task> {
     const ac = new AbortController()
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const result = defer(async () => {
-      if (!this.modules.has(name)) throw new Error('Task not found')
-      if (!this.options!.runner) {
+      const task = this.application.loader.task(name)
+      if (!task) throw new Error('Task not found')
+      if (!this.options.runner) {
         return new Promise((resolve, reject) => {
-          const { dependencies, handler } = this.modules.get(name)!
+          const { dependencies, handler } = task
           const extra = { signal: ac.signal }
           ac.signal.addEventListener('abort', () => reject(ac.signal.reason), {
             once: true,
@@ -124,17 +115,16 @@ export class Tasks extends Loader<Task> {
             .catch(reject)
         })
       } else {
-        return this.options!.runner(ac.signal, name, ...args)
+        return this.options.runner.execute(ac.signal, name, ...args)
       }
     })
-
     this.handleTermination(result, abort)
     return { abort, result }
   }
 
   command(container: Container, { args, kwargs }) {
     const [name, ...taskArgs] = args
-    const task = this.modules.get(name)
+    const task = this.application.loader.task(name)
     if (!task) throw new Error('Task not found')
     const { parser } = task
     const parsedArgs = parser ? parser(taskArgs, kwargs) : []

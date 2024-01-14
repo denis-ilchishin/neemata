@@ -6,7 +6,8 @@
   "scripts": {
     "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
     "build": "rm -rf ./dist && tsc",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run --coverage ./test/"
   },
   "main": "./dist/index.js",
   "types": "./index.ts",

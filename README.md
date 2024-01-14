@@ -21,7 +21,7 @@ Node.js RPC application server (**PoC**)
 
 #### First-party transports and clients:
 - **Websockets** 
-- AMQP (In backlog for now, come back to it in the future)
+- AMQP (In backlog until all core APIs/interfaces are stable)
 
 #### First-party extensions:
 - JSON schema generation

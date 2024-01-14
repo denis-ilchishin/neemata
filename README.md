@@ -3,7 +3,9 @@ Node.js RPC application server (**PoC**)
 
 [Example](https://github.com/denis-ilchishin/neemata-starter)
 
-[Roadmap](https://github.com/denis-ilchishin/neemata/discussions/49)
+[Roadmap](https://github.com/denis-ilchishin/neemata/issues/49)
+
+[Motivation](https://github.com/denis-ilchishin/neemata/discussions/76)
 
 ### Features:
 

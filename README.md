@@ -17,11 +17,10 @@ Node.js RPC application server (**PoC**)
 - CLI support
 - Typescript modules support without build process (runtime transpilation with [SWC](https://github.com/swc-project/swc))
 - Hot-reload without server restart (preserving all current connections)
-- Static end-to-end typesafety for fullstack TS apps, including server events and streams
+- Static end-to-end typesafety for fullstack TS apps, including server events, subscriptions and streams
 
 #### First-party transports and clients:
-- **HTTP**
-- **Websockets**
+- **Websockets** 
 - AMQP (In backlog for now, come back to it in the future)
 
 #### First-party extensions:

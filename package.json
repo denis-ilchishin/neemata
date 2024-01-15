@@ -8,8 +8,9 @@
     "clean": "pnpm -r exec rm -rf node_modules dist",
     "watch": "pnpm run --parallel --filter \"*\" watch",
     "build": "pnpm run --filter common build && pnpm run --filter application build && pnpm run --filter !common --filter !application build",
+    "test": "vitest run --coverage --passWithNoTests",
     "type-check": "pnpm run --parallel --filter \"*\" type-check",
-    "test": "vitest run --coverage"
+    "fmt-check": "prettier --check packages/*/**/*.{ts,js,mjs,json}"
   },
   "engines": {
     "pnpm": ">=8.0.0"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^18.19.0",
     "@vitest/coverage-v8": "^1.2.0",
+    "prettier": "^3.2.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.2",
     "vite-tsconfig-paths": "^4.2.3",

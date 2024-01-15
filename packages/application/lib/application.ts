@@ -1,8 +1,8 @@
-import { BaseCustomLoader, Loader } from '..'
 import { Api, BaseParser, Procedure } from './api'
 import { Container, Provider } from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
+import { BaseCustomLoader, Loader } from './loader'
 import { Logger, LoggingOptions, createLogger } from './logger'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
@@ -76,7 +76,7 @@ export class Application<
   AppConnectionData = unknown,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
-  AppEvents extends Record<string, Event> = {}
+  AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
     transport: AppTransport[keyof AppTransport]
@@ -130,7 +130,7 @@ export class Application<
   constructor(readonly options: ApplicationOptions) {
     this.logger = createLogger(
       this.options.logging,
-      `${this.options.type}Worker`
+      `${this.options.type}Worker`,
     )
 
     this.hooks = new Map()
@@ -227,7 +227,7 @@ export class Application<
     connection: ConnectionProvider<
       this['_']['transport']['_']['transportData'],
       AppConnectionData
-    >
+    >,
   ) {
     this.api.connection = connection
     return this
@@ -296,10 +296,10 @@ export class Application<
 
   withTransport<T extends BaseTransport, Alias extends string>(
     transport: T,
-    alias: Alias
+    alias: Alias,
   ) {
     const exists = this.transports.some(
-      (t) => t.alias === alias || t.transport === transport
+      (t) => t.alias === alias || t.transport === transport,
     )
     if (exists) throw new Error(`Transport already registered`)
     this.transports.push({ transport, alias })
@@ -318,10 +318,10 @@ export class Application<
 
   withExtension<T extends BaseExtension, Alias extends string>(
     extension: T,
-    alias: Alias
+    alias: Alias,
   ) {
     const exists = this.extensions.some(
-      (t) => t.alias === alias || t.extension === extension
+      (t) => t.alias === alias || t.extension === extension,
     )
     if (exists) throw new Error(`Extension already registered`)
     this.extensions.push({ extension, alias })
@@ -450,7 +450,7 @@ export class Application<
 
   private initCommandsAndHooks() {
     const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg).result)
+    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg))
   }
 
   private get isApiWorker() {

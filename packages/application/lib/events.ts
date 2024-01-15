@@ -8,7 +8,7 @@ export class Event<
   App extends AnyApplication = AnyApplication,
   EventPayload extends any = any,
   EventSchema extends any = unknown,
-  EventOptions extends EventOptionsType = {}
+  EventOptions extends EventOptionsType = {},
 > {
   name!: string
 
@@ -34,7 +34,7 @@ export class Event<
   }
 
   withOptions<NewOptions extends Record<string, any>>(
-    serializer?: (options: NewOptions) => string
+    serializer?: (options: NewOptions) => string,
   ) {
     const event = new Event<App, EventPayload, EventSchema, NewOptions>()
     Object.assign(event, this, serializer ? { serializer } : {})
@@ -44,6 +44,12 @@ export class Event<
   withSchema<NewSchema>(schema: NewSchema) {
     const event = new Event<App, EventPayload, NewSchema, EventOptions>()
     Object.assign(event, this, { schema })
+    return event
+  }
+
+  withName(name: string) {
+    const event = new Event<App, EventPayload, EventSchema, EventOptions>()
+    Object.assign(event, this, { name })
     return event
   }
 
@@ -59,7 +65,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
   async subscribe<E extends Event>(
     event: E,
     options: E['_']['options'],
-    connection: App['_']['connection']
+    connection: App['_']['connection'],
   ): Promise<[Subscription<E>, boolean]> {
     if (!event.name) throw new Error('Event name is required')
     if (!this.application.loader.event(event.name))
@@ -71,10 +77,10 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
     if (subscription) return [subscription as any, false]
     this.logger.debug(
       options,
-      `Subscribing connection [${id}] to event [${event.name}] with options`
+      `Subscribing connection [${id}] to event [${event.name}] with options`,
     )
     subscription = new Subscription(event, key, () =>
-      this.unsubscribe(event, options, connection)
+      this.unsubscribe(event, options, connection),
     )
     subscriptions.set(key, subscription)
     await this.subManager.subscribe(subscription)
@@ -84,11 +90,11 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
   async unsubscribe(
     event: Event,
     options: Event['_']['options'],
-    connection: App['_']['connection']
+    connection: App['_']['connection'],
   ) {
     const { id, subscriptions } = connection
     this.logger.debug(
-      `Unsubscribing connection [${id}] from event [${event.name}]`
+      `Unsubscribing connection [${id}] from event [${event.name}]`,
     )
     const key = event._key(options)
     const subscription = subscriptions.get(key)
@@ -104,7 +110,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
     payload: E['schema'] extends unknown
       ? E['_']['payload']
       : InferSchemaInput<E['schema']>,
-    options: E['_']['options']
+    options: E['_']['options'],
   ) {
     this.logger.debug(payload, `Publishing event [${event.name}]`)
     const key = event._key(options)
@@ -114,7 +120,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
   async isSubscribed<E extends Event>(
     event: E,
     options: E['_']['options'],
-    connection: App['_']['connection']
+    connection: App['_']['connection'],
   ) {
     const key = event._key(options)
     return connection.subscriptions.has(key)

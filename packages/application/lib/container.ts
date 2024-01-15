@@ -15,9 +15,9 @@ const ScopeStrictness = {
   [Scope.Transient]: 3,
 }
 
-export function getProviderScope(provider: Provider) {
+export function getProviderScope(provider: AnyProvider) {
   let scope = provider.scope
-  for (const dependency of Object.values<Provider>(provider.dependencies)) {
+  for (const dependency of Object.values<AnyProvider>(provider.dependencies)) {
     const dependencyScope = getProviderScope(dependency)
     if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
       scope = dependencyScope
@@ -32,13 +32,13 @@ export type ResolvedDependencyInjection<T extends Provider> = Awaited<
   T['value']
 >
 
-export interface Depender<Deps extends Dependencies> {
+export interface Depender<Deps extends Dependencies = {}> {
   dependencies: Deps
 }
 
 export type DependencyContext<
   Context extends Extra,
-  Deps extends Dependencies
+  Deps extends Dependencies,
 > = {
   context: GlobalContext & Context
 } & {
@@ -50,7 +50,7 @@ export type ProviderFactoryType<
   ProviderOptions extends any,
   ProviderDeps extends Dependencies,
   ProviderScope extends Scope,
-  ProviderType = any
+  ProviderType = any,
 > = (
   injections: DependencyContext<
     App['_']['context'] &
@@ -63,18 +63,18 @@ export type ProviderFactoryType<
         : {}),
     ProviderDeps
   >,
-  options: ProviderOptions
+  options: ProviderOptions,
 ) => ProviderType
 
 export type ProviderDisposeType<
   ProviderType,
   App extends AnyApplication,
   ProviderOptions extends any,
-  ProviderDeps extends Dependencies
+  ProviderDeps extends Dependencies,
 > = (
   instance: Awaited<ProviderType>,
   ctx: DependencyContext<App['_']['context'], ProviderDeps>,
-  options: ProviderOptions
+  options: ProviderOptions,
 ) => any
 
 export class Provider<
@@ -94,13 +94,13 @@ export class Provider<
     App,
     ProviderOptions,
     ProviderDeps
-  > = ProviderDisposeType<ProviderValue, App, ProviderOptions, ProviderDeps>
+  > = ProviderDisposeType<ProviderValue, App, ProviderOptions, ProviderDeps>,
 > implements Depender<ProviderDeps>
 {
   static override<T extends Provider<any, any, any, any, any, any, any>>(
     newProvider: T,
     original: any,
-    overrides: { [K in keyof Provider]?: any } = {}
+    overrides: { [K in keyof Provider]?: any } = {},
   ): T {
     Object.assign(newProvider, original, overrides)
     return newProvider
@@ -162,7 +162,7 @@ export class Provider<
       ProviderScope,
       ProviderValue extends never ? any : ProviderValue
     >,
-    T extends Awaited<ReturnType<F>>
+    T extends Awaited<ReturnType<F>>,
   >(factory: F) {
     const provider = new Provider<
       T,
@@ -177,7 +177,7 @@ export class Provider<
   }
 
   withValue<T extends ProviderValue extends never ? any : ProviderValue>(
-    value: T
+    value: T,
   ) {
     const provider = new Provider<
       T,
@@ -244,7 +244,7 @@ export class Container {
     private readonly application: AnyApplication,
     private readonly scope: Scope = Scope.Global,
     private readonly params: Extra = {},
-    private readonly parent?: Container
+    private readonly parent?: Container,
   ) {}
 
   async load() {
@@ -252,7 +252,6 @@ export class Container {
       for (const key in dependencies) {
         const depender = dependencies[key]
         this.providers.add(depender)
-        if (!depender.dependencies) continue
         traverse(depender.dependencies)
       }
     }
@@ -283,7 +282,7 @@ export class Container {
           this.application.logger.error(
             new Error('Context disposal error. Potential memory leak', {
               cause,
-            })
+            }),
           )
         }
       }
@@ -343,7 +342,6 @@ export class Container {
     ...extra: Extra[]
   ) {
     const injections: any = {}
-    if (!dependencies) return injections
     const resolvers: Promise<any>[] = []
     for (const [key, dependency] of Object.entries(dependencies)) {
       const resolver = this.resolve(dependency, ...extra)

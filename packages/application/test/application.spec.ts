@@ -1,13 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-
 import { Application } from '@/application'
-import { defaultApp } from '../_app'
+import { testApp } from './_utils'
 
 describe.sequential('Application', () => {
   let app: Application
 
   beforeEach(() => {
-    app = defaultApp()
+    app = testApp()
   })
 
   it('should be an application', () => {

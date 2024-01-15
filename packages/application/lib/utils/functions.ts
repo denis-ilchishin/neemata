@@ -4,7 +4,7 @@ export const merge = (...objects: object[]) => Object.assign({}, ...objects)
 
 export const defer = <T extends Callback>(
   cb: T,
-  ms = 1
+  ms = 1,
 ): Promise<Awaited<ReturnType<T>>> =>
   new Promise((resolve, reject) =>
     setTimeout(async () => {
@@ -13,7 +13,7 @@ export const defer = <T extends Callback>(
       } catch (error) {
         reject(error)
       }
-    }, ms)
+    }, ms),
   )
 
 export const match = (name: string, pattern: Pattern) => {
@@ -72,3 +72,29 @@ export const isJsFile = (name: string) => {
   const ext = leading.join('.')
   return ['js', 'mjs', 'cjs', 'ts', 'mts', 'cts'].includes(ext)
 }
+
+export type Future<T> = {
+  resolve: (value: T) => void
+  reject: (error: any) => void
+  promise: Promise<T>
+  toArgs: () => [resolve: (value: T) => void, reject: (error: any) => void]
+}
+
+export const createFuture = <T>(): Future<T> => {
+  let resolve: Callback
+  let reject: Callback
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  const toArgs = () => [resolve, reject]
+  // @ts-expect-error
+  return { resolve, reject, promise, toArgs }
+}
+
+export const onAbort = (signal: AbortSignal, cb: Callback) => {
+  signal.addEventListener('abort', cb, { once: true })
+  return () => signal.removeEventListener('abort', cb)
+}
+
+export const noop = () => {}

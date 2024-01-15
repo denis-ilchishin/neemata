@@ -87,7 +87,7 @@ async function start(parentPort: MessagePort) {
           const { reason } = payload
           task.abort(reason)
         })
-        const result = await task.result
+        const result = await task
         bc.channel.postMessage({
           type: WorkerMessageType.ExecuteResult,
           payload: { result },

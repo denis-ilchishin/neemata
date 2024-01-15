@@ -5,7 +5,8 @@ export default defineWorkspace([
   {
     plugins: [tsconfigPaths()],
     test: {
-      include: ['**/*.spec.ts'],
+      globals: true,
+      include: ['**/*.{spec,test}.{js,ts}'],
     },
   },
 ])

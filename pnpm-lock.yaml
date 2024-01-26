@@ -42,7 +42,7 @@ importers:
         specifier: ^10.2.0
         version: 10.2.0
     devDependencies:
-      '@neemata/common':
+      '@neematajs/common':
         specifier: workspace:*
         version: link:../common
       '@sinclair/typebox':
@@ -64,13 +64,13 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
     devDependencies:
-      '@neemata/application':
+      '@neematajs/application':
         specifier: workspace:*
         version: link:../application
 
   packages/client-websockets:
     devDependencies:
-      '@neemata/common':
+      '@neematajs/common':
         specifier: workspace:*
         version: link:../common
 
@@ -85,16 +85,16 @@ importers:
         specifier: ^13.1.1
         version: 13.1.1
     devDependencies:
-      '@neemata/application':
+      '@neematajs/application':
         specifier: workspace:*
         version: link:../application
-      '@neemata/common':
+      '@neematajs/common':
         specifier: workspace:*
         version: link:../common
 
   packages/parser-typebox:
     dependencies:
-      '@neemata/application':
+      '@neematajs/application':
         specifier: workspace:*
         version: link:../application
     devDependencies:
@@ -108,7 +108,7 @@ importers:
         specifier: ^3.21.4
         version: 3.21.4(zod@3.22.4)
     devDependencies:
-      '@neemata/application':
+      '@neematajs/application':
         specifier: workspace:*
         version: link:../application
       zod:
@@ -121,10 +121,10 @@ importers:
         specifier: uNetworking/uWebSockets.js#v20.39.0
         version: github.com/uNetworking/uWebSockets.js/ec37cb6444a284c4a0a8d50041a23a4bac9e5715
     devDependencies:
-      '@neemata/application':
+      '@neematajs/application':
         specifier: workspace:*
         version: link:../application
-      '@neemata/common':
+      '@neematajs/common':
         specifier: workspace:*
         version: link:../common
 

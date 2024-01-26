@@ -9,7 +9,7 @@ import {
   importDefault,
   providerWorkerOptions,
   watchApp,
-} from '@neemata/application'
+} from '@neematajs/application'
 import dotenv from 'dotenv'
 import { register } from 'node:module'
 import { resolve } from 'node:path'
@@ -49,7 +49,7 @@ if (env) {
 }
 
 const entryPath = resolve(
-  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.js')
+  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.js'),
 )
 
 if (swc) {
@@ -83,7 +83,7 @@ if (
   !(entryApp instanceof ApplicationServer || entryApp instanceof Application)
 ) {
   throw new Error(
-    'Invalid entry module. Must be an instance of Application or ApplicationServer'
+    'Invalid entry module. Must be an instance of Application or ApplicationServer',
   )
 }
 
@@ -115,7 +115,7 @@ const commands = {
     if (entryApp instanceof ApplicationServer) {
       const { applicationPath } = entryApp.options
       const type = WorkerType.Task
-      /** @type {import('@neemata/application').ApplicationWorkerOptions} */
+      /** @type {import('@neematajs/application').ApplicationWorkerOptions} */
       const options = {
         id: 0,
         type,

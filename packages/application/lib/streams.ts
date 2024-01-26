@@ -1,4 +1,4 @@
-import { StreamMetadata } from '@neemata/common'
+import { StreamMetadata } from '@neematajs/common'
 import { PassThrough, TransformCallback } from 'node:stream'
 
 export abstract class StreamResponse<

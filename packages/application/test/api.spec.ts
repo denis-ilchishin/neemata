@@ -11,7 +11,7 @@ import { Application } from '@/application'
 import { Provider } from '@/container'
 import { EventManager } from '@/events'
 import { Scope } from '@/types'
-import { ApiError, ErrorCode } from '@neemata/common'
+import { ApiError, ErrorCode } from '@neematajs/common'
 
 describe.sequential('Procedure', () => {
   let procedure: Procedure

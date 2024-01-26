@@ -1,4 +1,4 @@
-import { BaseExtension, Procedure, match } from '@neemata/application'
+import { BaseExtension, Procedure, match } from '@neematajs/application'
 import { JSONSchema, compile } from 'json-schema-to-typescript'
 import fsp from 'node:fs/promises'
 

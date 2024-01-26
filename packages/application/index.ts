@@ -1,4 +1,4 @@
-export { ApiError, ErrorCode } from '@neemata/common'
+export { ApiError, ErrorCode } from '@neematajs/common'
 export * from './lib/api'
 export * from './lib/application'
 export * from './lib/container'

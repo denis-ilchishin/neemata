@@ -1,4 +1,4 @@
-import { BaseTransport } from '@neemata/application'
+import { BaseTransport } from '@neematajs/application'
 import { WebsocketsTransportServer } from './server'
 import {
   HttpTransportApplicationContext,

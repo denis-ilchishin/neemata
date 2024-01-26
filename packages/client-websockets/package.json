@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/client-websockets",
+  "name": "@neematajs/client-websockets",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -25,9 +25,9 @@
     }
   },
   "devDependencies": {
-    "@neemata/common": "workspace:*"
+    "@neematajs/common": "workspace:*"
   },
   "peerDependencies": {
-    "@neemata/common": "workspace:*"
+    "@neematajs/common": "workspace:*"
   }
 }

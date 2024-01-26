@@ -11,7 +11,7 @@ import {
   StreamResponse,
   Subscription,
   defer,
-} from '@neemata/application'
+} from '@neematajs/application'
 import {
   AbortStreamError,
   ErrorCode,
@@ -22,7 +22,7 @@ import {
   decodeText,
   encodeNumber,
   encodeText,
-} from '@neemata/common'
+} from '@neematajs/common'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import { PassThrough, Readable } from 'node:stream'

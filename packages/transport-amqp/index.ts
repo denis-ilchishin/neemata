@@ -1,4 +1,4 @@
-// import { BaseTransport, BaseTransportConnection } from '@neemata/application'
+// import { BaseTransport, BaseTransportConnection } from '@neematajs/application'
 
 // import amqplib from 'amqplib'
 

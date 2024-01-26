@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/application",
+  "name": "@neematajs/application",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application adapter",
@@ -25,12 +25,12 @@
     "pino-pretty": "^10.2.0"
   },
   "devDependencies": {
-    "@neemata/common": "workspace:*",
+    "@neematajs/common": "workspace:*",
     "@sinclair/typebox": "^0.31.0",
     "zod": "^3.0.0"
   },
   "peerDependencies": {
-    "@neemata/common": "workspace:*",
+    "@neematajs/common": "workspace:*",
     "@sinclair/typebox": "^0.30.0",
     "zod": "^3.0.0"
   },

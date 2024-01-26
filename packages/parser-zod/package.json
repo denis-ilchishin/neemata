@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/parser-zod",
+  "name": "@neematajs/parser-zod",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -24,11 +24,11 @@
     "zod-to-json-schema": "^3.21.4"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*",
+    "@neematajs/application": "workspace:*",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*",
+    "@neematajs/application": "workspace:*",
     "zod": "^3.22.4"
   }
 }

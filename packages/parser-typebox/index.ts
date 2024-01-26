@@ -1,4 +1,4 @@
-import { BaseParser } from '@neemata/application'
+import { BaseParser } from '@neematajs/application'
 import { TSchema } from '@sinclair/typebox'
 import { Value, ValueError } from '@sinclair/typebox/value'
 
@@ -6,7 +6,7 @@ export class TypeboxParserError extends Error {
   constructor(
     readonly data: ValueError[],
     message?: string,
-    options?: ErrorOptions
+    options?: ErrorOptions,
   ) {
     super(message, options)
   }

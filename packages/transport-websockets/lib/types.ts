@@ -3,7 +3,7 @@ import {
   Container,
   Stream,
   Subscription,
-} from '@neemata/application'
+} from '@neematajs/application'
 import { Readable } from 'node:stream'
 import uws, { AppOptions, HttpRequest, HttpResponse } from 'uWebSockets.js'
 import { HttpTransportMethod } from './common'

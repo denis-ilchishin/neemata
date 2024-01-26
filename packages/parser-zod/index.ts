@@ -1,4 +1,4 @@
-import { Async, BaseParser } from '@neemata/application'
+import { Async, BaseParser } from '@neematajs/application'
 import { ZodErrorMap, ZodSchema, any } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 

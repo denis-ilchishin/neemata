@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/transport-websockets",
+  "name": "@neematajs/transport-websockets",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -24,11 +24,11 @@
     "uWebSockets.js": "uNetworking/uWebSockets.js#v20.39.0"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neematajs/application": "workspace:*",
+    "@neematajs/common": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/common": "workspace:*",
-    "@neemata/application": "workspace:*"
+    "@neematajs/common": "workspace:*",
+    "@neematajs/application": "workspace:*"
   }
 }

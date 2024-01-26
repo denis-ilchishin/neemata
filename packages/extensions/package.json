@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/extensions",
+  "name": "@neematajs/extensions",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -25,10 +25,10 @@
     "json-schema-to-typescript": "^13.1.1"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*"
+    "@neematajs/application": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neematajs/application": "workspace:*",
+    "@neematajs/common": "workspace:*"
   }
 }

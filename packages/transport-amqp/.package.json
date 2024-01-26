@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/transport-amqp",
+  "name": "@neematajs/transport-amqp",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -21,12 +21,12 @@
     "amqplib": "^0.10.3"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*"
+    "@neematajs/application": "workspace:*",
+    "@neematajs/common": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*",
-    "@neemata/common": "workspace:*",
+    "@neematajs/application": "workspace:*",
+    "@neematajs/common": "workspace:*",
     "@types/amqplib": "^0.10.3"
   }
 }

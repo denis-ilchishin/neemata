@@ -1,0 +1,46 @@
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_USERNAME: ${{ secrets.NPM_USERNAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Log in to npm
+        run: |
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > ~/.npmrc
+          echo "Logged in to npm as ${NPM_USERNAME}"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_USERNAME: ${{ secrets.NPM_USERNAME }}
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        with:
+          version: 8
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Set version and publish
+        run: |
+          if [[ "${{ github.event.release.prerelease }}" == true ]]; then
+            TAG="--tag alpha"
+          else
+            TAG=""
+          fi
+          pnpm run build
+          pnpm version ${{ github.event.release.tag_name }} -ws --no-commit-hooks --no-git-tag-version --silent --include-workspace-root || true
+          pnpm publish --filter "*" --access public --no-git-checks ${TAG}

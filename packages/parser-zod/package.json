@@ -1,0 +1,34 @@
+{
+  "name": "@neemata/parser-zod",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.19.0 <19 || >=20.6.0 <21"
+  },
+  "dependencies": {
+    "zod-to-json-schema": "^3.21.4"
+  },
+  "peerDependencies": {
+    "@neemata/application": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@neemata/application": "workspace:*",
+    "zod": "^3.22.4"
+  }
+}

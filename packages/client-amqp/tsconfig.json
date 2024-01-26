@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+    "target": "ESNext",
+    "noImplicitAny": false,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "noEmit": false,
+    "declaration": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "sourceMap": true,
+    "outDir": "./dist"
+  },
+  "include": ["./index.ts"]
+}

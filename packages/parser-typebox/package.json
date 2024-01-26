@@ -1,0 +1,30 @@
+{
+  "name": "@neemata/parser-typebox",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application server",
+  "scripts": {
+    "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.19.0 <19 || >=20.6.0 <21"
+  },
+  "peerDependencies": {
+    "@neemata/application": "workspace:*",
+    "@sinclair/typebox": "^0.31.23"
+  },
+  "devDependencies": {
+    "@sinclair/typebox": "^0.31.23"
+  }
+}

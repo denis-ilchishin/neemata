@@ -1,21 +1,26 @@
 {
   "name": "@neemata/common",
-  "version": "0.8.0",
-  "description": "Neemata common package",
-  "author": "Denis Ilchyshyn",
+  "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
+  "description": "Nodejs application server",
   "scripts": {
-    "build": "tsup",
-    "watch": "tsup --watch"
+    "build": "tsup --clean --dts",
+    "type-check": "tsc --noEmit"
   },
-  "files": [
-    "dist"
-  ],
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "require": "./dist/index.js",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "types": "./index.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "require": "./dist/index.js",
+        "import": "./dist/index.mjs",
+        "types": "./dist/index.d.ts"
+      }
     }
   }
 }

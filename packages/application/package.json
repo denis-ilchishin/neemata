@@ -1,0 +1,45 @@
+{
+  "name": "@neemata/application",
+  "author": "ilchishin.denis@gmail.com",
+  "license": "MIT",
+  "description": "Nodejs application adapter",
+  "scripts": {
+    "watch": "rm -rf ./dist && tsc --watch --preserveWatchOutput",
+    "build": "rm -rf ./dist && tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "publishConfig": {
+    "types": "./dist/index.d.ts"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "engines": {
+    "node": ">=18.19.0 <19 || >=20.6.0 <21"
+  },
+  "dependencies": {
+    "pino": "^8.15.1",
+    "pino-pretty": "^10.2.0"
+  },
+  "devDependencies": {
+    "@neemata/common": "workspace:*",
+    "@sinclair/typebox": "^0.31.0",
+    "zod": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@neemata/common": "workspace:*",
+    "@sinclair/typebox": "^0.30.0",
+    "zod": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@sinclair/typebox": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
+  }
+}

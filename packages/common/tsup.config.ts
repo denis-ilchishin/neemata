@@ -1,11 +1,13 @@
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
-  entry: ['./index.ts'],
-  format: ['esm', 'cjs'],
-  dts: true,
+  entry: ['./index.ts', './lib/**/*'],
+  outDir: 'dist',
+  splitting: false,
   sourcemap: true,
-  clean: true,
+  minify: false,
+  bundle: false,
+  format: ['cjs', 'esm'],
   platform: 'neutral',
-  target: 'es2022',
+  external: ['events'],
 })

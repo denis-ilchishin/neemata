@@ -1,4 +1,4 @@
-import { ApiError, ErrorCode } from '@neemata/common'
+import { ApiError, ErrorCode } from '@neematajs/common'
 import {
   Container,
   Dependencies,

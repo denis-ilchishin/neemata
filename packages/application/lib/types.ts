@@ -1,7 +1,7 @@
 import type {
   Subscription as ClientSubscription,
   UpStream,
-} from '@neemata/common'
+} from '@neematajs/common'
 import type { Readable } from 'node:stream'
 import type { Api, Procedure } from './api'
 import type { Application } from './application'
@@ -243,7 +243,7 @@ export type ResolveApiInput<Input> = Input extends Readable
 export type ResolveApiOutput<Output> = Output extends StreamResponse
   ? {
       payload: JsonPrimitive<Output['payload']>
-      stream: import('@neemata/common').DownStream<
+      stream: import('@neematajs/common').DownStream<
         Output['chunk'] extends ArrayBuffer
           ? ArrayBuffer
           : JsonPrimitive<Output['chunk']>

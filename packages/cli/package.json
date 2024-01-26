@@ -1,5 +1,5 @@
 {
-  "name": "@neemata/cli",
+  "name": "@neematajs/cli",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -24,9 +24,9 @@
     "tsconfig-paths": "^4.2.0"
   },
   "peerDependencies": {
-    "@neemata/application": "workspace:*"
+    "@neematajs/application": "workspace:*"
   },
   "devDependencies": {
-    "@neemata/application": "workspace:*"
+    "@neematajs/application": "workspace:*"
   }
 }

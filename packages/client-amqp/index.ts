@@ -4,7 +4,7 @@
 //   Call,
 //   ErrorCode,
 //   ResolveApiProcedureType,
-// } from '@neemata/common'
+// } from '@neematajs/common'
 // import amqplib from 'amqplib'
 // import { hostname } from 'node:os'
 

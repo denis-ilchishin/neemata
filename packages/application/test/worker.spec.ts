@@ -12,7 +12,6 @@ const applicationPath = '@app'
 
 // @ts-ignore
 const bc = await vi.hoisted(async () => {
-  console.log('CREATE BC')
   const { EventEmitter } = await import('node:events')
   const createPort = (id) => {
     const emitter = new EventEmitter()

@@ -36,11 +36,8 @@ jobs:
 
       - name: Set version and publish
         run: |
-          if [[ "${{ github.event.release.prerelease }}" == true ]]; then
-            TAG="--tag alpha"
-          else
-            TAG=""
-          fi
           pnpm run build
           pnpm version ${{ github.event.release.tag_name }} -ws --no-commit-hooks --no-git-tag-version --silent --include-workspace-root || true
-          pnpm publish --filter "*" --access public --no-git-checks ${TAG}
+          pnpm -r exec cp ../../README.md ./
+          pnpm -r exec cp ../../LICENSE.md ./
+          pnpm publish --filter "*" --access public --no-git-checks

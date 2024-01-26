@@ -17,7 +17,7 @@ import {
   encodeText,
   once,
   type StreamMetadata,
-} from '@neemata/common'
+} from '@neematajs/common'
 
 import {
   HttpPayloadGetParam,
@@ -53,12 +53,12 @@ type HTTPRPCOptions = RPCOptions & {
 
 // to make dynamic private keys
 const KEY: Record<MessageType, symbol> = Object.fromEntries(
-  Object.values(MessageType).map((type) => [type as any, Symbol()])
+  Object.values(MessageType).map((type) => [type as any, Symbol()]),
 )
 
 class WebsocketsClient<
   Procedures extends any = never,
-  Events extends EventsType = never
+  Events extends EventsType = never,
 > extends BaseClient<Procedures, Events, RPCOptions> {
   private ws!: WebSocket
   private autoreconnect!: boolean
@@ -117,7 +117,7 @@ class WebsocketsClient<
       this.isHealthy = false
       this.emit('_neemata:close')
       this.clear(
-        event.code === 1000 ? undefined : new Error('Connection closed')
+        event.code === 1000 ? undefined : new Error('Connection closed'),
       )
       if (this.autoreconnect) this.connect()
     }
@@ -145,8 +145,8 @@ class WebsocketsClient<
     ...args: Procedures extends never
       ? [any?, RPCOptions?]
       : null extends ResolveApiProcedureType<Procedures, P, 'input'>
-      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
-      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
+        ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+        : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
     Procedures extends never
       ? any
@@ -164,7 +164,7 @@ class WebsocketsClient<
       return value
     }
     const rpcPayload = encodeText(
-      JSON.stringify([callId, procedure, payload], replacer)
+      JSON.stringify([callId, procedure, payload], replacer),
     )
     const streamsData = encodeText(JSON.stringify(streams))
     const streamDataLength = encodeNumber(streamsData.byteLength, 'Uint32')
@@ -191,8 +191,8 @@ class WebsocketsClient<
     ...args: Procedures extends never
       ? [any?, HTTPRPCOptions?]
       : null extends ResolveApiProcedureType<Procedures, P, 'input'>
-      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
-      : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
+        ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
+        : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
   ): Promise<
     Procedures extends never
       ? any
@@ -210,7 +210,7 @@ class WebsocketsClient<
         () => ac.abort(new Error('Timeout')),
         {
           once: true,
-        }
+        },
       )
     }
 
@@ -227,7 +227,7 @@ class WebsocketsClient<
           Accept: 'application/json',
           ...headers,
         },
-      }
+      },
     )
       .then((res) => res.json())
       .then(({ response, error }) => {
@@ -241,8 +241,8 @@ class WebsocketsClient<
     ...args: Procedures extends never
       ? [any?, HTTPRPCOptions?]
       : null extends ResolveApiProcedureType<Procedures, P, 'input'>
-      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
-      : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
+        ? [ResolveApiProcedureType<Procedures, P, 'input'>?, HTTPRPCOptions?]
+        : [ResolveApiProcedureType<Procedures, P, 'input'>, HTTPRPCOptions?]
   ): URL {
     const [payload, options = {}] = args
     const { URLParams = new URLSearchParams() } = options
@@ -258,7 +258,7 @@ class WebsocketsClient<
     const url = new URL(
       `${this.options.secure ? protocol + 's' : protocol}://${
         this.options.host
-      }/${path}`
+      }/${path}`,
     )
     for (const [key, value] of this.URLParams.entries())
       url.searchParams.set(key, value)
@@ -319,7 +319,7 @@ class WebsocketsClient<
 
   [KEY[MessageType.RpcStream]](buffer: ArrayBuffer) {
     const [callId, streamDataType, streamId, payload] = JSON.parse(
-      decodeText(buffer)
+      decodeText(buffer),
     )
     const call = this.calls.get(callId)
     if (call) {
@@ -330,10 +330,10 @@ class WebsocketsClient<
           this.streams.down.delete(streamId)
           this.send(
             MessageType.ServerStreamAbort,
-            encodeNumber(streamId, 'Uint32')
+            encodeNumber(streamId, 'Uint32'),
           )
         },
-        { once: true }
+        { once: true },
       )
       const transformer = transformers[streamDataType]
       const stream = new DownStream(transformer, ac)
@@ -359,7 +359,7 @@ class WebsocketsClient<
         this.subscriptions.delete(key)
         this.send(
           MessageType.ClientUnsubscribe,
-          encodeText(JSON.stringify([key]))
+          encodeText(JSON.stringify([key])),
         )
       })
       this.subscriptions.set(key, subscription)
@@ -378,7 +378,7 @@ class WebsocketsClient<
     } else {
       this.send(
         MessageType.ClientStreamPush,
-        concat(encodeNumber(id, 'Uint32'), chunk!)
+        concat(encodeNumber(id, 'Uint32'), chunk!),
       )
     }
   }
@@ -404,7 +404,7 @@ class WebsocketsClient<
     const stream = this.streams.down.get(streamId)
     if (stream) {
       await stream.writer.write(
-        new Uint8Array(buffer.slice(Uint32Array.BYTES_PER_ELEMENT))
+        new Uint8Array(buffer.slice(Uint32Array.BYTES_PER_ELEMENT)),
       )
       this.send(MessageType.ServerStreamPull, encodeNumber(streamId, 'Uint32'))
     }

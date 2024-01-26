@@ -1,8 +1,8 @@
-import { BaseExtension, Hook } from '@neemata/application'
+import { BaseExtension, Hook } from '@neematajs/application'
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
 
-const packageName = '@neemata/application'
+const packageName = '@neematajs/application'
 export class StaticApiAnnotations extends BaseExtension {
   name = 'Static API annotations'
 

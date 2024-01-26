@@ -1,4 +1,4 @@
-import { BaseTransportConnection } from '@neemata/application'
+import { BaseTransportConnection } from '@neematajs/application'
 import { MessageType } from './common'
 import { sendPayload } from './server'
 import { HttpTransportData, WebSocket } from './types'

@@ -12,8 +12,8 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:watch": "vitest watch --ui --coverage --passWithNoTests --open=false",
     "type-check": "pnpm run --parallel --filter \"*\" type-check",
-    "fmt:check": "prettier --check packages/*/**/*.{ts,js,mjs,json}",
-    "fmt": "prettier --write packages/*/**/*.{ts,js,mjs,json}"
+    "fmt:check": "prettier --check packages/*/**/",
+    "fmt": "prettier --write packages/*/**/"
   },
   "engines": {
     "pnpm": ">=8.0.0"

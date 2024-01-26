@@ -12,7 +12,7 @@ export class ModuleLoader implements BaseCustomLoader {
       events?: string
       procedures?: string
       tasks?: string
-    }
+    },
   ) {}
 
   async load() {
@@ -43,7 +43,7 @@ export class ModuleLoader implements BaseCustomLoader {
         if (typeof defaultExport === 'undefined') continue
         for (const type of ['procedures', 'tasks', 'events']) {
           for (const [name, module] of Object.entries(
-            defaultExport[type] ?? {}
+            defaultExport[type] ?? {},
           )) {
             result[type][composeName(featureName, name)] = {
               module,
@@ -73,7 +73,7 @@ export class ModuleLoader implements BaseCustomLoader {
                   join(root, entry.name, dirEntry.name)
                 )
                 for (const [name, module] of Object.entries(
-                  defaultExport ?? exports
+                  defaultExport ?? exports,
                 )) {
                   result[type][composeName(featureName, name)] = {
                     module,

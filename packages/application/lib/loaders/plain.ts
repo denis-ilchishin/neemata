@@ -9,7 +9,7 @@ export class PlainLoader implements BaseCustomLoader {
       procedures?: string
       tasks?: string
       events?: string
-    }
+    },
   ) {}
 
   async load() {
@@ -23,7 +23,7 @@ export class PlainLoader implements BaseCustomLoader {
       type: LoaderModuleType,
       root: string,
       dir: string,
-      level = 0
+      level = 0,
     ) => {
       const entries = await readdir(dir, { withFileTypes: true })
 

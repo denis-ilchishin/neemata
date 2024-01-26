@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { BaseParser } from './api'
 import { Subscription } from './subscription'
 import { AnyApplication, InferSchemaInput, InferSchemaOutput } from './types'
 
@@ -18,6 +19,7 @@ export class Event<
       : InferSchemaOutput<EventSchema>
     options: EventOptions
   }
+  readonly parser!: BaseParser
   readonly schema!: EventSchema
   readonly serializer = (options: EventOptions) => {
     const keys = Object.keys(options).sort()
@@ -47,6 +49,12 @@ export class Event<
     return event
   }
 
+  withParser(parser: BaseParser) {
+    const event = new Event<App, EventPayload, EventSchema, EventOptions>()
+    Object.assign(event, this, { parser })
+    return event
+  }
+
   withName(name: string) {
     const event = new Event<App, EventPayload, EventSchema, EventOptions>()
     Object.assign(event, this, { name })
@@ -66,15 +74,15 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
     event: E,
     options: E['_']['options'],
     connection: App['_']['connection'],
-  ): Promise<[Subscription<E>, boolean]> {
+  ): Promise<{ subscription: Subscription<E>; isNew: boolean }> {
     if (!event.name) throw new Error('Event name is required')
     if (!this.application.loader.event(event.name))
       throw new Error(`Event ${event.name} not found`)
 
     const key = event._key(options)
     const { id, subscriptions } = connection
-    let subscription = subscriptions.get(key)
-    if (subscription) return [subscription as any, false]
+    let subscription = subscriptions.get(key) as Subscription<E> | undefined
+    if (subscription) return { subscription, isNew: false }
     this.logger.debug(
       options,
       `Subscribing connection [${id}] to event [${event.name}] with options`,
@@ -84,7 +92,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
     )
     subscriptions.set(key, subscription)
     await this.subManager.subscribe(subscription)
-    return [subscription as any, true]
+    return { subscription, isNew: true }
   }
 
   async unsubscribe(
@@ -99,10 +107,9 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
     const key = event._key(options)
     const subscription = subscriptions.get(key)
     if (!subscription) return false
-    const result = await this.subManager.unsubscribe(subscription)
+    await this.subManager.unsubscribe(subscription)
     subscription.emit('unsubscribe')
     subscriptions.delete(key)
-    return result
   }
 
   async publish<E extends Event>(

@@ -2,7 +2,7 @@ import { BaseParser, Procedure } from '@/api'
 import { Application, ApplicationOptions } from '@/application'
 import { Event } from '@/events'
 import { BaseTaskRunner, Task } from '@/tasks'
-import { BaseTransportConnection } from '@/transport'
+import { BaseTransport, BaseTransportConnection } from '@/transport'
 import { WorkerType } from '@/types'
 
 export class TestParser extends BaseParser {
@@ -30,6 +30,24 @@ export class TestTaskRunner extends BaseTaskRunner {
 
   execute(signal: AbortSignal, name: string, ...args: any[]): Promise<any> {
     return this.custom ? this.custom(name, ...args) : Promise.resolve()
+  }
+}
+
+export class TestTransport extends BaseTransport {
+  name = 'Test transport'
+
+  async start() {
+    return true
+  }
+
+  async stop() {
+    return true
+  }
+
+  initialize() {}
+
+  context(): {} {
+    return {}
   }
 }
 
@@ -66,6 +84,8 @@ export const testTask = () => new Task().withName('test')
 export const testEvent = () => new Event().withName('test')
 
 export const testTaskRunner = (...args) => new TestTaskRunner(...args)
+
+export const testTransport = () => new TestTransport()
 
 export const expectCopy = (source, targer) => {
   expect(targer).not.toBe(source)

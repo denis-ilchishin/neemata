@@ -21,14 +21,14 @@ describe.sequential('Extension', () => {
     app = testApp()
   })
 
-  it('should be initialize', async () => {
+  it('should initialize', async () => {
     const extension = new TestExtension()
     const alias = 'test'
     const initSpy = vi.spyOn(extension, 'initialize')
     const contextSpy = vi.spyOn(extension, 'context')
 
     app.withExtension(extension, alias)
-    expect(app.extensions).toEqual([{ extension, alias }])
+    expect(app.extensions).toHaveProperty(alias, extension)
     expect(extension.application).toBeDefined()
     await app.initialize()
     expect(initSpy).toHaveBeenCalledOnce()

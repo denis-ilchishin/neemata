@@ -103,12 +103,14 @@ export class Tasks {
     const task = this.application.loader.task(name)
     if (!task) throw new Error('Task not found')
 
-    onAbort(ac.signal, () => future.reject(ac.signal.reason))
+    onAbort(ac.signal, future.reject)
 
     defer(async () => {
       ac.signal.throwIfAborted()
+
       if (this.options.runner)
-        return this.options.runner.execute(ac.signal, name, ...args)
+        return await this.options.runner.execute(ac.signal, name, ...args)
+
       const { dependencies, handler } = task
       const extra = { signal: ac.signal }
       const context = await container.createContext(dependencies, extra)
@@ -120,7 +122,7 @@ export class Tasks {
     return Object.assign(
       future.promise
         .then((result) => ({ result }))
-        .catch((error) => ({ error })),
+        .catch((error = new Error('Undefined error')) => ({ error })),
       { abort },
     )
   }

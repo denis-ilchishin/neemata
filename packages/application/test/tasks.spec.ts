@@ -1,7 +1,7 @@
 import { Application } from '@/application'
 import { Provider } from '@/container'
 import { Task, Tasks } from '@/tasks'
-import { createFuture, noop, onAbort } from '@/utils/functions'
+import { createFuture, defer, noop, onAbort } from '@/utils/functions'
 import { defaultTimeout, testApp, testTask, testTaskRunner } from './_utils'
 
 describe.sequential('Task', () => {
@@ -122,7 +122,7 @@ describe.sequential('Tasks', () => {
 
     app.loader.tasks[task.name] = { module: task }
     const execution = tasks.execute(app.container, 'test')
-    setTimeout(() => execution.abort(), 1)
+    defer(() => execution.abort(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
     expect(spy).toHaveBeenCalledOnce()
@@ -137,7 +137,7 @@ describe.sequential('Tasks', () => {
 
     app.loader.tasks[task.name] = { module: task }
     const execution = tasks.execute(app.container, 'test')
-    setTimeout(() => app.terminate(), 1)
+    defer(() => app.terminate(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
     expect(spy).toHaveBeenCalledOnce()

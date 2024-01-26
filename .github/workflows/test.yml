@@ -6,6 +6,8 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: true
+      max-parallel: 1
       matrix:
         node:
           - 18.19.0

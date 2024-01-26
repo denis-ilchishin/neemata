@@ -26,7 +26,7 @@ export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
 
   constructor(
     transform: Transformer['transform'],
-    readonly ac: AbortController
+    readonly ac: AbortController,
   ) {
     super({ transform })
     this.ac.signal.addEventListener('abort', () => this.writable.close(), {
@@ -72,7 +72,7 @@ export class UpStream extends EventEmitter<StreamInferfaceEvents> {
   constructor(
     readonly id: number,
     readonly metadata: StreamMetadata,
-    source: ArrayBuffer | ReadableStream | Blob
+    source: ArrayBuffer | ReadableStream | Blob,
   ) {
     super()
 
@@ -81,10 +81,10 @@ export class UpStream extends EventEmitter<StreamInferfaceEvents> {
       source instanceof ReadableStream
         ? source
         : source instanceof Blob
-        ? source.stream()
-        : source instanceof ArrayBuffer
-        ? new Blob([source]).stream()
-        : undefined
+          ? source.stream()
+          : source instanceof ArrayBuffer
+            ? new Blob([source]).stream()
+            : undefined
 
     if (typeof this.source === 'undefined')
       throw new Error('Stream source is not supported')

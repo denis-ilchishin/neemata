@@ -4,12 +4,12 @@ export class EventEmitter<
   EventNames extends Exclude<keyof Events, symbol | number> = Exclude<
     keyof Events,
     symbol | number
-  >
+  >,
 > extends EventTarget {
   on<E extends EventNames>(
     event: E | (Object & string),
     listener: (payload: Events[E]) => void,
-    options?: AddEventListenerOptions
+    options?: AddEventListenerOptions,
   ) {
     const _listener: any = (event: CustomEvent<Events[E]>) =>
       listener(event.detail)
@@ -20,7 +20,7 @@ export class EventEmitter<
 
   once<E extends EventNames>(
     event: E | (Object & string),
-    listener: (payload: Events[E]) => void
+    listener: (payload: Events[E]) => void,
   ) {
     return this.on(event, listener, { once: true })
   }

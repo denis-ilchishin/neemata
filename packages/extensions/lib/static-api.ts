@@ -10,7 +10,7 @@ export class StaticApiAnnotations extends BaseExtension {
     private readonly options: {
       outputPath: string
       emit: boolean
-    }
+    },
   ) {
     super()
   }
@@ -26,7 +26,7 @@ export class StaticApiAnnotations extends BaseExtension {
   private async emit() {
     const procedures: any = []
     for (const [name, { path: filePath, exportName }] of Object.entries(
-      this.application.loader.procedures
+      this.application.loader.procedures,
     )) {
       if (filePath && exportName) {
         const path = relative(dirname(this.options.outputPath), filePath)
@@ -38,7 +38,7 @@ export class StaticApiAnnotations extends BaseExtension {
 
     const events: any = []
     for (const [name, { path: filePath, exportName }] of Object.entries(
-      this.application.loader.events
+      this.application.loader.events,
     )) {
       if (filePath && exportName) {
         const path = relative(dirname(this.options.outputPath), filePath)

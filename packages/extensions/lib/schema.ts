@@ -28,7 +28,7 @@ export class SchemaExtension extends BaseExtension {
         this.options.procedureName,
         new Procedure()
           .withHandler(this.jsonSchema.bind(this))
-          .withMiddlewareEnabled(false)
+          .withMiddlewareEnabled(false),
       )
     }
 
@@ -42,20 +42,20 @@ export class SchemaExtension extends BaseExtension {
     const jsonSchemas = {}
 
     for (const [name, { module: procedure }] of Object.entries(
-      loader.procedures
+      loader.procedures,
     )) {
       if (name === this.options.procedureName) continue
 
       if (this.options.include) {
         const matched = this.options.include.some((pattern) =>
-          match(name, pattern)
+          match(name, pattern),
         )
         if (!matched) continue
       }
 
       if (this.options.exclude) {
         const matched = this.options.exclude.some((pattern) =>
-          match(name, pattern)
+          match(name, pattern),
         )
         if (matched) continue
       }
@@ -136,7 +136,7 @@ export class SchemaExtension extends BaseExtension {
       proceduresSchema.properties![procedure] = procedureSchema(
         input,
         output,
-        description
+        description,
       )
       proceduresSchema.required = [
         ...(proceduresSchema.required as string[]),

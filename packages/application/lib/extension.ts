@@ -3,7 +3,7 @@ import { ExtensionApplication, Extra } from './types'
 export abstract class BaseExtension<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {},
-  E extends Extra = {}
+  E extends Extra = {},
 > {
   readonly application!: ExtensionApplication<ProcedureOptions, Context>
   readonly _!: {

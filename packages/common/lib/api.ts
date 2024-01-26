@@ -36,7 +36,7 @@ export type ApiProcedureType = {
 export type ResolveApiProcedureType<
   Api,
   Key,
-  Type extends keyof ApiProcedureType
+  Type extends keyof ApiProcedureType,
 > = Key extends keyof Api
   ? Api[Key] extends ApiProcedureType
     ? Api[Key][Type]
@@ -58,7 +58,7 @@ export type BaseClientEvents = {
 export abstract class BaseClient<
   Procedures extends any = never,
   Events extends EventsType = never,
-  RPCOptions = never
+  RPCOptions = never,
 > extends EventEmitter<Events & BaseClientEvents> {
   protected streams = {
     up: new Map<number, UpStream>(),
@@ -71,8 +71,8 @@ export abstract class BaseClient<
     ...args: Procedures extends never
       ? [any?, RPCOptions?]
       : null | undefined extends ResolveApiProcedureType<Procedures, P, 'input'>
-      ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
-      : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
+        ? [ResolveApiProcedureType<Procedures, P, 'input'>?, RPCOptions?]
+        : [ResolveApiProcedureType<Procedures, P, 'input'>, RPCOptions?]
   ): Promise<
     Procedures extends never
       ? any
@@ -83,7 +83,7 @@ export abstract class BaseClient<
   abstract reconnect(): Promise<void>
   async createStream<I extends Blob | ArrayBuffer | ReadableStream>(
     source: I,
-    metadata: Partial<StreamMetadata> = {}
+    metadata: Partial<StreamMetadata> = {},
   ) {
     if (source instanceof File && !metadata.filename) {
       metadata.type = source.type

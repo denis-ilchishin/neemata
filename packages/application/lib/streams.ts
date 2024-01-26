@@ -3,7 +3,7 @@ import { PassThrough, TransformCallback } from 'node:stream'
 
 export abstract class StreamResponse<
   Payload = any,
-  Chunk = any
+  Chunk = any,
 > extends PassThrough {
   readonly chunk!: Chunk
   readonly payload!: Payload
@@ -11,7 +11,7 @@ export abstract class StreamResponse<
 
 export class JsonStreamResponse<
   Payload = any,
-  Chunk = any
+  Chunk = any,
 > extends StreamResponse<Payload, Chunk> {
   constructor() {
     super({ writableObjectMode: true })
@@ -20,7 +20,7 @@ export class JsonStreamResponse<
   _transform(
     chunk: any,
     encoding: BufferEncoding,
-    callback: TransformCallback
+    callback: TransformCallback,
   ): void {
     try {
       callback(null, JSON.stringify(chunk))
@@ -32,7 +32,7 @@ export class JsonStreamResponse<
   write(
     chunk: Chunk,
     encodingOrCb?: BufferEncoding | ((error: Error | null | undefined) => void),
-    cb?: (error: Error | null | undefined) => void
+    cb?: (error: Error | null | undefined) => void,
   ): boolean {
     if (typeof encodingOrCb === 'function') cb = encodingOrCb
     return super.write(chunk, undefined, cb)
@@ -71,7 +71,7 @@ export class Stream extends PassThrough {
     readonly id: string,
     readonly metadata: StreamMetadata,
     read?: (size: number) => void,
-    highWaterMark?: number
+    highWaterMark?: number,
   ) {
     super({ highWaterMark, read })
   }

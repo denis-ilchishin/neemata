@@ -2,7 +2,13 @@ import type { Procedure } from './api'
 import { Provider, getProviderScope, type Depender } from './container'
 import type { Event } from './events'
 import type { Task } from './tasks'
-import { Scope, type AnyApplication } from './types'
+import {
+  AnyEvent,
+  AnyProcedure,
+  AnyTask,
+  Scope,
+  type AnyApplication,
+} from './types'
 
 export class LoaderError extends Error {}
 
@@ -48,7 +54,7 @@ export class Loader {
             name,
             module.module,
             module.path,
-            module.exportName
+            module.exportName,
           )
         }
       }
@@ -83,9 +89,9 @@ export class Loader {
   register(
     type: LoaderModuleType,
     name: string,
-    module: Procedure | Task | Event,
+    module: AnyProcedure | AnyTask | AnyEvent,
     path?: string,
-    exportName?: string
+    exportName?: string,
   ) {
     module.name = name
 
@@ -104,7 +110,7 @@ export class Loader {
     this.application.logger.debug(
       'Registering %s [%s]',
       type.slice(0, -1),
-      name
+      name,
     )
   }
 
@@ -112,7 +118,7 @@ export class Loader {
     name: string,
     procedure: Procedure,
     path?: string,
-    exportName?: string
+    exportName?: string,
   ) {
     if (typeof procedure.handler === 'undefined')
       throw new Error('Procedure handler is not defined')
@@ -133,7 +139,7 @@ export class Loader {
     name: string,
     task: Task,
     path?: string,
-    exportName?: string
+    exportName?: string,
   ) {
     if (typeof task.handler === 'undefined')
       throw new Error('Task handler is not defined')
@@ -150,7 +156,7 @@ export class Loader {
     name: string,
     event: Event,
     path?: string,
-    exportName?: string
+    exportName?: string,
   ) {
     if (name in this.events) throw new Error(`Event ${name} already registered`)
     this.events[name] = { module: event, path, exportName }

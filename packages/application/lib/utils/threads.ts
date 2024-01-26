@@ -26,7 +26,9 @@ export const createBroadcastChannel = (name: string) => {
     channel.close()
     emitter.removeAllListeners()
   }
-  return { emitter, channel, close }
+  const postMessage = (message: any) => channel.postMessage(message)
+
+  return Object.assign(emitter, { close, postMessage })
 }
 
 const WORKER_OPTIONS_KEY = Symbol('neemata:workerOptions')

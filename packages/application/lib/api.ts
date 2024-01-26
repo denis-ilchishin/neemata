@@ -10,6 +10,7 @@ import {
 import { BaseTransportConnection } from './transport'
 import {
   AnyApplication,
+  AnyProcedure,
   Async,
   ConnectionFn,
   ConnectionProvider,
@@ -26,7 +27,7 @@ import { merge } from './utils/functions'
 
 export type ResolvedProcedureContext<
   App extends AnyApplication,
-  Deps extends Dependencies
+  Deps extends Dependencies,
 > = DependencyContext<
   App['_']['context'] & {
     connection: App['_']['connection']
@@ -47,7 +48,7 @@ export type ResolvedProcedureContext<
 export type ProcedureOptionType<
   App extends AnyApplication,
   ProcedureDeps extends Dependencies,
-  T
+  T,
 > = T | ((ctx: ResolvedProcedureContext<App, ProcedureDeps>) => Async<T>)
 
 export type ProcedureHandlerType<
@@ -57,10 +58,10 @@ export type ProcedureHandlerType<
   ProcedureOutput,
   Response = ProcedureOutput extends never
     ? any
-    : InferSchemaInput<ProcedureOutput>
+    : InferSchemaInput<ProcedureOutput>,
 > = (
   ctx: ResolvedProcedureContext<App, ProcedureDeps>,
-  data: InferSchemaOutput<ProcedureInput>
+  data: InferSchemaOutput<ProcedureInput>,
 ) => Response
 
 export class Procedure<
@@ -74,13 +75,13 @@ export class Procedure<
     ProcedureInput,
     ProcedureOutput
   > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>,
-  ProcedureOptions extends App['_']['options'] = {}
+  ProcedureOptions extends App['_']['options'] = {},
 > implements Depender<ProcedureDeps>
 {
   static override<T extends Procedure>(
     newProcedure: T,
     original: any,
-    overrides: { [K in keyof Procedure]?: any } = {}
+    overrides: { [K in keyof Procedure]?: any } = {},
   ): T {
     Object.assign(newProcedure, original, overrides)
     return newProcedure
@@ -176,7 +177,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput
-    >
+    >,
   >(handler: H) {
     const procedure = new Procedure<
       App,
@@ -310,12 +311,24 @@ export class Procedure<
       tags: [...this.tags, ...tags],
     })
   }
+
+  withName(name: string) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler,
+      ProcedureOptions
+    >()
+    return Procedure.override(procedure, this, { name })
+  }
 }
 
-type ProcedureCallOptions = {
+export type ProcedureCallOptions = {
   connection: BaseTransportConnection
-  path: [Procedure, ...Procedure[]]
-  procedure: Procedure
+  path: [AnyProcedure, ...AnyProcedure[]]
+  procedure: AnyProcedure
   payload: any
   container: Container
 }
@@ -333,7 +346,7 @@ export class Api {
 
   constructor(
     private readonly application: AnyApplication,
-    private readonly options = application.options.procedures
+    private readonly options = application.options.procedures,
   ) {
     if (options.parsers instanceof BaseParser) {
       this.parsers = {
@@ -345,7 +358,7 @@ export class Api {
     }
   }
 
-  async find(name: string) {
+  find(name: string) {
     const procedure = this.application.loader.procedure(name)
     if (!procedure) throw NotFound(name)
     return procedure
@@ -353,13 +366,13 @@ export class Api {
 
   async call(
     callOptions: ProcedureCallOptions,
-    withMiddleware = callOptions.procedure.middlewareEnabled
+    withMiddleware = callOptions.procedure.middlewareEnabled,
   ) {
     const { payload } = callOptions
 
     const handleProcedure = await this.createProcedureHandler(
       callOptions,
-      withMiddleware
+      withMiddleware,
     )
 
     try {
@@ -380,7 +393,7 @@ export class Api {
       throw new Error(scopeErrorMessage('Connection'))
     } else {
       this.connectionFn = await this.application.container.resolve(
-        this.connection!
+        this.connection!,
       )
     }
   }
@@ -394,14 +407,14 @@ export class Api {
           procedure,
           payload,
         },
-        false
+        false,
       )
     }
   }
 
   private async createProcedureHandler(
     callOptions: ProcedureCallOptions,
-    withMiddleware: boolean
+    withMiddleware: boolean,
   ) {
     const { connection, path, procedure, container } = callOptions
 
@@ -414,7 +427,7 @@ export class Api {
 
     const middlewares = await this.resolveMiddlewares(
       callOptions,
-      withMiddleware
+      withMiddleware,
     )
 
     const { timeout = this.options.timeout } = procedure
@@ -438,12 +451,12 @@ export class Api {
           procedure,
           'input',
           payload,
-          context
+          context,
         )
 
         const result = await this.handleTimeout(
           procedure.handler(context, data),
-          timeout
+          timeout,
         )
 
         try {
@@ -451,12 +464,12 @@ export class Api {
         } catch (cause) {
           const error = new Error(
             `Procedure [${procedure.name}] output error`,
-            { cause }
+            { cause },
           )
           this.application.logger.error(error)
           throw new ApiError(
             ErrorCode.InternalServerError,
-            'Internal Server Error'
+            'Internal Server Error',
           )
         }
       }
@@ -467,7 +480,7 @@ export class Api {
 
   private async resolveMiddlewares(
     { procedure, container }: ProcedureCallOptions,
-    withMiddleware: boolean
+    withMiddleware: boolean,
   ) {
     if (!withMiddleware) return undefined
     const middlewareProviders = [
@@ -475,7 +488,7 @@ export class Api {
       ...procedure.middlewares,
     ]
     const middlewares = await Promise.all(
-      middlewareProviders.map((p) => container.resolve(p))
+      middlewareProviders.map((p) => container.resolve(p)),
     )
     return middlewares[Symbol.iterator]()
   }
@@ -485,7 +498,7 @@ export class Api {
       new Promise((resolve, reject) => {
         const timeoutError = new ApiError(
           ErrorCode.RequestTimeout,
-          'Request Timeout'
+          'Request Timeout',
         )
         const timer = setTimeout(reject, timeout, timeoutError)
         const clearTimer = () => clearTimeout(timer)
@@ -498,7 +511,7 @@ export class Api {
   private async handleGuards(callOptions: ProcedureCallOptions) {
     const { procedure, container, path, connection } = callOptions
     const guards = await Promise.all(
-      procedure.guards.map((p) => container.resolve(p))
+      procedure.guards.map((p) => container.resolve(p)),
     )
     const guardOptions = Object.freeze({ connection, path })
     for (const guard of guards) {
@@ -524,7 +537,7 @@ export class Api {
     procedure: Procedure,
     type: 'input' | 'output',
     payload: any,
-    context: any
+    context: any,
   ) {
     const parser = procedure.parsers[type] ?? this.parsers[type]
     if (!parser) return payload

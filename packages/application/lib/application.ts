@@ -1,9 +1,10 @@
-import { BaseCustomLoader, Loader } from '..'
 import { Api, BaseParser, Procedure } from './api'
 import { Container, Provider } from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
+import { BaseCustomLoader, Loader } from './loader'
 import { Logger, LoggingOptions, createLogger } from './logger'
+import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
 import { BaseTransport, BaseTransportConnection } from './transport'
@@ -21,6 +22,7 @@ import {
   Guards,
   Hook,
   Hooks,
+  Merge,
   Middleware,
   MiddlewareFn,
   Middlewares,
@@ -76,7 +78,7 @@ export class Application<
   AppConnectionData = unknown,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
-  AppEvents extends Record<string, Event> = {}
+  AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
     transport: AppTransport[keyof AppTransport]
@@ -106,15 +108,15 @@ export class Application<
     events: AppEvents
   }
 
-  readonly transports: { transport: BaseTransport; alias: string }[] = []
-  readonly extensions: { extension: BaseExtension; alias: string }[] = []
+  readonly transports: Record<string, BaseTransport> = {}
+  readonly extensions: Record<string, BaseExtension> = {}
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
   readonly loader: Loader
   readonly container: Container
   readonly eventManager: EventManager<this>
-  readonly subManager!: BaseSubscriptionManager
+  subManager!: BaseSubscriptionManager
   readonly context: AppContext = {} as AppContext
   readonly connections = new Map<
     this['_']['connection']['id'],
@@ -130,7 +132,7 @@ export class Application<
   constructor(readonly options: ApplicationOptions) {
     this.logger = createLogger(
       this.options.logging,
-      `${this.options.type}Worker`
+      `${this.options.type}Worker`,
     )
 
     this.hooks = new Map()
@@ -151,6 +153,7 @@ export class Application<
     this.tasks = new Tasks(this)
     this.container = new Container(this)
 
+    this.withSubscriptionManager(new BasicSubscriptionManager())
     this.initCommandsAndHooks()
   }
 
@@ -166,7 +169,7 @@ export class Application<
     await this.initialize()
     await this.callHook(Hook.BeforeStart)
     if (this.isApiWorker) {
-      for (const { transport } of this.transports) {
+      for (const transport of Object.values(this.transports)) {
         await transport.start()
       }
     }
@@ -176,7 +179,7 @@ export class Application<
   async stop() {
     await this.callHook(Hook.BeforeStop)
     if (this.isApiWorker) {
-      for (const { transport } of this.transports) {
+      for (const transport of Object.values(this.transports)) {
         await transport.stop()
       }
     }
@@ -192,7 +195,6 @@ export class Application<
   }
 
   execute(task: Task, ...args: any[]) {
-    if (!task.name) throw new Error('Task name is required')
     return this.tasks.execute(this.container, task.name, ...args)
   }
 
@@ -204,7 +206,9 @@ export class Application<
   }
 
   registerCommand(name: string | symbol, command: string, callback: Command) {
-    this.commands.get(name)?.set(command, callback)
+    let commands = this.commands.get(name)
+    if (!commands) this.commands.set(name, (commands = new Map()))
+    commands.set(command, callback)
     return this
   }
 
@@ -227,13 +231,13 @@ export class Application<
     connection: ConnectionProvider<
       this['_']['transport']['_']['transportData'],
       AppConnectionData
-    >
+    >,
   ) {
     this.api.connection = connection
     return this
   }
 
-  withConnection<T>() {
+  withConnectionData<T>() {
     return this as unknown as Application<
       AppTransport,
       AppExtensions,
@@ -258,7 +262,7 @@ export class Application<
       AppConnectionData,
       AppProcedures,
       AppTasks,
-      AppEvents & T
+      Merge<AppEvents, T>
     >
   }
 
@@ -272,7 +276,7 @@ export class Application<
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
-      AppProcedures & T,
+      Merge<AppProcedures, T>,
       AppTasks,
       AppEvents
     >
@@ -288,24 +292,22 @@ export class Application<
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
-      AppProcedures & T,
-      AppTasks,
+      AppProcedures,
+      Merge<AppTasks, T>,
       AppEvents
     >
   }
 
   withTransport<T extends BaseTransport, Alias extends string>(
     transport: T,
-    alias: Alias
+    alias: Alias,
   ) {
-    const exists = this.transports.some(
-      (t) => t.alias === alias || t.transport === transport
-    )
-    if (exists) throw new Error(`Transport already registered`)
-    this.transports.push({ transport, alias })
+    if (alias in this.transports)
+      throw new Error(`Transport already registered`)
+    this.transports[alias] = transport
     this.initExtension(transport, alias)
     return this as unknown as Application<
-      AppTransport & { [K in Alias]: T },
+      Merge<AppTransport, { [K in Alias]: T }>,
       AppExtensions,
       AppProcedureOptions,
       AppContext,
@@ -318,17 +320,15 @@ export class Application<
 
   withExtension<T extends BaseExtension, Alias extends string>(
     extension: T,
-    alias: Alias
+    alias: Alias,
   ) {
-    const exists = this.extensions.some(
-      (t) => t.alias === alias || t.extension === extension
-    )
-    if (exists) throw new Error(`Extension already registered`)
-    this.extensions.push({ extension, alias })
+    if (alias in this.extensions)
+      throw new Error(`Extension already registered`)
+    this.extensions[alias] = extension
     this.initExtension(extension, alias)
     return this as unknown as Application<
       AppTransport,
-      AppExtensions & { [K in Alias]: T },
+      Merge<AppExtensions, { [K in Alias]: T }>,
       AppProcedureOptions,
       AppContext,
       AppConnectionData,
@@ -339,9 +339,6 @@ export class Application<
   }
 
   withSubscriptionManager(subManager: BaseSubscriptionManager) {
-    if (this.subManager)
-      throw new Error('Subscription manager already registered')
-    // @ts-expect-error
     this.subManager = subManager
     this.initExtension(subManager, 'subManager')
     return this
@@ -385,6 +382,7 @@ export class Application<
     const { concurrent = false, reverse = false } =
       typeof hook === 'object' ? hook : {}
     hook = typeof hook === 'object' ? hook.hook : hook
+
     const hooksSet = this.hooks.get(hook)
     if (!hooksSet) return
     let hooks = Array.from(hooksSet)
@@ -400,8 +398,9 @@ export class Application<
     for (const key in this.context) delete this.context[key]
     const mixins: any[] = []
     const extensions = [
-      ...this.transports.map((t) => t.transport),
-      ...this.extensions.map((e) => e.extension),
+      this.subManager,
+      ...Object.values(this.extensions),
+      ...Object.values(this.transports),
     ]
     for (const extension of extensions) {
       if (extension.context) {
@@ -418,22 +417,25 @@ export class Application<
   private initExtension(extension: BaseExtension, alias: string) {
     this.commands.set(alias, new Map())
     const logger = this.logger.child({ $group: extension.name })
-    const registerHook = (...args: any[]) => {
+
+    // TODO: smells bad, refactor
+    const registerHook = (...args) => {
       // @ts-expect-error
       this.registerHook(...args)
     }
-    const registerMiddleware = (...args: any[]) => {
+    const registerMiddleware = (...args) => {
       // @ts-expect-error
       this.registerMiddleware(...args)
     }
-    const registerFilter = (...args: any[]) => {
+    const registerFilter = (...args) => {
       // @ts-expect-error
       this.registerFilter(...args)
     }
-    const registerCommand = (...args: any[]) => {
+    const registerCommand = (...args) => {
       // @ts-expect-error
       this.registerCommand(alias, ...args)
     }
+
     extension.assign({
       type: this.options.type,
       api: this.api,
@@ -450,7 +452,7 @@ export class Application<
 
   private initCommandsAndHooks() {
     const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg).result)
+    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg))
   }
 
   private get isApiWorker() {

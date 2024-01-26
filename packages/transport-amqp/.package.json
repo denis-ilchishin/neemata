@@ -13,10 +13,7 @@
   "publishConfig": {
     "types": "./dist/index.d.ts"
   },
-  "os": [
-    "darwin",
-    "linux"
-  ],
+  "os": ["darwin", "linux"],
   "engines": {
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },

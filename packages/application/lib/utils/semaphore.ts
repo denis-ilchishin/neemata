@@ -16,7 +16,7 @@ export class Semaphore {
   constructor(
     private readonly concurrency: number,
     private readonly size: number = 0,
-    private readonly timeout: number = 0
+    private readonly timeout: number = 0,
   ) {
     this.counter = concurrency
   }

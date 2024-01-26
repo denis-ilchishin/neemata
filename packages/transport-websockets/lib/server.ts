@@ -79,7 +79,7 @@ export const getRequestData = (req: Req, res: Res) => {
   const query = new URLSearchParams(req.getQuery() || undefined)
   const headers = getRequestHeaders(req)
   const proxyRemoteAddress = Buffer.from(
-    res.getProxiedRemoteAddressAsText()
+    res.getProxiedRemoteAddressAsText(),
   ).toString()
   const remoteAddress = Buffer.from(res.getRemoteAddressAsText()).toString()
 
@@ -115,12 +115,12 @@ export const getRequestUrl = (req: Req) => {
 
 export const toJSON = (
   data: any,
-  replacer?: (key: string, value: any) => any
+  replacer?: (key: string, value: any) => any,
 ) => (data ? JSON.stringify(data, replacer) : undefined)
 
 export const fromJSON = (
   data: any,
-  replacer?: (key: string, value: any) => any
+  replacer?: (key: string, value: any) => any,
 ) => (data ? JSON.parse(data, replacer) : undefined)
 
 export const getBody = (req: Req, res: Res) => {
@@ -165,7 +165,7 @@ export abstract class BaseHttpTransportServer {
 
   constructor(
     protected options: HttpTransportOptions,
-    protected application: ExtensionApplication
+    protected application: ExtensionApplication,
   ) {
     this.server = options.ssl ? uws.SSLApp(options.ssl) : uws.App()
 
@@ -198,7 +198,7 @@ export abstract class BaseHttpTransportServer {
       'Listening on %s://%s:%s',
       ssl ? 'https' : 'http',
       hostname,
-      port
+      port,
     )
   }
 
@@ -233,7 +233,7 @@ export abstract class BaseHttpTransportServer {
         const message = 'Error while container disposal (potential memory leak)'
         const error = new Error(message, { cause })
         this.logger.error(error)
-      })
+      }),
     )
   }
 
@@ -241,7 +241,7 @@ export abstract class BaseHttpTransportServer {
     connection: BaseTransportConnection,
     procedure: Procedure,
     container: Container,
-    payload: any
+    payload: any,
   ) {
     this.logger.debug('Calling [%s] procedure...', procedure.name)
     return this.application.api.call({
@@ -262,7 +262,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     protected readonly application: ExtensionApplication<
       WebsocketsTransportProcedureOptions,
       WebsocketsTransportApplicationContext
-    >
+    >,
   ) {
     super(transport.options, application)
 
@@ -310,7 +310,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
               headers['sec-websocket-key'],
               headers['sec-websocket-protocol'],
               headers['sec-websocket-extensions'],
-              socket
+              socket,
             )
           })
         } catch (error: any) {
@@ -338,7 +338,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
             transportData,
             connectionData,
             ws,
-            id
+            id,
           )
           this.transport.addConnection(connection)
         } catch (error) {
@@ -377,11 +377,11 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
 
     this.server.post(
       this.basePath('api', '*'),
-      this.handleHTTPRequest.bind(this)
+      this.handleHTTPRequest.bind(this),
     )
     this.server.get(
       this.basePath('api', '*'),
-      this.handleHTTPRequest.bind(this)
+      this.handleHTTPRequest.bind(this),
     )
     this.server.options(this.basePath('*'), (res, req) => {
       if (!this.socket) return void res.close()
@@ -408,9 +408,9 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       decodeText(
         payloadBuf.slice(
           Uint32Array.BYTES_PER_ELEMENT,
-          Uint32Array.BYTES_PER_ELEMENT + streamDataLength
-        )
-      )
+          Uint32Array.BYTES_PER_ELEMENT + streamDataLength,
+        ),
+      ),
     )
 
     for (const [id, metadata] of streams) {
@@ -423,11 +423,11 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         id,
         metadata,
         read,
-        this.transport.options.maxStreamChunkLength
+        this.transport.options.maxStreamChunkLength,
       )
       data.streams.up.set(id, stream)
       stream.on('error', (cause) =>
-        this.logger.trace(new Error('Stream error', { cause }))
+        this.logger.trace(new Error('Stream error', { cause })),
       )
     }
 
@@ -438,7 +438,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         value.startsWith(STREAM_SERIALIZE_KEY)
       ) {
         return data.streams.up.get(
-          parseInt(value.slice(STREAM_SERIALIZE_KEY.length))
+          parseInt(value.slice(STREAM_SERIALIZE_KEY.length)),
         )
       }
       return value
@@ -446,9 +446,9 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
 
     const rpcPayload = fromJSON(
       decodeText(
-        payloadBuf.slice(Uint32Array.BYTES_PER_ELEMENT + streamDataLength)
+        payloadBuf.slice(Uint32Array.BYTES_PER_ELEMENT + streamDataLength),
       ),
-      streamsReplacer
+      streamsReplacer,
     )
 
     const [callId, procedureName, payload] = rpcPayload
@@ -459,7 +459,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         connection,
         procedure,
         container,
-        payload
+        payload,
       )
       if (response instanceof StreamResponse) {
         const streamDataType =
@@ -481,14 +481,14 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
             ws,
             MessageType.ServerStreamPush,
             encodeNumber(streamId, 'Uint32'),
-            chunk
+            chunk,
           )
         })
         response.once('end', () => {
           send(
             ws,
             MessageType.ServerStreamEnd,
-            encodeNumber(streamId, 'Uint32')
+            encodeNumber(streamId, 'Uint32'),
           )
         })
 
@@ -496,7 +496,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
           send(
             ws,
             MessageType.ServerStreamAbort,
-            encodeNumber(streamId, 'Uint32')
+            encodeNumber(streamId, 'Uint32'),
           )
         })
       } else if (response instanceof Subscription) {
@@ -539,7 +539,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     const stream = streams.up.get(id)
     if (!stream) return void ws.close()
     stream.once('finish', () =>
-      send(ws, MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32'))
+      send(ws, MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32')),
     )
     stream.push(null)
     streams.up.delete(id)
@@ -613,7 +613,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       const connection = new HttpTransportConnection(
         transportData,
         connectionData,
-        resHeaders
+        resHeaders,
       )
 
       // TODO: is there any reason to keep connection for http/1 transport?
@@ -625,7 +625,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         connection,
         procedure,
         container,
-        body
+        body,
       )
       const isStream = response instanceof StreamResponse
 
@@ -648,7 +648,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
             req,
             res,
             headers,
-            response as BinaryStreamResponse
+            response as BinaryStreamResponse,
           )
         else this.handleHTTPResponse(req, res, headers, { response })
       })
@@ -676,7 +676,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     req: Req,
     res: Res,
     method: string,
-    query: any
+    query: any,
   ) {
     if (method === HttpTransportMethod.Post) {
       if (!req.getHeader('content-type').startsWith(JSON_CONTENT_TYPE_MIME))
@@ -686,7 +686,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       } catch (error) {
         throw new ApiError(
           ErrorCode.NotAcceptable,
-          'Unable to parse request body'
+          'Unable to parse request body',
         )
       }
     } else {
@@ -699,7 +699,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     req: Req,
     res: Res,
     headers: Headers,
-    data: any
+    data: any,
   ) {
     res.writeHeader(CONTENT_TYPE_HEADER, JSON_CONTENT_TYPE_MIME)
     res.end(toJSON(data))
@@ -709,7 +709,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     req: Req,
     res: Res,
     headers: Headers,
-    stream: BinaryStreamResponse
+    stream: BinaryStreamResponse,
   ) {
     let isAborted = false
     const tryRespond = (cb) => !isAborted && res.cork(cb)
@@ -723,7 +723,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       chunk = encodeText(chunk + '\n')
       const arrayBuffer = chunk.buffer.slice(
         chunk.byteOffset,
-        chunk.byteOffset + chunk.byteLength
+        chunk.byteOffset + chunk.byteLength,
       )
       let ok = false
       tryRespond(() => (ok = res.write(arrayBuffer)))
@@ -754,7 +754,7 @@ const send = (ws: WebSocket, type: number, ...buffers: ArrayBuffer[]) => {
   try {
     const result = ws.send(
       concat(encodeNumber(type, 'Uint8'), ...buffers.filter(Boolean)),
-      true
+      true,
     )
     return result === 0 || result === 1
   } catch (error: any) {

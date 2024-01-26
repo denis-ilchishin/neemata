@@ -4,7 +4,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export class ZodParser extends BaseParser {
   constructor(
-    private readonly customErrorMap?: (context: any) => Async<ZodErrorMap>
+    private readonly customErrorMap?: (context: any) => Async<ZodErrorMap>,
   ) {
     super()
   }

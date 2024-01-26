@@ -2,10 +2,9 @@ import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { Logger, LoggingOptions, createLogger } from './logger'
 import { WorkerMessageType, WorkerType } from './types'
-
 import { Pool } from './utils/pool'
 import { bindPortMessageHandler } from './utils/threads'
-import { ApplicationWorkerData } from './worker'
+import type { ApplicationWorkerData } from './worker'
 
 export type ApplicationServerOptions = {
   applicationPath: string | URL

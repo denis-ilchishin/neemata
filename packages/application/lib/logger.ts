@@ -59,9 +59,9 @@ export const createLogger = (options: LoggingOptions = {}, $group: string) => {
         acc,
         'stream' in destination
           ? pino.levels.values[destination.level!]
-          : Infinity
+          : Infinity,
       ),
-    Infinity
+    Infinity,
   )
   const level = pino.levels.labels[lowestLevelValue]
   return pino(
@@ -70,13 +70,13 @@ export const createLogger = (options: LoggingOptions = {}, $group: string) => {
       ...pinoOptions,
       level,
     },
-    pino.multistream(destinations!)
+    pino.multistream(destinations!),
   ).child({ $group })
 }
 
 export const createConsoleDestination = (
   level: Level,
-  sync = true
+  sync = true,
 ): StreamEntry => ({
   level,
   stream: pretty({

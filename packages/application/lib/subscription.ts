@@ -10,7 +10,7 @@ export class Subscription<E extends Event = Event> extends PassThrough {
   constructor(
     private readonly event: E,
     readonly key: string,
-    readonly unsubscribe: () => Promise<boolean>
+    readonly unsubscribe: () => Promise<any>,
   ) {
     super({ writableObjectMode: true, readableObjectMode: true })
     this.once('unsubscribe', () => this.end())
@@ -19,6 +19,6 @@ export class Subscription<E extends Event = Event> extends PassThrough {
 
 export abstract class BaseSubscriptionManager extends BaseExtension {
   abstract subscribe(subscription: Subscription): any
-  abstract unsubscribe(subscription: Subscription): Promise<boolean>
-  abstract publish(event: Event, key: string, payload: any): Promise<boolean>
+  abstract unsubscribe(subscription: Subscription): any
+  abstract publish(event: Event, key: string, payload: any): any
 }

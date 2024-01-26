@@ -5,11 +5,12 @@ import {
   Depender,
 } from './container'
 import { AnyApplication, Extra, Hook, Merge } from './types'
-import { defer } from './utils/functions'
+import { createFuture, defer, merge, noop, onAbort } from './utils/functions'
 
-export type TaskInterface<Res = any> = {
-  result: Promise<Res>
-  abort: (reason?: any) => void
+export type TaskExecution<Res = any> = Promise<
+  { result: Res; error?: any } | { result?: Res; error: any }
+> & {
+  abort(reason?: any): void
 }
 
 export type TasksRunner = (
@@ -21,8 +22,11 @@ export type TasksRunner = (
 type Handler<
   Context extends Extra,
   Deps extends Dependencies,
-  Args extends any[]
-> = (ctx: DependencyContext<Context, Deps>, ...args: Args) => any
+  Args extends any[],
+> = (
+  ctx: DependencyContext<Context & { signal: AbortSignal }, Deps>,
+  ...args: Args
+) => any
 
 export abstract class BaseTaskRunner {
   abstract execute(
@@ -40,7 +44,7 @@ export class Task<
     TaskContext,
     TaskDeps,
     TaskArgs
-  >
+  >,
 > implements Depender<TaskDeps>
 {
   name!: string
@@ -48,22 +52,25 @@ export class Task<
   readonly handler!: TaskHandler
   readonly parser!: (
     args: string[],
-    kwargs: Record<string, any>
+    kwargs: Record<string, any>,
   ) => TaskArgs | Readonly<TaskArgs>
 
   withArgs<NewArgs extends any[]>() {
     const task = new Task<TaskContext, TaskDeps, NewArgs>()
+    Object.assign(task, this)
     return task
   }
 
   withDependencies<NewDeps extends Dependencies>(dependencies: NewDeps) {
     const task = new Task<TaskContext, Merge<TaskDeps, NewDeps>, TaskArgs>()
-    Object.assign(task, this, { dependencies })
+    Object.assign(task, this, {
+      dependencies: merge(this.dependencies, dependencies),
+    })
     return task
   }
 
   withHandler<NewHandler extends Handler<TaskContext, TaskDeps, TaskArgs>>(
-    handler: NewHandler
+    handler: NewHandler,
   ) {
     const task = new Task<TaskContext, TaskDeps, TaskArgs, NewHandler>()
     Object.assign(task, this, { handler })
@@ -86,40 +93,38 @@ export class Task<
 export class Tasks {
   constructor(
     private readonly application: AnyApplication,
-    private readonly options = application.options.tasks
+    private readonly options = application.options.tasks,
   ) {}
 
-  execute(
-    container: Container,
-    name: string,
-    ...args: any[]
-  ): TaskInterface<any> {
+  execute(container: Container, name: string, ...args: any[]): TaskExecution {
     const ac = new AbortController()
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
-    const result = defer(async () => {
-      const task = this.application.loader.task(name)
-      if (!task) throw new Error('Task not found')
-      if (!this.options.runner) {
-        return new Promise((resolve, reject) => {
-          const { dependencies, handler } = task
-          const extra = { signal: ac.signal }
-          ac.signal.addEventListener('abort', () => reject(ac.signal.reason), {
-            once: true,
-          })
-          defer(async () => {
-            ac.signal.throwIfAborted()
-            const context = await container.createContext(dependencies, extra)
-            return await handler(context, ...args)
-          })
-            .then(resolve)
-            .catch(reject)
-        })
-      } else {
-        return this.options.runner.execute(ac.signal, name, ...args)
-      }
-    })
-    this.handleTermination(result, abort)
-    return { abort, result }
+    const future = createFuture()
+    const task = this.application.loader.task(name)
+    if (!task) throw new Error('Task not found')
+
+    onAbort(ac.signal, future.reject)
+
+    defer(async () => {
+      ac.signal.throwIfAborted()
+
+      if (this.options.runner)
+        return await this.options.runner.execute(ac.signal, name, ...args)
+
+      const { dependencies, handler } = task
+      const extra = { signal: ac.signal }
+      const context = await container.createContext(dependencies, extra)
+      return await handler(context, ...args)
+    }).then(...future.toArgs())
+
+    this.handleTermination(future.promise, abort)
+
+    return Object.assign(
+      future.promise
+        .then((result) => ({ result }))
+        .catch((error = new Error('Undefined error')) => ({ error })),
+      { abort },
+    )
   }
 
   command(container: Container, { args, kwargs }) {
@@ -133,16 +138,17 @@ export class Tasks {
 
   private handleTermination(
     result: Promise<any>,
-    abort: (reason?: any) => void
+    abort: (reason?: any) => void,
   ) {
+    // TODO: refactor this
     const abortExecution = async () => {
       abort()
-      await result.finally(unregisterHook)
+      await result.finally(unregisterHook).catch(noop)
     }
     const unregisterHook = () => {
       this.application.hooks.get(Hook.BeforeTerminate)?.delete(abortExecution)
     }
     this.application.registerHook(Hook.BeforeTerminate, abortExecution)
-    result.finally(unregisterHook)
+    result.finally(unregisterHook).catch(noop)
   }
 }

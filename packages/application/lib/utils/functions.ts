@@ -4,16 +4,17 @@ export const merge = (...objects: object[]) => Object.assign({}, ...objects)
 
 export const defer = <T extends Callback>(
   cb: T,
-  ms = 1
+  ms = 1,
+  ...args: Parameters<T>
 ): Promise<Awaited<ReturnType<T>>> =>
   new Promise((resolve, reject) =>
     setTimeout(async () => {
       try {
-        resolve(await cb())
+        resolve(await cb(...args))
       } catch (error) {
         reject(error)
       }
-    }, ms)
+    }, ms),
   )
 
 export const match = (name: string, pattern: Pattern) => {
@@ -72,3 +73,35 @@ export const isJsFile = (name: string) => {
   const ext = leading.join('.')
   return ['js', 'mjs', 'cjs', 'ts', 'mts', 'cts'].includes(ext)
 }
+
+export type Future<T> = {
+  resolve: (value: T) => void
+  reject: (error?: any) => void
+  promise: Promise<T>
+  toArgs: () => [resolve: (value: T) => void, reject: (error: any) => void]
+}
+
+// TODO: Promise.withResolvers?
+export const createFuture = <T>(): Future<T> => {
+  let resolve: Callback
+  let reject: Callback
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  const toArgs = () => [resolve, reject]
+  // @ts-expect-error
+  return { resolve, reject, promise, toArgs }
+}
+
+export const onAbort = <T extends Callback>(
+  signal: AbortSignal,
+  cb: T,
+  reason?: any,
+) => {
+  const listener = () => cb(reason ?? signal.reason)
+  signal.addEventListener('abort', listener, { once: true })
+  return () => signal.removeEventListener('abort', listener)
+}
+
+export const noop = () => {}

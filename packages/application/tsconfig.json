@@ -1,8 +1,7 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "lib": [
-      "ESNext"
-    ],
+    "lib": ["ESNext"],
     "moduleResolution": "NodeNext",
     "module": "NodeNext",
     "target": "ESNext",
@@ -16,9 +15,10 @@
     "strict": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./lib/*"]
+    }
   },
-  "include": [
-    "./index.ts",
-    "./lib/**/*.ts",
-  ]
+  "include": ["./index.ts", "./lib/**/*.ts", "./test/**/*.ts"]
 }

@@ -22,17 +22,15 @@ export type ApplicationWorkerData = {
   hasTaskRunners: boolean
 } & ApplicationWorkerOptions
 
-const {
-  id,
-  workerOptions,
-  applicationPath,
-  type,
-  hasTaskRunners,
-}: ApplicationWorkerData = workerData
+if (!isMainThread && !process.env.VITEST) start(parentPort!, workerData)
 
-if (!isMainThread) start(parentPort!)
+export async function start(
+  parentPort: MessagePort,
+  workerData: ApplicationWorkerData,
+) {
+  const { id, workerOptions, applicationPath, type, hasTaskRunners } =
+    workerData
 
-async function start(parentPort: MessagePort) {
   const { NEEMATA_SWC, NEEMATA_WATCH } = process.env
 
   if (NEEMATA_SWC) register(NEEMATA_SWC)
@@ -66,34 +64,39 @@ async function start(parentPort: MessagePort) {
   })
 
   parentPort.on(WorkerMessageType.Stop, async () => {
-    await app
-      .stop()
-      .then(() => {
-        process.exit(0)
-      })
-      .catch((err) => {
+    try {
+      await app.stop()
+      if (!process.env.VITEST) process.exit(0)
+    } catch (err) {
+      if (!process.env.VITEST) {
         app.logger.error(err)
         process.exit(1)
-      })
+      }
+    } finally {
+      if (process.env.VITEST) parentPort.postMessage({ type: 'exit' })
+    }
   })
 
   if (isTaskWorker) {
     parentPort.on(WorkerMessageType.ExecuteInvoke, async (payload) => {
       const { id, name, args } = payload
       const bc = createBroadcastChannel(id)
+
       try {
-        const task = app.tasks.execute(app.container, name, ...args)
-        bc.emitter.on(WorkerMessageType.ExecuteAbort, (payload) => {
+        const task = app.loader.task(name)
+        if (!task) throw new Error('Task not found')
+        const execution = app.execute(task, ...args)
+        if (process.env.VITEST) bindPortMessageHandler(bc)
+        bc.once(WorkerMessageType.ExecuteAbort, (payload) => {
           const { reason } = payload
-          task.abort(reason)
+          execution.abort(reason)
         })
-        const result = await task.result
-        bc.channel.postMessage({
+        bc.postMessage({
           type: WorkerMessageType.ExecuteResult,
-          payload: { result },
+          payload: await execution,
         })
       } catch (error) {
-        bc.channel.postMessage({
+        bc.postMessage({
           type: WorkerMessageType.ExecuteResult,
           payload: { error },
         })
@@ -102,6 +105,8 @@ async function start(parentPort: MessagePort) {
       }
     })
   }
+
+  if (process.env.VITEST) parentPort.postMessage({ type: 'online' })
 
   return app
 }

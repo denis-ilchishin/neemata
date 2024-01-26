@@ -11,7 +11,7 @@ import {
 } from './types'
 
 export class WebsocketsTransport<
-  Options extends WebsocketsTransportOptions = WebsocketsTransportOptions
+  Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
   HttpTransportProcedureOptions & WebsocketsTransportProcedureOptions,
   HttpTransportApplicationContext & WebsocketsTransportApplicationContext,

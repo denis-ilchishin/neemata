@@ -7,14 +7,14 @@ export class HttpTransportConnection extends BaseTransportConnection {
   constructor(
     readonly transportData: HttpTransportData,
     readonly data: any,
-    private readonly headers: Headers
+    private readonly headers: Headers,
   ) {
     super(transportData, data)
   }
 
   protected sendEvent(): boolean {
     throw new Error(
-      'HTTP transport does not support bi-directional communication'
+      'HTTP transport does not support bi-directional communication',
     )
   }
 

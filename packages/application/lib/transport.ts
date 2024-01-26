@@ -11,7 +11,7 @@ export interface BaseTransportData {
 export abstract class BaseTransport<
   ProcedureOptions extends Extra = {},
   Context extends Extra = {},
-  TransportData extends BaseTransportData = any
+  TransportData extends BaseTransportData = any,
 > extends BaseExtension<
   ProcedureOptions,
   Context,
@@ -25,7 +25,7 @@ export abstract class BaseTransport<
   }
 
   removeConnection(
-    connectionOrId: BaseTransportConnection | BaseTransportConnection['id']
+    connectionOrId: BaseTransportConnection | BaseTransportConnection['id'],
   ) {
     const connection =
       connectionOrId instanceof BaseTransportConnection
@@ -47,13 +47,13 @@ export abstract class BaseTransport<
 
 export abstract class BaseTransportConnection<
   Data = unknown,
-  TransportData = unknown
+  TransportData = unknown,
 > {
   constructor(
     readonly transportData: TransportData,
     readonly data: Data,
     readonly id: string = randomUUID(),
-    readonly subscriptions = new Map<string, Subscription>()
+    readonly subscriptions = new Map<string, Subscription>(),
   ) {}
 
   send<E extends Event>(event: E, payload: E['_']['payload']) {

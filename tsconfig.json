@@ -1,9 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
+    "lib": ["ESNext", "DOM"],
     "moduleResolution": "node",
     "module": "ESNext",
     "target": "ESNext",
@@ -14,8 +11,6 @@
     "noEmit": true,
     "declaration": false,
     "emitDeclarationOnly": false,
-    "types": [
-      "vitest/globals"
-    ]
-  },
+    "types": ["vitest/globals"]
+  }
 }

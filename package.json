@@ -15,7 +15,8 @@
     "check:lint": "biome lint packages/*/**/",
     "check:fmt": "biome format packages/*/**/",
     "fmt": "biome check --apply packages/*/**/",
-    "qa": "pnpm run check:fmt && pnpm run check:lint && pnpm run check:type"
+    "check": "pnpm run check:fmt && pnpm run check:lint && pnpm run check:type",
+    "prepare": "husky"
   },
   "engines": {
     "pnpm": ">=8.0.0"
@@ -25,6 +26,7 @@
     "@types/node": "^18.19.0",
     "@vitest/coverage-v8": "^1.2.0",
     "@vitest/ui": "^1.2.0",
+    "husky": "^9.0.6",
     "tsup": "^8.0.1",
     "typescript": "^5.3.2",
     "vite-tsconfig-paths": "^4.2.3",

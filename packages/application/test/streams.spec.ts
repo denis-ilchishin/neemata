@@ -1,5 +1,5 @@
-import { BinaryStreamResponse, JsonStreamResponse, Stream } from '@/streams'
 import { Duplex } from 'node:stream'
+import { BinaryStreamResponse, JsonStreamResponse, Stream } from '@/streams'
 
 describe.sequential('Streams -> Response -> JSON', () => {
   it('should be a duplex', () => {

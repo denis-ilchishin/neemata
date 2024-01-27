@@ -23,13 +23,6 @@ describe.sequential('Application', () => {
     expect(app).instanceOf(Application)
   })
 
-  // withConnection
-  // withEvents
-  // withProcedures
-  // withTasks
-  // withTransport
-  // withExtension
-
   it('should chain with connection data', () => {
     const newApp = app.withConnectionData<{ some: 'type' }>()
     expect(newApp).toBe(app)
@@ -37,28 +30,31 @@ describe.sequential('Application', () => {
 
   it('should chain with events', () => {
     const event = testEvent()
-    const newApp = app.withEvents({ testEventName: event })
+    const key = 'testEventName'
+    const newApp = app.withEvents({ [key]: event })
     expect(newApp).toBe(app)
-    expect(app.loader.events).toHaveProperty('testEventName')
-    const registeredEvent = app.loader.events['testEventName']
+    expect(app.loader.events).toHaveProperty(key)
+    const registeredEvent = app.loader.events[key]
     expect(registeredEvent.module).toBe(event)
   })
 
   it('should chain with procedures', () => {
     const procedure = testProcedure().withHandler(() => void 0)
-    const newApp = app.withProcedures({ testProcedureName: procedure })
+    const key = 'testProcedureName'
+    const newApp = app.withProcedures({ [key]: procedure })
     expect(newApp).toBe(app)
-    expect(app.loader.procedures).toHaveProperty('testProcedureName')
-    const registeredProcedure = app.loader.procedures['testProcedureName']
+    expect(app.loader.procedures).toHaveProperty(key)
+    const registeredProcedure = app.loader.procedures[key]
     expect(registeredProcedure.module).toBe(procedure)
   })
 
   it('should chain with tasks', () => {
     const task = testTask().withHandler(() => void 0)
-    const newApp = app.withTasks({ testTaskName: task })
+    const key = 'testTaskName'
+    const newApp = app.withTasks({ [key]: task })
     expect(newApp).toBe(app)
-    expect(app.loader.tasks).toHaveProperty('testTaskName')
-    const registeredTask = app.loader.tasks['testTaskName']
+    expect(app.loader.tasks).toHaveProperty(key)
+    const registeredTask = app.loader.tasks[key]
     expect(registeredTask.module).toBe(task)
   })
 

@@ -56,7 +56,7 @@ export type BaseClientEvents = {
   '_neemata:healthy': never
 }
 export abstract class BaseClient<
-  Procedures extends any = never,
+  Procedures = never,
   Events extends EventsType = never,
   RPCOptions = never,
 > extends EventEmitter<Events & BaseClientEvents> {

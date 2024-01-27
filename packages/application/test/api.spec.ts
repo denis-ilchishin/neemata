@@ -344,12 +344,12 @@ describe.sequential('Api', () => {
 
   it('should find procedure', async () => {
     const procedure = testProcedure().withHandler(() => 'result')
-    app.loader.procedures['test'] = { module: procedure }
-    expect(api.find('test')).toBe(procedure)
+    app.loader.procedures[procedure.name] = { module: procedure }
+    expect(api.find(procedure.name)).toBe(procedure)
   })
 
   it('should fail find procedure', async () => {
-    expect(() => api.find('test')).toThrow()
+    expect(() => api.find('non-existing')).toThrow()
   })
 
   it('should handle nested call', async () => {

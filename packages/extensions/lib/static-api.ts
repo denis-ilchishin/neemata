@@ -1,6 +1,6 @@
-import { BaseExtension, Hook } from '@neematajs/application'
 import { writeFile } from 'node:fs/promises'
 import { dirname, relative } from 'node:path'
+import { BaseExtension, Hook } from '@neematajs/application'
 
 const packageName = '@neematajs/application'
 export class StaticApiAnnotations extends BaseExtension {

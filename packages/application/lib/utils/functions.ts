@@ -69,7 +69,7 @@ export const debounce = (cb: Callback, delay: number) => {
 
 export const isJsFile = (name: string) => {
   if (name.endsWith('.d.ts')) return false
-  let [baseName, ...leading] = name.split('.')
+  const leading = name.split('.').slice(1)
   const ext = leading.join('.')
   return ['js', 'mjs', 'cjs', 'ts', 'mts', 'cts'].includes(ext)
 }

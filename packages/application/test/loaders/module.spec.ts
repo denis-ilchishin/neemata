@@ -1,8 +1,8 @@
 import { testApp } from '../_utils'
 
+import { join, resolve } from 'node:path'
 import { Application } from '@/application'
 import { ModuleLoader } from '@/loaders/module'
-import { join, resolve } from 'node:path'
 
 describe.sequential('Loaders -> Plain', () => {
   let app: Application

@@ -135,6 +135,7 @@ export const getBody = (req: Req, res: Res) => {
     })
   }
 
+  // biome-ignore lint/suspicious/noShadowRestrictedNames: is okay here
   const toString = async () => {
     const buffer = await toBuffer()
     return buffer.toString()

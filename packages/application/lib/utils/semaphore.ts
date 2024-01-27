@@ -31,7 +31,7 @@ export class Semaphore {
       return new Promise((resolve, reject) => {
         const waiting: SemaphoreQueueItem = { resolve }
         waiting.timer = setTimeout(() => {
-          delete waiting.resolve
+          waiting.resolve = undefined
           this.queue.shift()
           reject(new SemaphoreError('Semaphore timeout'))
         }, this.timeout)

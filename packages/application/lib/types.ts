@@ -166,7 +166,9 @@ export type ResolveExtensionContext<Extension> =
   Extension extends ExtensionInterface<any, infer Context> ? Context : {}
 
 export type UnionToIntersection<U> = (
-  U extends any ? (k: U) => void : never
+  U extends any
+    ? (k: U) => void
+    : never
 ) extends (k: infer I) => void
   ? I
   : never
@@ -258,8 +260,9 @@ export type ResolveApiOutput<Output> = Output extends StreamResponse
  * Excludes keys with `never` types from object, and if a function is in array,
  * then it is stringified as `null`, just like V8's implementation of JSON.stringify does.
  */
-export type JsonPrimitive<T> =
-  Equal<T, JsonPrimitiveMain<T>> extends true ? T : JsonPrimitiveMain<T>
+export type JsonPrimitive<T> = Equal<T, JsonPrimitiveMain<T>> extends true
+  ? T
+  : JsonPrimitiveMain<T>
 
 type Equal<X, Y> = X extends Y ? (Y extends X ? true : false) : false
 
@@ -290,16 +293,15 @@ type JsonPrimitiveMain<
             : never // cannot be
           : ValueOf<Instance>
 
-type PrimitiveObject<Instance extends object> =
-  Instance extends Array<infer T>
-    ? IsTuple<Instance> extends true
-      ? PrimitiveTuple<Instance>
-      : JsonPrimitiveMain<T, true>[]
-    : {
-        [P in keyof Instance as JsonPrimitiveMain<Instance[P]> extends never
-          ? never
-          : P]: JsonPrimitiveMain<Instance[P]>
-      }
+type PrimitiveObject<Instance extends object> = Instance extends Array<infer T>
+  ? IsTuple<Instance> extends true
+    ? PrimitiveTuple<Instance>
+    : JsonPrimitiveMain<T, true>[]
+  : {
+      [P in keyof Instance as JsonPrimitiveMain<Instance[P]> extends never
+        ? never
+        : P]: JsonPrimitiveMain<Instance[P]>
+    }
 
 type PrimitiveTuple<T extends readonly any[]> = T extends []
   ? []
@@ -313,14 +315,13 @@ type PrimitiveTuple<T extends readonly any[]> = T extends []
           ? [JsonPrimitiveMain<F, true>?, ...PrimitiveTuple<Rest>]
           : []
 
-type ValueOf<Instance> =
-  IsValueOf<Instance, Boolean> extends true
-    ? boolean
-    : IsValueOf<Instance, Number> extends true
-      ? number
-      : IsValueOf<Instance, String> extends true
-        ? string
-        : Instance
+type ValueOf<Instance> = IsValueOf<Instance, Boolean> extends true
+  ? boolean
+  : IsValueOf<Instance, Number> extends true
+    ? number
+    : IsValueOf<Instance, String> extends true
+      ? string
+      : Instance
 
 type NativeClass =
   | Set<any>

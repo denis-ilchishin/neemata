@@ -54,11 +54,11 @@ export class DownStream<Chunk = any> extends TransformStream<any, Chunk> {
 }
 
 type StreamInferfaceEvents = {
-  start: void
-  end: void
+  start: never
+  end: never
   progress: number
   error: any
-  close: void
+  close: never
 }
 
 export class UpStream extends EventEmitter<StreamInferfaceEvents> {

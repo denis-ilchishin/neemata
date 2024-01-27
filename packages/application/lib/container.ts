@@ -47,7 +47,7 @@ export type DependencyContext<
 
 export type ProviderFactoryType<
   App extends AnyApplication,
-  ProviderOptions extends any,
+  ProviderOptions,
   ProviderDeps extends Dependencies,
   ProviderScope extends Scope,
   ProviderType = any,
@@ -69,7 +69,7 @@ export type ProviderFactoryType<
 export type ProviderDisposeType<
   ProviderType,
   App extends AnyApplication,
-  ProviderOptions extends any,
+  ProviderOptions,
   ProviderDeps extends Dependencies,
 > = (
   instance: Awaited<ProviderType>,
@@ -80,7 +80,7 @@ export type ProviderDisposeType<
 export class Provider<
   ProviderValue = any,
   App extends AnyApplication = AnyApplication,
-  ProviderOptions extends any = unknown,
+  ProviderOptions = unknown,
   ProviderDeps extends Dependencies = {},
   ProviderScope extends Scope = Scope,
   ProviderFactory extends ProviderFactoryType<
@@ -306,7 +306,7 @@ export class Container {
     return !!(
       this.instances.has(provider) ||
       this.resolvers.has(provider) ||
-      (this.parent && this.parent.isResolved(provider))
+      this.parent?.isResolved(provider)
     )
   }
 

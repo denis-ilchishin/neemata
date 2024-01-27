@@ -14,7 +14,7 @@
     "check:type": "pnpm run --parallel --filter \"*\" check:type",
     "check:lint": "biome lint packages/*/**/",
     "check:fmt": "biome format packages/*/**/",
-    "fmt": "biome format --write packages/*/**/",
+    "fmt": "biome check --apply packages/*/**/",
     "qa": "pnpm run check:fmt && pnpm run check:lint && pnpm run check:type"
   },
   "engines": {

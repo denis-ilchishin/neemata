@@ -7,8 +7,8 @@ export type EventOptionsType = Record<string, string | number>
 
 export class Event<
   App extends AnyApplication = AnyApplication,
-  EventPayload extends any = any,
-  EventSchema extends any = unknown,
+  EventPayload = any,
+  EventSchema = unknown,
   EventOptions extends EventOptionsType = {},
 > {
   name!: string
@@ -29,7 +29,7 @@ export class Event<
     return createHash('sha1').update(JSON.stringify(vals)).digest('base64url')
   }
 
-  withPayload<NewPayload extends any>() {
+  withPayload<NewPayload>() {
     const event = new Event<App, NewPayload, EventSchema, EventOptions>()
     Object.assign(event, this)
     return event

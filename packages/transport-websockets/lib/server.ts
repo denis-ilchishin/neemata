@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+import { PassThrough, Readable } from 'node:stream'
 import {
   ApiError,
   BaseTransportConnection,
@@ -23,9 +26,6 @@ import {
   encodeNumber,
   encodeText,
 } from '@neematajs/common'
-import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
-import { PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
 import { HttpPayloadGetParam, HttpTransportMethod, MessageType } from './common'
 import {
@@ -88,7 +88,7 @@ export const getRequestData = (req: Req, res: Res) => {
 
 export const setCors = (res: Res, headers: Headers) => {
   // TODO: configurable cors
-  const origin = headers['origin']
+  const { origin } = headers
   if (origin) res.writeHeader(CORS_ORIGIN_HEADER, origin)
 }
 
@@ -721,6 +721,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     stream.on('error', () => tryRespond(() => res.close()))
     stream.on('end', () => tryRespond(() => res.end()))
     stream.on('data', (chunk) => {
+      // biome-ignore lint/style/noParameterAssign:
       chunk = encodeText(chunk + '\n')
       const arrayBuffer = chunk.buffer.slice(
         chunk.byteOffset,

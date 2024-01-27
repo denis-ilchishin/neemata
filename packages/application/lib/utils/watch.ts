@@ -5,7 +5,7 @@ import { debounce } from './functions'
 
 export const watchApp = (registerPath: string, app: Application) => {
   const { port1, port2 } = new MessageChannel()
-  const paths = app.options.loaders.map((loader) => loader.paths()).flat()
+  const paths = app.options.loaders.flatMap((loader) => loader.paths())
   register(registerPath, {
     parentURL: pathToFileURL(__filename),
     data: { port: port2, paths },

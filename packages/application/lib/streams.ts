@@ -1,5 +1,5 @@
-import { StreamMetadata } from '@neematajs/common'
 import { PassThrough, TransformCallback } from 'node:stream'
+import { StreamMetadata } from '@neematajs/common'
 
 export abstract class StreamResponse<
   Payload = any,
@@ -34,6 +34,7 @@ export class JsonStreamResponse<
     encodingOrCb?: BufferEncoding | ((error: Error | null | undefined) => void),
     cb?: (error: Error | null | undefined) => void,
   ): boolean {
+    // biome-ignore lint/style/noParameterAssign:
     if (typeof encodingOrCb === 'function') cb = encodingOrCb
     return super.write(chunk, undefined, cb)
   }

@@ -9,8 +9,15 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "complexity": { "all": false },
-      "style": { "all": false },
+      "complexity": { "recommended": true, "noBannedTypes": "off" },
+      "style": {
+        "recommended": true,
+        "noNonNullAssertion": "off",
+        "noInferrableTypes": "off",
+        "useTemplate": "off",
+        "noUselessElse": "off",
+        "useDefaultParameterLast": "off"
+      },
       "suspicious": { "noExplicitAny": "off", "noAssignInExpressions": "off" },
       "security": {
         "recommended": true

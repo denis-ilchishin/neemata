@@ -1,8 +1,8 @@
+import type { Readable } from 'node:stream'
 import type {
   Subscription as ClientSubscription,
   UpStream,
 } from '@neematajs/common'
-import type { Readable } from 'node:stream'
 import type { Api, Procedure } from './api'
 import type { Application } from './application'
 import type { Container, Provider } from './container'

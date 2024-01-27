@@ -303,7 +303,7 @@ export class Application<
     alias: Alias,
   ) {
     if (alias in this.transports)
-      throw new Error(`Transport already registered`)
+      throw new Error('Transport already registered')
     this.transports[alias] = transport
     this.initExtension(transport, alias)
     return this as unknown as Application<
@@ -323,7 +323,7 @@ export class Application<
     alias: Alias,
   ) {
     if (alias in this.extensions)
-      throw new Error(`Extension already registered`)
+      throw new Error('Extension already registered')
     this.extensions[alias] = extension
     this.initExtension(extension, alias)
     return this as unknown as Application<
@@ -381,6 +381,7 @@ export class Application<
   ) {
     const { concurrent = false, reverse = false } =
       typeof hook === 'object' ? hook : {}
+    // biome-ignore lint/style/noParameterAssign:
     hook = typeof hook === 'object' ? hook.hook : hook
 
     const hooksSet = this.hooks.get(hook)

@@ -38,6 +38,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
       - run: pnpm install
-      - run: pnpm run fmt:check
+      - run: pnpm run qa
       - run: pnpm run build
       - run: pnpm run test

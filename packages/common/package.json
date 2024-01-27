@@ -5,7 +5,7 @@
   "description": "Nodejs application server",
   "scripts": {
     "build": "tsup --clean --dts",
-    "type-check": "tsc --noEmit"
+    "check:type": "tsc --noEmit"
   },
   "exports": {
     ".": {

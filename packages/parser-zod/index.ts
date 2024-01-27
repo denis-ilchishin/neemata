@@ -1,5 +1,5 @@
 import { Async, BaseParser } from '@neematajs/application'
-import { ZodErrorMap, ZodSchema, any } from 'zod'
+import { ZodErrorMap, ZodSchema, z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export class ZodParser extends BaseParser {
@@ -15,6 +15,8 @@ export class ZodParser extends BaseParser {
   }
 
   toJsonSchema(schema: ZodSchema) {
-    return zodToJsonSchema(schema ?? any().optional(), { $refStrategy: 'seen' })
+    return zodToJsonSchema(schema ?? z.any().optional(), {
+      $refStrategy: 'seen',
+    })
   }
 }

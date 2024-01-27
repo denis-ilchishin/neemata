@@ -11,24 +11,24 @@
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:watch": "vitest watch --ui --coverage --passWithNoTests --open=false",
-    "type-check": "pnpm run --parallel --filter \"*\" type-check",
-    "fmt:check": "prettier --check packages/*/**/",
-    "fmt": "prettier --write packages/*/**/"
+    "check:type": "pnpm run --parallel --filter \"*\" check:type",
+    "check:lint": "biome lint packages/*/**/",
+    "check:fmt": "biome format packages/*/**/",
+    "fmt": "biome format --write packages/*/**/",
+    "qa": "pnpm run check:fmt && pnpm run check:lint && pnpm run check:type"
   },
   "engines": {
     "pnpm": ">=8.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.5.3",
     "@types/node": "^18.19.0",
     "@vitest/coverage-v8": "^1.2.0",
     "@vitest/ui": "^1.2.0",
-    "prettier": "^3.2.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.2",
     "vite-tsconfig-paths": "^4.2.3",
     "vitest": "^1.2.0"
   },
-  "workspaces": [
-    "./packages/*"
-  ]
+  "workspaces": ["./packages/*"]
 }

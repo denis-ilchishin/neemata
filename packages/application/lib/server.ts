@@ -89,7 +89,7 @@ export class ApplicationServer {
       workerData,
     })
 
-    const threadId = worker.threadId
+    const { threadId } = worker
 
     bindPortMessageHandler(worker)
 

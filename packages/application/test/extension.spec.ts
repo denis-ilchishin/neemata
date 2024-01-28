@@ -1,8 +1,10 @@
 import { Application } from '@/application'
 import { BaseExtension } from '@/extension'
 import { WorkerType } from '@/types'
-import { Provider, noop } from 'index'
+import { Provider } from '@/container'
+import { noop } from '@/utils/functions'
 import { testApp } from './_utils'
+import { Registry } from '@/registry'
 
 export class TestExtension extends BaseExtension {
   name = 'Test extension'
@@ -16,18 +18,22 @@ export class TestExtension extends BaseExtension {
 
 describe.sequential('Extension', () => {
   let app: Application
+  let extension: TestExtension
+  const alias = 'test'
+  const registryPrefix = 'test'
 
   beforeEach(() => {
+    extension = new TestExtension()
     app = testApp()
+    app.registerExtension({ [alias]: extension }, registryPrefix)
   })
 
   it('should initialize', async () => {
     const extension = new TestExtension()
-    const alias = 'test'
+    const app = testApp()
     const initSpy = vi.spyOn(extension, 'initialize')
     const contextSpy = vi.spyOn(extension, 'context')
-
-    app.withExtension(extension, alias)
+    app.registerExtension({ [alias]: extension }, registryPrefix)
     expect(app.extensions).toHaveProperty(alias, extension)
     expect(extension.application).toBeDefined()
     await app.initialize()
@@ -36,66 +42,37 @@ describe.sequential('Extension', () => {
   })
 
   it('should assign an app', async () => {
-    const extension = new TestExtension()
-    const alias = 'test'
-    app.withExtension(extension, alias)
     expect(extension.application).toHaveProperty('type', WorkerType.Api)
     expect(extension.application).toHaveProperty('api', app.api)
     expect(extension.application).toHaveProperty('container', app.container)
     expect(extension.application).toHaveProperty('logger')
-    expect(extension.application).toHaveProperty('loader', app.loader)
     expect(extension.application).toHaveProperty('connections', expect.any(Map))
-    expect(extension.application).toHaveProperty(
-      'registerHook',
-      expect.any(Function),
-    )
-    expect(extension.application).toHaveProperty(
-      'registerMiddleware',
-      expect.any(Function),
-    )
-    expect(extension.application).toHaveProperty(
-      'registerCommand',
-      expect.any(Function),
-    )
-    expect(extension.application).toHaveProperty(
-      'registerFilter',
-      expect.any(Function),
-    )
+    expect(extension.application).toHaveProperty('registry')
+    expect(extension.application.registry).toBeInstanceOf(Registry)
+    expect(extension.application.registry.prefix).toBe(registryPrefix)
   })
 
   it('should register commands', async () => {
-    const extension = new TestExtension()
-    const alias = 'test'
-    app.withExtension(extension, alias)
     const fn = () => {}
-    extension.application.registerCommand('test', fn)
-    expect(app.commands.get(alias)?.get('test')).toBe(fn)
+    extension.application.registry.registerCommand('test', fn)
+    expect(app.registry.commands.get(registryPrefix)?.get('test')).toBe(fn)
   })
 
   it('should register hooks', async () => {
-    const extension = new TestExtension()
-    const alias = 'test'
-    app.withExtension(extension, alias)
     const fn = () => {}
-    extension.application.registerHook('test', fn)
-    expect(app.hooks.get('test')?.has(fn)).toBe(true)
+    extension.application.registry.registerHook('test', fn)
+    expect(app.registry.hooks.get('test')?.has(fn)).toBe(true)
   })
 
   it('should register filters', async () => {
-    const extension = new TestExtension()
-    const alias = 'test'
-    app.withExtension(extension, alias)
-    const fn = () => new Error()
-    extension.application.registerFilter(Error, fn)
-    expect(app.filters.get(Error)).toBe(fn)
+    const filter = new Provider().withValue(() => new Error())
+    extension.application.registry.registerFilter(Error, filter)
+    expect(app.registry.filters.get(Error)).toBe(filter)
   })
 
   it('should register middleware', async () => {
-    const extension = new TestExtension()
-    const alias = 'test'
-    app.withExtension(extension, alias)
     const middleware = new Provider().withValue(noop)
-    extension.application.registerMiddleware(middleware)
-    expect(app.middlewares.has(middleware)).toBe(true)
+    extension.application.registry.registerMiddleware(middleware)
+    expect(app.registry.middlewares.has(middleware)).toBe(true)
   })
 })

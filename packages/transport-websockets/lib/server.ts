@@ -41,9 +41,7 @@ import {
   Res,
   WebSocket,
   WebSocketUserData,
-  WebsocketsTransportApplicationContext,
   WebsocketsTransportData,
-  WebsocketsTransportProcedureOptions,
 } from './types'
 
 export const AUTH_KEY = Symbol('auth')
@@ -260,10 +258,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
 
   constructor(
     protected readonly transport: WebsocketsTransport,
-    protected readonly application: ExtensionApplication<
-      WebsocketsTransportProcedureOptions,
-      WebsocketsTransportApplicationContext
-    >,
+    protected readonly application: ExtensionApplication,
   ) {
     super(transport.options, application)
 

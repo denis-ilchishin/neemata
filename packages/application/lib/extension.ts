@@ -1,15 +1,11 @@
 import { ExtensionApplication, Extra } from './types'
 
 export abstract class BaseExtension<
-  ProcedureOptions extends Extra = {},
   Context extends Extra = {},
   E extends Extra = {},
 > {
-  readonly application!: ExtensionApplication<ProcedureOptions, Context>
-  readonly _!: {
-    context: Context
-    options: ProcedureOptions
-  } & E
+  readonly _!: {} & E
+  readonly application!: ExtensionApplication
 
   abstract name: string
 

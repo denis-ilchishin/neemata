@@ -256,7 +256,7 @@ export class Container {
       }
     }
 
-    for (const depender of this.application.loader.dependers()) {
+    for (const depender of this.application.registry.globals()) {
       traverse(depender.dependencies)
     }
 

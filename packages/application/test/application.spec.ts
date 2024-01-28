@@ -31,66 +31,69 @@ describe.sequential('Application', () => {
   it('should chain with events', () => {
     const event = testEvent()
     const key = 'testEventName'
-    const newApp = app.withEvents({ [key]: event })
+    const newApp = app.registerEvents({ [key]: event })
     expect(newApp).toBe(app)
-    expect(app.loader.events).toHaveProperty(key)
-    const registeredEvent = app.loader.events[key]
-    expect(registeredEvent.module).toBe(event)
+    expect(app.registry.events.has(key)).toBe(true)
+    const registeredEvent = app.registry.events.get(key)
+    expect(registeredEvent?.module).toBe(event)
   })
 
   it('should chain with procedures', () => {
     const procedure = testProcedure().withHandler(() => void 0)
     const key = 'testProcedureName'
-    const newApp = app.withProcedures({ [key]: procedure })
+    const newApp = app.registerProcedures({ [key]: procedure })
     expect(newApp).toBe(app)
-    expect(app.loader.procedures).toHaveProperty(key)
-    const registeredProcedure = app.loader.procedures[key]
-    expect(registeredProcedure.module).toBe(procedure)
+    expect(app.registry.procedures.has(key)).toBe(true)
+    const registeredProcedure = app.registry.procedures.get(key)
+    expect(registeredProcedure?.module).toBe(procedure)
   })
 
   it('should chain with tasks', () => {
     const task = testTask().withHandler(() => void 0)
     const key = 'testTaskName'
-    const newApp = app.withTasks({ [key]: task })
+    const newApp = app.registerTasks({ [key]: task })
     expect(newApp).toBe(app)
-    expect(app.loader.tasks).toHaveProperty(key)
-    const registeredTask = app.loader.tasks[key]
-    expect(registeredTask.module).toBe(task)
+    expect(app.registry.tasks.has(key)).toBe(true)
+    const registeredTask = app.registry.tasks.get(key)
+    expect(registeredTask?.module).toBe(task)
   })
 
   it('should chain with transport', () => {
     const transport = testTransport()
-    const newApp = app.withTransport(transport, 'test')
+    const newApp = app.registerTransport({ test: transport })
     expect(newApp).toBe(app)
     expect(app.transports).toHaveProperty('test', transport)
   })
 
   it('should register guard', () => {
     const guard = new Provider().withValue(() => true)
-    app.registerGuard(guard)
-    expect(app.guards.has(guard)).toBe(true)
+    app.registry.registerGuard(guard)
+    expect(app.registry.guards.has(guard)).toBe(true)
   })
 
   it('should register middleware', () => {
     const middleware = new Provider().withValue(() => true)
-    app.registerMiddleware(middleware)
-    expect(app.middlewares.has(middleware)).toBe(true)
+    app.registry.registerMiddleware(middleware)
+    expect(app.registry.middlewares.has(middleware)).toBe(true)
   })
 
   it('should register command', () => {
     const command = () => void 0
-    app.registerCommand('test', 'test', command)
-    expect(app.commands.get('test')?.get('test')).toBe(command)
+    app.registry.registerCommand('test', 'test', command)
+    expect(app.registry.commands.get('test')?.get('test')).toBe(command)
   })
 
   it('should register filter', () => {
-    app.registerFilter(Error, () => new Error())
-    expect(app.filters.has(Error)).toBe(true)
+    app.registry.registerFilter(
+      Error,
+      new Provider().withValue(() => new Error()),
+    )
+    expect(app.registry.filters.has(Error)).toBe(true)
   })
 
   it('should register interceptor', () => {
     const provider = new Provider().withValue(() => 'test')
-    app.registerConnection(provider)
+    app.registry.registerConnection(provider)
     expect(app.api.connection).toBe(provider)
   })
 

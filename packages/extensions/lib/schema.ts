@@ -21,10 +21,9 @@ export class SchemaExtension extends BaseExtension {
   }
 
   initialize(): void {
-    const { loader, registerCommand } = this.application
+    const { registry } = this.application
     if (this.options.procedureName) {
-      loader.register(
-        'procedures',
+      registry.registerProcedure(
         this.options.procedureName,
         new Procedure()
           .withHandler(this.jsonSchema.bind(this))
@@ -32,17 +31,17 @@ export class SchemaExtension extends BaseExtension {
       )
     }
 
-    registerCommand('typescript', async ({ args: output }) => {
+    registry.registerCommand('typescript', async ({ args: output }) => {
       await this.export({ typescript: output })
     })
   }
 
   private async jsonSchema() {
-    const { loader } = this.application
+    const { registry } = this.application
     const jsonSchemas = {}
 
     for (const [name, { module: procedure }] of Object.entries(
-      loader.procedures,
+      registry.procedures,
     )) {
       if (name === this.options.procedureName) continue
 

@@ -3,17 +3,14 @@ import { WebsocketsTransportServer } from './server'
 import {
   HttpTransportApplicationContext,
   HttpTransportData,
-  HttpTransportProcedureOptions,
   WebsocketsTransportApplicationContext,
   WebsocketsTransportData,
   WebsocketsTransportOptions,
-  WebsocketsTransportProcedureOptions,
 } from './types'
 
 export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
-  HttpTransportProcedureOptions & WebsocketsTransportProcedureOptions,
   HttpTransportApplicationContext & WebsocketsTransportApplicationContext,
   HttpTransportData | WebsocketsTransportData
 > {

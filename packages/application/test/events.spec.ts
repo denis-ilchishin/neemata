@@ -82,7 +82,7 @@ describe.sequential('Event manager', () => {
 
   it('should subscribe to event', async () => {
     const event = testEvent()
-    app.loader.register('events', event.name, event)
+    app.registry.registerEvent(event.name, event)
     const options = { some: 'type' }
     const { subscription } = await manager.subscribe(event, options, connection)
     expect(connection.subscriptions.size).toBe(1)
@@ -91,7 +91,7 @@ describe.sequential('Event manager', () => {
 
   it('should unsubscribe from event', async () => {
     const event = testEvent()
-    app.loader.register('events', event.name, event)
+    app.registry.registerEvent(event.name, event)
     const options = { some: 'type' }
     await manager.subscribe(event, options, connection)
     expect(connection.subscriptions.size).toBe(1)
@@ -107,7 +107,7 @@ describe.sequential('Event manager', () => {
 
   it('should return isSubscribed', async () => {
     const event = testEvent()
-    app.loader.register('events', event.name, event)
+    app.registry.registerEvent(event.name, event)
     const options = { some: 'type' }
 
     await expect(
@@ -125,7 +125,7 @@ describe.sequential('Event manager', () => {
 
   it('should return existing subscription', async () => {
     const event = testEvent()
-    app.loader.register('events', event.name, event)
+    app.registry.registerEvent(event.name, event)
     const options = { some: 'type' }
     const sub1 = await manager.subscribe(event, options, connection)
     expect(sub1.isNew).toBe(true)
@@ -137,7 +137,7 @@ describe.sequential('Event manager', () => {
 
   it('should publish event', async () => {
     const event = testEvent()
-    app.loader.register('events', event.name, event)
+    app.registry.registerEvent(event.name, event)
     const options = { some: 'type' }
     const payload = { some: 'payload' }
     const { subscription } = await manager.subscribe(event, options, connection)

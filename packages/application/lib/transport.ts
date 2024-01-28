@@ -9,14 +9,9 @@ export interface BaseTransportData {
   transport: string
 }
 export abstract class BaseTransport<
-  ProcedureOptions extends Extra = {},
   Context extends Extra = {},
   TransportData extends BaseTransportData = any,
-> extends BaseExtension<
-  ProcedureOptions,
-  Context,
-  { transportData: TransportData }
-> {
+> extends BaseExtension<Context, { transportData: TransportData }> {
   abstract start(): any
   abstract stop(): any
 

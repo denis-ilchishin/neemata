@@ -77,7 +77,7 @@ describe.sequential('Tasks', () => {
 
   it('should execute a task', async () => {
     const task = testTask().withHandler(() => 'value')
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const execution = tasks.execute(app.container, 'test')
     expect(execution).toHaveProperty('abort', expect.any(Function))
     const result = await execution
@@ -86,7 +86,7 @@ describe.sequential('Tasks', () => {
 
   it('should inject context', async () => {
     const task = testTask().withHandler((ctx) => ctx)
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const { result } = await tasks.execute(app.container, 'test')
     expect(result).toHaveProperty('context')
     expect(result.context).toHaveProperty('logger')
@@ -100,7 +100,7 @@ describe.sequential('Tasks', () => {
       throw thrownError
     })
 
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const { error } = await tasks.execute(app.container, 'test')
     expect(error).toBe(thrownError)
   })
@@ -108,7 +108,7 @@ describe.sequential('Tasks', () => {
   it('should inject args', async () => {
     const args = ['arg1', 'arg2']
     const task = testTask().withHandler((ctx, ...args) => args)
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const { result } = await tasks.execute(app.container, 'test', ...args)
     expect(result).deep.equal(args)
   })
@@ -120,7 +120,7 @@ describe.sequential('Tasks', () => {
       ({ context }) => new Promise(() => onAbort(context.signal, spy)),
     )
 
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const execution = tasks.execute(app.container, 'test')
     defer(() => execution.abort(), 1)
     const { error } = await execution
@@ -135,7 +135,7 @@ describe.sequential('Tasks', () => {
       ({ context }) => new Promise(() => onAbort(context.signal, spy)),
     )
 
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const execution = tasks.execute(app.container, 'test')
     defer(() => app.terminate(), 1)
     const { error } = await execution
@@ -150,7 +150,7 @@ describe.sequential('Tasks', () => {
     const app = testApp({
       tasks: { timeout: defaultTimeout, runner: taskRunner },
     })
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     await app.tasks.execute(app.container, 'test')
     expect(runnerFn).toHaveBeenCalledOnce()
   })
@@ -163,7 +163,7 @@ describe.sequential('Tasks', () => {
       })
       .withHandler((ctx, ...args) => args)
 
-    app.loader.tasks[task.name] = { module: task }
+    app.registry.tasks.set(task.name, { module: task })
     const { result } = await app.tasks.command(app.container, {
       args: [task.name, 1],
       kwargs: { value: 2 },

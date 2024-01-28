@@ -33,7 +33,7 @@ describe.sequential('Subscription manager', () => {
   it('should initialize', async () => {
     const manager = new TestSubscriptionManager()
     const initSpy = vi.spyOn(manager, 'initialize')
-    app.withSubscriptionManager(manager)
+    app.registerSubscriptionManager(manager)
     expect(app.subManager).toEqual(manager)
     expect(manager.application).toBeDefined()
     await app.initialize()
@@ -42,7 +42,7 @@ describe.sequential('Subscription manager', () => {
 
   it('should assign an app', async () => {
     const manager = new TestSubscriptionManager()
-    app.withSubscriptionManager(manager)
+    app.registerSubscriptionManager(manager)
     // app.eventManager.
   })
 

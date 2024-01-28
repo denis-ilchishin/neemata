@@ -3,7 +3,7 @@ import { Container, Provider } from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
 import { Logger, LoggingOptions, createLogger } from './logger'
-import { BaseCustomLoader, Registry } from './registry'
+import { APP_COMMAND, BaseCustomLoader, Registry } from './registry'
 import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
@@ -48,8 +48,6 @@ export type ApplicationWorkerOptions = {
   tasksRunner?: BaseTaskRunner
   workerOptions?: any
 }
-
-export const APP_COMMAND = Symbol('appCommand')
 
 export class Application<
   AppTransports extends Record<string, BaseTransport> = {},
@@ -110,7 +108,7 @@ export class Application<
     this.container = new Container(this)
 
     this.initCommandsAndHooks()
-    this.withSubscriptionManager(new BasicSubscriptionManager())
+    this.registerSubscriptionManager(new BasicSubscriptionManager())
   }
 
   async initialize() {
@@ -174,7 +172,7 @@ export class Application<
     >
   }
 
-  withEvents<T extends Record<string, Event>>(events: T) {
+  registerEvents<T extends Record<string, Event>>(events: T) {
     for (const [name, event] of Object.entries(events)) {
       this.registry.registerEvent(name, event)
     }
@@ -189,7 +187,7 @@ export class Application<
     >
   }
 
-  withProcedures<T extends Record<string, Procedure>>(procedures: T) {
+  registerProcedures<T extends Record<string, Procedure>>(procedures: T) {
     for (const [name, procedure] of Object.entries(procedures)) {
       this.registry.registerProcedure(name, procedure)
     }
@@ -204,7 +202,7 @@ export class Application<
     >
   }
 
-  withTasks<T extends Record<string, Task>>(tasks: T) {
+  registerTasks<T extends Record<string, Task>>(tasks: T) {
     for (const [name, task] of Object.entries(tasks)) {
       this.registry.registerTask(name, task)
     }
@@ -219,18 +217,21 @@ export class Application<
     >
   }
 
-  withTransport<T extends BaseTransport, Alias extends string>(
-    transport: T,
-    alias: Alias,
+  registerTransport<T extends Record<string, BaseTransport>>(
+    transports: T,
+    registryPrefix?: string,
   ) {
-    if (alias in this.transports)
-      throw new Error('Transport already registered')
-    this.transports[alias] = transport
-    this.initExtension(transport, alias)
+    for (const [alias, transport] of Object.entries(transports)) {
+      if (alias in this.transports)
+        throw new Error('Transport already registered')
+      this.transports[alias] = transport
+      this.initExtension(transport, registryPrefix)
+    }
+
     return this as unknown as Application<
-      Merge<AppTransports, { [K in Alias]: T }>,
+      Merge<AppTransports, T>,
       AppExtensions,
-      AppContext & ResolveExtensionContext<{ [K in Alias]: T }>,
+      AppContext & ResolveExtensionContext<T>,
       AppConnectionData,
       AppProcedures,
       AppTasks,
@@ -238,18 +239,20 @@ export class Application<
     >
   }
 
-  withExtension<T extends BaseExtension, Alias extends string>(
-    extension: T,
-    alias: Alias,
+  registerExtension<T extends Record<string, BaseExtension>>(
+    extensions: T,
+    registryPrefix?: string,
   ) {
-    if (alias in this.extensions)
-      throw new Error('Extension already registered')
-    this.extensions[alias] = extension
-    this.initExtension(extension, alias)
+    for (const [alias, extension] of Object.entries(extensions)) {
+      if (alias in this.extensions)
+        throw new Error('Extension already registered')
+      this.extensions[alias] = extension
+      this.initExtension(extension, registryPrefix)
+    }
     return this as unknown as Application<
       AppTransports,
-      Merge<AppExtensions, { [K in Alias]: T }>,
-      AppContext,
+      Merge<AppExtensions, T>,
+      AppContext & ResolveExtensionContext<T>,
       AppConnectionData,
       AppProcedures,
       AppTasks,
@@ -257,9 +260,12 @@ export class Application<
     >
   }
 
-  withSubscriptionManager(subManager: BaseSubscriptionManager) {
+  registerSubscriptionManager(
+    subManager: BaseSubscriptionManager,
+    registryPrefix?: string,
+  ) {
     this.subManager = subManager
-    this.initExtension(subManager, 'subManager')
+    this.initExtension(subManager, registryPrefix)
     return this
   }
 
@@ -337,15 +343,14 @@ export class Application<
     })
   }
 
-  private initExtension(extension: BaseExtension, alias: string) {
-    this.registry.commands.set(alias, new Map())
+  private initExtension(extension: BaseExtension, registryPrefix?: string) {
     const logger = this.logger.child({ $group: extension.name })
     extension.assign({
       type: this.options.type,
       api: this.api,
       connections: this.connections,
       container: this.container,
-      registry: this.registry,
+      registry: this.registry.copy(registryPrefix),
       logger,
     })
   }

@@ -7,7 +7,7 @@ describe.sequential('Transport', () => {
 
   beforeEach(async () => {
     transport = new TestTransport()
-    app = testApp().withTransport(transport, 'test')
+    app = testApp().registerTransport({ test: transport })
     await app.initialize()
   })
 
@@ -60,7 +60,7 @@ describe.sequential('Transport connection', () => {
 
   beforeEach(async () => {
     transport = new TestTransport()
-    app = testApp().withTransport(transport, 'test')
+    app = testApp().registerTransport({ test: transport })
     await app.initialize()
   })
 

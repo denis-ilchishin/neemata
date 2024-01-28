@@ -31,7 +31,7 @@ describe.sequential('Application', () => {
   it('should chain with events', () => {
     const event = testEvent()
     const key = 'testEventName'
-    const newApp = app.withEvents({ [key]: event })
+    const newApp = app.registerEvents({ [key]: event })
     expect(newApp).toBe(app)
     expect(app.registry.events.has(key)).toBe(true)
     const registeredEvent = app.registry.events.get(key)
@@ -41,7 +41,7 @@ describe.sequential('Application', () => {
   it('should chain with procedures', () => {
     const procedure = testProcedure().withHandler(() => void 0)
     const key = 'testProcedureName'
-    const newApp = app.withProcedures({ [key]: procedure })
+    const newApp = app.registerProcedures({ [key]: procedure })
     expect(newApp).toBe(app)
     expect(app.registry.procedures.has(key)).toBe(true)
     const registeredProcedure = app.registry.procedures.get(key)
@@ -51,7 +51,7 @@ describe.sequential('Application', () => {
   it('should chain with tasks', () => {
     const task = testTask().withHandler(() => void 0)
     const key = 'testTaskName'
-    const newApp = app.withTasks({ [key]: task })
+    const newApp = app.registerTasks({ [key]: task })
     expect(newApp).toBe(app)
     expect(app.registry.tasks.has(key)).toBe(true)
     const registeredTask = app.registry.tasks.get(key)
@@ -60,7 +60,7 @@ describe.sequential('Application', () => {
 
   it('should chain with transport', () => {
     const transport = testTransport()
-    const newApp = app.withTransport(transport, 'test')
+    const newApp = app.registerTransport({ test: transport })
     expect(newApp).toBe(app)
     expect(app.transports).toHaveProperty('test', transport)
   })

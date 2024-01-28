@@ -17,7 +17,7 @@ export class StaticApiAnnotations extends BaseExtension {
 
   initialize() {
     const { registry } = this.application
-    registry.registerCommand('', 'emit', () => this.emit())
+    registry.registerCommand('emit', () => this.emit())
     if (this.options.emit !== false) {
       registry.registerHook(Hook.AfterInitialize, this.emit.bind(this))
     }

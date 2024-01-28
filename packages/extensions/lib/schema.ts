@@ -31,8 +31,7 @@ export class SchemaExtension extends BaseExtension {
       )
     }
 
-    // FIXME: need to implement isolated registry.registerCommand
-    registry.registerCommand('', 'typescript', async ({ args: output }) => {
+    registry.registerCommand('typescript', async ({ args: output }) => {
       await this.export({ typescript: output })
     })
   }

@@ -1,5 +1,4 @@
 import type { Procedure } from './api'
-import { APP_COMMAND } from './application'
 import { Provider, getProviderScope, type Depender } from './container'
 import type { Event } from './events'
 import type { Task } from './tasks'
@@ -18,6 +17,8 @@ import {
   type AnyApplication,
 } from './types'
 
+export const APP_COMMAND = Symbol('appCommand')
+
 export class RegistryError extends Error {}
 
 export interface BaseCustomLoader {
@@ -30,17 +31,20 @@ export interface BaseCustomLoader {
   paths(): string[]
 }
 
+// TODO: too much code duplication here, need to refactor
 export class Registry {
-  procedures = new Map<string, RegistryModule<Procedure>>()
-  tasks = new Map<string, RegistryModule<Task>>()
-  events = new Map<string, RegistryModule<Event>>()
-  hooks = new Map<string, Set<(...args: any[]) => any>>()
-  commands = new Map<string | symbol, Map<string, Command>>()
-  filters = new Map<ErrorClass, Filter<ErrorClass>>()
-  middlewares = new Set<Middleware>()
-  guards = new Set<Guard>()
-
-  constructor(readonly application: AnyApplication) {
+  constructor(
+    readonly application: AnyApplication,
+    readonly prefix?: string,
+    readonly procedures = new Map<string, RegistryModule<Procedure>>(),
+    readonly tasks = new Map<string, RegistryModule<Task>>(),
+    readonly events = new Map<string, RegistryModule<Event>>(),
+    readonly hooks = new Map<string, Set<(...args: any[]) => any>>(),
+    readonly commands = new Map<string | symbol, Map<string, Command>>(),
+    readonly filters = new Map<ErrorClass, Filter<ErrorClass>>(),
+    readonly middlewares = new Set<Middleware>(),
+    readonly guards = new Set<Guard>(),
+  ) {
     for (const hook of Object.values(Hook)) {
       this.hooks.set(hook, new Set())
     }
@@ -97,6 +101,20 @@ export class Registry {
       ]),
     ]
   }
+  copy(prefix?: string) {
+    return new Registry(
+      this.application,
+      prefix,
+      this.procedures,
+      this.tasks,
+      this.events,
+      this.hooks,
+      this.commands,
+      this.filters,
+      this.middlewares,
+      this.guards,
+    )
+  }
 
   registerProcedure(
     name: string,
@@ -104,6 +122,9 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
+    // biome-ignore lint/style/noParameterAssign:
+    name = this.prefix ? `${this.prefix}/${name}` : name
+
     if (typeof procedure.handler !== 'function')
       throw new Error('Procedure handler is not defined or is not a function')
 
@@ -127,6 +148,9 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
+    // biome-ignore lint/style/noParameterAssign:
+    name = this.prefix ? `${this.prefix}/${name}` : name
+
     if (typeof task.handler !== 'function')
       throw new Error('Task handler is not defined or is not a function')
 
@@ -146,6 +170,9 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
+    // biome-ignore lint/style/noParameterAssign:
+    name = this.prefix ? `${this.prefix}/${name}` : name
+
     if (this.events.has(name))
       throw new Error(`Event ${name} already registered`)
 
@@ -160,9 +187,25 @@ export class Registry {
     hooks.add(hook)
   }
 
-  registerCommand(name: string | symbol, command: string, callback: Command) {
-    let commands = this.commands.get(name)
-    if (!commands) this.commands.set(name, (commands = new Map()))
+  registerCommand(
+    namespaceOrCommand: string | symbol,
+    commandOrCallback: Command | string,
+    callback?: Command,
+  ) {
+    let namespace: string | symbol
+    let command: string
+    if (this.prefix) {
+      // biome-ignore lint/style/noParameterAssign:
+      callback = commandOrCallback as Command
+      namespace = this.prefix
+      command = namespaceOrCommand as string
+    } else {
+      if (!callback) throw new Error('Callback is required')
+      namespace = namespaceOrCommand
+      command = namespaceOrCommand as string
+    }
+    let commands = this.commands.get(namespace)
+    if (!commands) this.commands.set(namespace, (commands = new Map()))
     commands.set(command, callback)
   }
 
@@ -186,7 +229,7 @@ export class Registry {
 
   registerConnection(
     connection: ConnectionProvider<
-      this['application']['_']['transport']['_']['transportData'],
+      this['application']['_']['transportData'],
       this['application']['_']['connectionData']
     >,
   ) {

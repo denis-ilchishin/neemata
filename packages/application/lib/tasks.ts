@@ -100,7 +100,7 @@ export class Tasks {
     const ac = new AbortController()
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const future = createFuture()
-    const task = this.application.loader.task(name)
+    const task = this.application.registry.task(name)
     if (!task) throw new Error('Task not found')
 
     onAbort(ac.signal, future.reject)
@@ -129,7 +129,7 @@ export class Tasks {
 
   command(container: Container, { args, kwargs }) {
     const [name, ...taskArgs] = args
-    const task = this.application.loader.task(name)
+    const task = this.application.registry.task(name)
     if (!task) throw new Error('Task not found')
     const { parser } = task
     const parsedArgs = parser ? parser(taskArgs, kwargs) : []
@@ -146,9 +146,11 @@ export class Tasks {
       await result.finally(unregisterHook).catch(noop)
     }
     const unregisterHook = () => {
-      this.application.hooks.get(Hook.BeforeTerminate)?.delete(abortExecution)
+      this.application.registry.hooks
+        .get(Hook.BeforeTerminate)
+        ?.delete(abortExecution)
     }
-    this.application.registerHook(Hook.BeforeTerminate, abortExecution)
+    this.application.registry.registerHook(Hook.BeforeTerminate, abortExecution)
     result.finally(unregisterHook).catch(noop)
   }
 }

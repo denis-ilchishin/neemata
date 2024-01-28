@@ -66,5 +66,4 @@ export type WebsocketsTransportData = {
   remoteAddress: string
 }
 
-export type WebsocketsTransportProcedureOptions = {}
 export type WebsocketsTransportApplicationContext = {}

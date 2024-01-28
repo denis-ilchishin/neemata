@@ -75,7 +75,6 @@ export class Procedure<
     ProcedureInput,
     ProcedureOutput
   > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>,
-  ProcedureOptions extends App['_']['options'] = {},
 > implements Depender<ProcedureDeps>
 {
   static override<T extends Procedure>(
@@ -92,7 +91,7 @@ export class Procedure<
     output: ProcedureOutput
     middlewares: Middleware[]
     guards: Guard[]
-    options: ProcedureOptions
+    options: Extra
     timeout: number
     description: string
     tags: string[]
@@ -125,8 +124,7 @@ export class Procedure<
         ProcedureDeps & Deps,
         ProcedureInput,
         ProcedureOutput
-      >,
-      ProcedureOptions
+      >
     >()
     return Procedure.override(procedure, this, {
       dependencies: merge(this.dependencies, dependencies),
@@ -139,8 +137,7 @@ export class Procedure<
       ProcedureDeps,
       Input,
       ProcedureOutput,
-      ProcedureHandlerType<App, ProcedureDeps, Input, ProcedureOutput>,
-      ProcedureOptions
+      ProcedureHandlerType<App, ProcedureDeps, Input, ProcedureOutput>
     >()
     return Procedure.override(procedure, this, { input })
   }
@@ -151,20 +148,18 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       Output,
-      ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, Output>,
-      ProcedureOptions
+      ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, Output>
     >()
     return Procedure.override(procedure, this, { output })
   }
 
-  withOptions<NewOptions extends App['_']['options']>(options: NewOptions) {
+  withOptions(options: Extra) {
     const procedure = new Procedure<
       App,
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      Merge<ProcedureOptions, NewOptions>
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       options: merge(this.options, options),
@@ -184,8 +179,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      H,
-      ProcedureOptions
+      H
     >()
     return Procedure.override(procedure, this, { handler })
   }
@@ -196,8 +190,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       guards: [...this.guards, ...guards],
@@ -210,8 +203,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       middlewares: [...this.middlewares, ...middlewares],
@@ -224,8 +216,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, { middlewareEnabled: enabled })
   }
@@ -238,8 +229,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, { timeout })
   }
@@ -250,8 +240,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       parsers: { input: parser, output: parser },
@@ -264,8 +253,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       parsers: { ...this.parsers, input: parser },
@@ -278,8 +266,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       parsers: { ...this.parsers, output: parser },
@@ -292,8 +279,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, { description })
   }
@@ -304,8 +290,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, {
       tags: [...this.tags, ...tags],
@@ -318,8 +303,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput,
-      ProcedureHandler,
-      ProcedureOptions
+      ProcedureHandler
     >()
     return Procedure.override(procedure, this, { name })
   }
@@ -359,7 +343,7 @@ export class Api {
   }
 
   find(name: string) {
-    const procedure = this.application.loader.procedure(name)
+    const procedure = this.application.registry.procedure(name)
     if (!procedure) throw NotFound(name)
     return procedure
   }
@@ -484,7 +468,7 @@ export class Api {
   ) {
     if (!withMiddleware) return undefined
     const middlewareProviders = [
-      ...this.application.middlewares,
+      ...this.application.registry.middlewares,
       ...procedure.middlewares,
     ]
     const middlewares = await Promise.all(
@@ -520,11 +504,15 @@ export class Api {
     }
   }
 
-  private handleFilters(error: any) {
-    if (this.application.filters.size) {
-      for (const [errorType, filter] of this.application.filters.entries()) {
+  private async handleFilters(error: any) {
+    if (this.application.registry.filters.size) {
+      for (const [
+        errorType,
+        filter,
+      ] of this.application.registry.filters.entries()) {
         if (error instanceof errorType) {
-          const handledError = filter(error)
+          const filterFn = await this.application.container.resolve(filter)
+          const handledError = await filterFn(error)
           if (!handledError || !(handledError instanceof ApiError)) continue
           return handledError
         }

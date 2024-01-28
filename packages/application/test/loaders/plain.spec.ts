@@ -6,77 +6,69 @@ import { PlainLoader } from '@/loaders/plain'
 
 describe.sequential('Loaders -> Plain', () => {
   let app: Application
+  const eventsDir = join(__dirname, '../fixtures/loaders/plain/events')
+  const proceduresDir = join(__dirname, '../fixtures/loaders/plain/procedures')
+  const tasksDir = join(__dirname, '../fixtures/loaders/plain/tasks')
+  const keys = ['test', 'nested/test']
 
   beforeAll(async () => {
     app = testApp({
       loaders: [
         new PlainLoader({
-          events: join(__dirname, '../fixtures/loaders/plain/events'),
-          procedures: join(__dirname, '../fixtures/loaders/plain/procedures'),
-          tasks: join(__dirname, '../fixtures/loaders/plain/tasks'),
+          events: eventsDir,
+          procedures: proceduresDir,
+          tasks: tasksDir,
         }),
       ],
     })
-    await app.loader.load()
+    await app.registry.load()
   })
 
-  it('should load events', async () => {
-    const filename1 = '../fixtures/loaders/plain/events/test.ts'
-    expect(app.loader.events).toHaveProperty('test')
-    expect(app.loader.events.test.path).toBe(resolve(__dirname, filename1))
-    expect(app.loader.events.test.exportName).toBe('["default"]')
-    expect(app.loader.events.test.module).toBe(
-      await import(filename1).then((m) => m.default),
-    )
-
-    const filename2 = '../fixtures/loaders/plain/events/nested/test.ts'
-    expect(app.loader.events).toHaveProperty('nested/test')
-    expect(app.loader.events['nested/test'].path).toBe(
-      resolve(__dirname, filename2),
-    )
-    expect(app.loader.events['nested/test'].exportName).toBe('["default"]')
-    expect(app.loader.events['nested/test'].module).toBe(
-      await import(filename2).then((m) => m.default),
-    )
+  describe('Events', () => {
+    it('should load event', async () => {
+      for (const key of keys) {
+        const filename = join(eventsDir, `${key}.ts`)
+        expect(app.registry.events.has(key)).toBe(true)
+        expect(app.registry.events.get(key)?.path).toBe(
+          resolve(__dirname, filename),
+        )
+        expect(app.registry.events.get(key)?.exportName).toBe('["default"]')
+        expect(app.registry.events.get(key)?.module).toBe(
+          await import(filename).then((m) => m.default),
+        )
+      }
+    })
   })
 
-  it('should load procedures', async () => {
-    const filename1 = '../fixtures/loaders/plain/procedures/test.ts'
-    expect(app.loader.procedures).toHaveProperty('test')
-    expect(app.loader.procedures.test.path).toBe(resolve(__dirname, filename1))
-    expect(app.loader.procedures.test.exportName).toBe('["default"]')
-    expect(app.loader.procedures.test.module).toBe(
-      await import(filename1).then((m) => m.default),
-    )
-
-    const filename2 = '../fixtures/loaders/plain/procedures/nested/test.ts'
-    expect(app.loader.procedures).toHaveProperty('nested/test')
-    expect(app.loader.procedures['nested/test'].path).toBe(
-      resolve(__dirname, filename2),
-    )
-    expect(app.loader.procedures['nested/test'].exportName).toBe('["default"]')
-    expect(app.loader.procedures['nested/test'].module).toBe(
-      await import(filename2).then((m) => m.default),
-    )
+  describe('Procedures', () => {
+    it('should load procedure', async () => {
+      for (const key of keys) {
+        const filename = join(proceduresDir, `${key}.ts`)
+        expect(app.registry.procedures.has(key)).toBe(true)
+        expect(app.registry.procedures.get(key)?.path).toBe(
+          resolve(__dirname, filename),
+        )
+        expect(app.registry.procedures.get(key)?.exportName).toBe('["default"]')
+        expect(app.registry.procedures.get(key)?.module).toBe(
+          await import(filename).then((m) => m.default),
+        )
+      }
+    })
   })
 
-  it('should load tasks', async () => {
-    const filename1 = '../fixtures/loaders/plain/tasks/test.ts'
-    expect(app.loader.tasks).toHaveProperty('test')
-    expect(app.loader.tasks.test.path).toBe(resolve(__dirname, filename1))
-    expect(app.loader.tasks.test.exportName).toBe('["default"]')
-    expect(app.loader.tasks.test.module).toBe(
-      await import(filename1).then((m) => m.default),
-    )
-
-    const filename2 = '../fixtures/loaders/plain/tasks/nested/test.ts'
-    expect(app.loader.tasks).toHaveProperty('nested/test')
-    expect(app.loader.tasks['nested/test'].path).toBe(
-      resolve(__dirname, filename2),
-    )
-    expect(app.loader.tasks['nested/test'].exportName).toBe('["default"]')
-    expect(app.loader.tasks['nested/test'].module).toBe(
-      await import(filename2).then((m) => m.default),
-    )
+  describe('Tasks', () => {
+    it('should load task', async () => {
+      for (const key of keys) {
+        const filename = join(tasksDir, `${key}.ts`)
+        expect(app.registry.tasks.has(key)).toBe(true)
+        expect(app.registry.tasks.get(key)?.path).toBe(
+          resolve(__dirname, filename),
+        )
+        expect(app.registry.tasks.get(key)?.exportName).toBe('["default"]')
+        expect(app.registry.tasks.get(key)?.module).toBe(
+          await import(filename).then((m) => m.default),
+        )
+      }
+    })
   })
 })

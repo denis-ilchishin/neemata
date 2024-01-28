@@ -1,28 +1,33 @@
 import { readdir } from 'node:fs/promises'
 import { join, parse } from 'node:path'
-import { BaseCustomLoader } from '../loader'
+import { BaseCustomLoader } from '../registry'
 import { isJsFile } from '../utils/functions'
 import { PlainLoader } from './plain'
 
+export type ModuleLoaderOptions = {
+  root: string
+  baseName?: string
+  events: string
+  procedures: string
+  tasks: string
+}
+
 export class ModuleLoader implements BaseCustomLoader {
+  readonly options: ModuleLoaderOptions
+
   constructor(
-    private readonly options: {
-      root: string
-      baseName?: string
-      events?: string
-      procedures?: string
-      tasks?: string
-    },
-  ) {}
+    options: Partial<ModuleLoaderOptions> & Pick<ModuleLoaderOptions, 'root'>,
+  ) {
+    this.options = {
+      procedures: 'procedures',
+      tasks: 'tasks',
+      events: 'events',
+      ...options,
+    }
+  }
 
   async load() {
-    const {
-      root,
-      baseName,
-      procedures = 'procedures',
-      tasks = 'tasks',
-      events = 'events',
-    } = this.options
+    const { events, procedures, root, tasks, baseName } = this.options
 
     const result = {
       procedures: {},
@@ -39,16 +44,20 @@ export class ModuleLoader implements BaseCustomLoader {
       if (entry.name.startsWith('.')) continue
       const { name: featureName } = parse(entry.name)
       if (entry.isFile()) {
-        const { default: defaultExport } = await import(join(root, entry.name))
-        if (typeof defaultExport === 'undefined') continue
+        const { default: defaultExport, ...otherExports } = await import(
+          join(root, entry.name)
+        )
+        const hasDefaultExport = typeof defaultExport !== 'undefined'
         for (const type of ['procedures', 'tasks', 'events']) {
-          for (const [name, module] of Object.entries(
-            defaultExport[type] ?? {},
-          )) {
+          const exports = defaultExport?.[type] ?? otherExports[type]
+          if (!exports) continue
+          for (const [name, module] of Object.entries(exports)) {
             result[type][composeName(featureName, name)] = {
               module,
               path: join(root, entry.name),
-              exportName: `["default"]["${type}"]["${name}"]`,
+              exportName:
+                (hasDefaultExport ? '["default"]' : '') +
+                `["${type}"]["${name}"]`,
             }
           }
         }

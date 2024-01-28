@@ -1,4 +1,4 @@
-import { isMainThread } from 'worker_threads'
+import { isMainThread } from 'node:worker_threads'
 import { Event } from '../events'
 import { BaseSubscriptionManager, Subscription } from '../subscription'
 import { Hook, WorkerType } from '../types'
@@ -34,7 +34,7 @@ export class BasicSubscriptionManager extends BaseSubscriptionManager {
       this.bc = createBroadcastChannel(WORKER_THREADS_SM_CHANNEL)
 
       if (this.isApiWorker) {
-        this.application.registerHook(Hook.BeforeStart, () => {
+        this.application.registry.registerHook(Hook.BeforeStart, () => {
           this.bc!.on(
             WORKER_THREADS_SM_MESSAGE,
             this.broadcastHandler.bind(this),
@@ -42,7 +42,9 @@ export class BasicSubscriptionManager extends BaseSubscriptionManager {
         })
       }
 
-      this.application.registerHook(Hook.AfterStop, () => this.bc!.close())
+      this.application.registry.registerHook(Hook.AfterStop, () =>
+        this.bc!.close(),
+      )
     }
   }
 

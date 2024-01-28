@@ -16,18 +16,17 @@ export class StaticApiAnnotations extends BaseExtension {
   }
 
   initialize() {
-    const { registerHook, registerCommand } = this.application
-    registerCommand('emit', () => this.emit())
+    const { registry } = this.application
+    registry.registerCommand('', 'emit', () => this.emit())
     if (this.options.emit !== false) {
-      registerHook(Hook.AfterInitialize, this.emit.bind(this))
+      registry.registerHook(Hook.AfterInitialize, this.emit.bind(this))
     }
   }
 
   private async emit() {
     const procedures: any = []
-    for (const [name, { path: filePath, exportName }] of Object.entries(
-      this.application.loader.procedures,
-    )) {
+    for (const [name, { path: filePath, exportName }] of this.application
+      .registry.procedures) {
       if (filePath && exportName) {
         const path = relative(dirname(this.options.outputPath), filePath)
         procedures.push(`"${name}": typeof import("${path}")${exportName}`)
@@ -37,9 +36,8 @@ export class StaticApiAnnotations extends BaseExtension {
     }
 
     const events: any = []
-    for (const [name, { path: filePath, exportName }] of Object.entries(
-      this.application.loader.events,
-    )) {
+    for (const [name, { path: filePath, exportName }] of this.application
+      .registry.events) {
       if (filePath && exportName) {
         const path = relative(dirname(this.options.outputPath), filePath)
         events.push(`"${name}": typeof import("${path}")${exportName}`)

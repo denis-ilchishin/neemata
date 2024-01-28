@@ -245,23 +245,25 @@ describe.sequential('Api', () => {
     await expect(call({ procedure, payload })).resolves.toBe(payload)
   })
 
-  it('should handle error throw', async () => {
+  it('should handle procedure handler error', async () => {
     const procedure = testProcedure().withHandler(() => {
       throw new Error()
     })
-    await expect(call({ procedure })).rejects.toBeInstanceOf(Error)
+    const result = await call({ procedure }).catch((v) => v)
+    expect(result).toBeInstanceOf(Error)
   })
 
   it('should handle filter', async () => {
     class CustomError extends Error {}
-    const filters = { test: (error) => new ApiError('custom') }
-    const spy = vi.spyOn(filters, 'test')
-    app.registerFilter(CustomError, filters.test)
+    const filter = new Provider().withValue(() => new ApiError('custom'))
+    const spy = vi.spyOn(filter, 'value')
+    app.registry.registerFilter(CustomError, filter)
     const error = new CustomError()
-    const procedure = testProcedure().withHandler((ctx, data) => {
+    const procedure = testProcedure().withHandler(() => {
       throw error
     })
-    await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
+    const result = await call({ procedure }).catch((v) => v)
+    expect(result).toBeInstanceOf(ApiError)
     expect(spy).toHaveBeenCalledOnce()
     expect(spy).toHaveBeenCalledWith(error)
   })
@@ -339,12 +341,14 @@ describe.sequential('Api', () => {
       .withOutput({})
       .withHandler((ctx, val) => val)
 
-    await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
+    await expect(call({ procedure }).catch((v) => v)).resolves.toBeInstanceOf(
+      ApiError,
+    )
   })
 
   it('should find procedure', async () => {
     const procedure = testProcedure().withHandler(() => 'result')
-    app.loader.procedures[procedure.name] = { module: procedure }
+    app.registry.procedures.set(procedure.name, { module: procedure })
     expect(api.find(procedure.name)).toBe(procedure)
   })
 

@@ -83,7 +83,7 @@ export async function start(
       const bc = createBroadcastChannel(id)
 
       try {
-        const task = app.loader.task(name)
+        const task = app.registry.task(name)
         if (!task) throw new Error('Task not found')
         const execution = app.execute(task, ...args)
         if (process.env.VITEST) bindPortMessageHandler(bc)

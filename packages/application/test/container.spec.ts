@@ -256,7 +256,7 @@ describe.sequential('Container', () => {
     const procedure = testProcedure()
       .withDependencies({ provider1, provider2 })
       .withHandler(() => {})
-    app.loader.register('procedures', 'test', procedure)
+    app.registry.registerProcedure('test', procedure)
     await app.container.load()
     expect(factory1).toHaveBeenCalledOnce()
     expect(factory2).not.toHaveBeenCalled()

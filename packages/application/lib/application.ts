@@ -2,33 +2,20 @@ import { Api, BaseParser, Procedure } from './api'
 import { Container, Provider } from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
-import { BaseCustomLoader, Loader } from './loader'
 import { Logger, LoggingOptions, createLogger } from './logger'
+import { BaseCustomLoader, Registry } from './registry'
 import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
 import { BaseTransport, BaseTransportConnection } from './transport'
 import {
-  Command,
-  Commands,
   ConnectionFn,
-  ConnectionProvider,
-  ErrorClass,
   Extra,
-  Filter,
-  Filters,
-  Guard,
   GuardFn,
-  Guards,
   Hook,
-  Hooks,
   Merge,
-  Middleware,
   MiddlewareFn,
-  Middlewares,
   ResolveExtensionContext,
-  ResolveExtensionProcedureOptions,
-  UnionToIntersection,
   WorkerType,
 } from './types'
 
@@ -65,43 +52,30 @@ export type ApplicationWorkerOptions = {
 export const APP_COMMAND = Symbol('appCommand')
 
 export class Application<
-  AppTransport extends Record<string, BaseTransport> = {},
+  AppTransports extends Record<string, BaseTransport> = {},
   AppExtensions extends Record<string, BaseExtension> = {},
-  AppProcedureOptions extends Extra = UnionToIntersection<
-    ResolveExtensionProcedureOptions<AppExtensions[keyof AppExtensions]>
-  > &
-    ResolveExtensionProcedureOptions<AppTransport>,
-  AppContext extends Extra = UnionToIntersection<
-    ResolveExtensionContext<AppExtensions[keyof AppExtensions]>
-  > &
-    ResolveExtensionContext<AppTransport>,
+  AppContext extends Extra = ResolveExtensionContext<AppExtensions> &
+    ResolveExtensionContext<AppTransports>,
   AppConnectionData = unknown,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
-    transport: AppTransport[keyof AppTransport]
+    transport: AppTransports[keyof AppTransports]
     context: AppContext & {
       eventManager: EventManager<
-        Application<
-          AppTransport,
-          AppExtensions,
-          AppProcedureOptions,
-          AppContext,
+        BaseTransportConnection<
           AppConnectionData,
-          AppProcedures,
-          AppTasks,
-          AppEvents
+          AppTransports[keyof AppTransports]['_']['transportData']
         >
       >
     }
-    options: AppProcedureOptions
-    transportData: AppTransport[keyof AppTransport]['_']['transportData']
+    transportData: AppTransports[keyof AppTransports]['_']['transportData']
     connectionData: AppConnectionData
     connection: BaseTransportConnection<
       AppConnectionData,
-      AppTransport[keyof AppTransport]['_']['transportData']
+      AppTransports[keyof AppTransports]['_']['transportData']
     >
     procedures: AppProcedures
     tasks: AppTasks
@@ -113,9 +87,9 @@ export class Application<
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
-  readonly loader: Loader
+  readonly registry: Registry
   readonly container: Container
-  readonly eventManager: EventManager<this>
+  readonly eventManager: EventManager
   subManager!: BaseSubscriptionManager
   readonly context: AppContext = {} as AppContext
   readonly connections = new Map<
@@ -123,44 +97,26 @@ export class Application<
     this['_']['connection']
   >()
 
-  readonly hooks: Hooks
-  readonly commands: Commands
-  readonly filters: Filters
-  readonly middlewares: Middlewares
-  readonly guards: Guards
-
   constructor(readonly options: ApplicationOptions) {
     this.logger = createLogger(
       this.options.logging,
       `${this.options.type}Worker`,
     )
 
-    this.hooks = new Map()
-    this.commands = new Map()
-    this.filters = new Map()
-    this.middlewares = new Set()
-    this.guards = new Set()
-
-    for (const hook of Object.values(Hook)) {
-      this.hooks.set(hook, new Set())
-    }
-
-    this.commands.set(APP_COMMAND, new Map())
-
-    this.loader = new Loader(this)
+    this.registry = new Registry(this)
     this.eventManager = new EventManager(this)
     this.api = new Api(this)
     this.tasks = new Tasks(this)
     this.container = new Container(this)
 
-    this.withSubscriptionManager(new BasicSubscriptionManager())
     this.initCommandsAndHooks()
+    this.withSubscriptionManager(new BasicSubscriptionManager())
   }
 
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
     this.initContext()
-    await this.loader.load()
+    await this.registry.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
   }
@@ -170,7 +126,11 @@ export class Application<
     await this.callHook(Hook.BeforeStart)
     if (this.isApiWorker) {
       for (const transport of Object.values(this.transports)) {
-        await transport.start()
+        await transport
+          .start()
+          .catch((cause) =>
+            this.logger.error(new Error('Transport start error', { cause })),
+          )
       }
     }
     await this.callHook(Hook.AfterStart)
@@ -180,7 +140,11 @@ export class Application<
     await this.callHook(Hook.BeforeStop)
     if (this.isApiWorker) {
       for (const transport of Object.values(this.transports)) {
-        await transport.stop()
+        await transport
+          .stop()
+          .catch((cause) =>
+            this.logger.error(new Error('Transport stop error', { cause })),
+          )
       }
     }
     await this.callHook(Hook.AfterStop)
@@ -190,7 +154,7 @@ export class Application<
   async terminate() {
     await this.callHook(Hook.BeforeTerminate)
     await this.container.dispose()
-    this.loader.clear()
+    this.registry.clear()
     await this.callHook(Hook.AfterTerminate)
   }
 
@@ -198,50 +162,10 @@ export class Application<
     return this.tasks.execute(this.container, task.name, ...args)
   }
 
-  registerHook<T extends string>(hookName: T, hook: (...args: any[]) => any) {
-    let hooks = this.hooks.get(hookName)
-    if (!hooks) this.hooks.set(hookName, (hooks = new Set()))
-    hooks.add(hook)
-    return this
-  }
-
-  registerCommand(name: string | symbol, command: string, callback: Command) {
-    let commands = this.commands.get(name)
-    if (!commands) this.commands.set(name, (commands = new Map()))
-    commands.set(command, callback)
-    return this
-  }
-
-  registerFilter<T extends ErrorClass>(errorClass: T, filter: Filter<T>) {
-    this.filters.set(errorClass, filter)
-    return this
-  }
-
-  registerMiddleware(middleware: Middleware) {
-    this.middlewares.add(middleware)
-    return this
-  }
-
-  registerGuard(guard: Guard) {
-    this.guards.add(guard)
-    return this
-  }
-
-  registerConnection(
-    connection: ConnectionProvider<
-      this['_']['transport']['_']['transportData'],
-      AppConnectionData
-    >,
-  ) {
-    this.api.connection = connection
-    return this
-  }
-
   withConnectionData<T>() {
     return this as unknown as Application<
-      AppTransport,
+      AppTransports,
       AppExtensions,
-      AppProcedureOptions,
       AppContext,
       T,
       AppProcedures,
@@ -252,12 +176,11 @@ export class Application<
 
   withEvents<T extends Record<string, Event>>(events: T) {
     for (const [name, event] of Object.entries(events)) {
-      this.loader.register('events', name, event)
+      this.registry.registerEvent(name, event)
     }
     return this as unknown as Application<
-      AppTransport,
+      AppTransports,
       AppExtensions,
-      AppProcedureOptions,
       AppContext,
       AppConnectionData,
       AppProcedures,
@@ -268,12 +191,11 @@ export class Application<
 
   withProcedures<T extends Record<string, Procedure>>(procedures: T) {
     for (const [name, procedure] of Object.entries(procedures)) {
-      this.loader.register('procedures', name, procedure)
+      this.registry.registerProcedure(name, procedure)
     }
     return this as unknown as Application<
-      AppTransport,
+      AppTransports,
       AppExtensions,
-      AppProcedureOptions,
       AppContext,
       AppConnectionData,
       Merge<AppProcedures, T>,
@@ -284,12 +206,11 @@ export class Application<
 
   withTasks<T extends Record<string, Task>>(tasks: T) {
     for (const [name, task] of Object.entries(tasks)) {
-      this.loader.register('tasks', name, task)
+      this.registry.registerTask(name, task)
     }
     return this as unknown as Application<
-      AppTransport,
+      AppTransports,
       AppExtensions,
-      AppProcedureOptions,
       AppContext,
       AppConnectionData,
       AppProcedures,
@@ -307,10 +228,9 @@ export class Application<
     this.transports[alias] = transport
     this.initExtension(transport, alias)
     return this as unknown as Application<
-      Merge<AppTransport, { [K in Alias]: T }>,
+      Merge<AppTransports, { [K in Alias]: T }>,
       AppExtensions,
-      AppProcedureOptions,
-      AppContext,
+      AppContext & ResolveExtensionContext<{ [K in Alias]: T }>,
       AppConnectionData,
       AppProcedures,
       AppTasks,
@@ -327,9 +247,8 @@ export class Application<
     this.extensions[alias] = extension
     this.initExtension(extension, alias)
     return this as unknown as Application<
-      AppTransport,
+      AppTransports,
       Merge<AppExtensions, { [K in Alias]: T }>,
-      AppProcedureOptions,
       AppContext,
       AppConnectionData,
       AppProcedures,
@@ -376,15 +295,19 @@ export class Application<
   }
 
   private async callHook(
-    hook: Hook | { hook: Hook; concurrent?: boolean; reverse?: boolean },
+    hookOrOptions:
+      | Hook
+      | { hook: Hook; concurrent?: boolean; reverse?: boolean },
     ...args: any[]
   ) {
-    const { concurrent = false, reverse = false } =
-      typeof hook === 'object' ? hook : {}
-    // biome-ignore lint/style/noParameterAssign:
-    hook = typeof hook === 'object' ? hook.hook : hook
-
-    const hooksSet = this.hooks.get(hook)
+    const {
+      concurrent = false,
+      reverse = false,
+      hook,
+    } = typeof hookOrOptions === 'object'
+      ? hookOrOptions
+      : { hook: hookOrOptions }
+    const hooksSet = this.registry.hooks.get(hook)
     if (!hooksSet) return
     let hooks = Array.from(hooksSet)
     if (concurrent) {
@@ -397,18 +320,17 @@ export class Application<
 
   private initContext() {
     for (const key in this.context) delete this.context[key]
-    const mixins: any[] = []
     const extensions = [
-      this.subManager,
-      ...Object.values(this.extensions),
-      ...Object.values(this.transports),
+      ...Object.entries(this.extensions),
+      ...Object.entries(this.transports),
     ]
-    for (const extension of extensions) {
+    for (const [alias, extension] of extensions) {
       if (extension.context) {
-        mixins.push(extension.context())
+        // @ts-expect-error
+        this.context[alias] = extension.context()
       }
     }
-    Object.assign(this.context, ...mixins, {
+    Object.assign(this.context, {
       logger: this.logger,
       execute: this.execute.bind(this),
       eventManager: this.eventManager,
@@ -416,44 +338,23 @@ export class Application<
   }
 
   private initExtension(extension: BaseExtension, alias: string) {
-    this.commands.set(alias, new Map())
+    this.registry.commands.set(alias, new Map())
     const logger = this.logger.child({ $group: extension.name })
-
-    // TODO: smells bad, refactor
-    const registerHook = (...args) => {
-      // @ts-expect-error
-      this.registerHook(...args)
-    }
-    const registerMiddleware = (...args) => {
-      // @ts-expect-error
-      this.registerMiddleware(...args)
-    }
-    const registerFilter = (...args) => {
-      // @ts-expect-error
-      this.registerFilter(...args)
-    }
-    const registerCommand = (...args) => {
-      // @ts-expect-error
-      this.registerCommand(alias, ...args)
-    }
-
     extension.assign({
       type: this.options.type,
       api: this.api,
       connections: this.connections,
       container: this.container,
-      loader: this.loader,
+      registry: this.registry,
       logger,
-      registerHook,
-      registerMiddleware,
-      registerFilter,
-      registerCommand,
     })
   }
 
   private initCommandsAndHooks() {
     const taskCommand = this.tasks.command.bind(this.tasks, this.container)
-    this.registerCommand(APP_COMMAND, 'task', (arg) => taskCommand(arg))
+    this.registry.registerCommand(APP_COMMAND, 'task', (arg) =>
+      taskCommand(arg),
+    )
   }
 
   private get isApiWorker() {

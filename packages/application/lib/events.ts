@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { BaseParser } from './api'
 import { Subscription } from './subscription'
 import { AnyApplication, InferSchemaInput, InferSchemaOutput } from './types'
+import { BaseTransportConnection } from './transport'
 
 export type EventOptionsType = Record<string, string | number>
 
@@ -67,16 +68,18 @@ export class Event<
   }
 }
 
-export class EventManager<App extends AnyApplication = AnyApplication> {
-  constructor(private readonly application: App) {}
+export class EventManager<
+  Connection extends BaseTransportConnection = BaseTransportConnection,
+> {
+  constructor(private readonly application: AnyApplication) {}
 
   async subscribe<E extends Event>(
     event: E,
     options: E['_']['options'],
-    connection: App['_']['connection'],
+    connection: Connection,
   ): Promise<{ subscription: Subscription<E>; isNew: boolean }> {
     if (!event.name) throw new Error('Event name is required')
-    if (!this.application.loader.event(event.name))
+    if (!this.application.registry.event(event.name))
       throw new Error(`Event ${event.name} not found`)
 
     const key = event._key(options)
@@ -98,7 +101,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
   async unsubscribe(
     event: Event,
     options: Event['_']['options'],
-    connection: App['_']['connection'],
+    connection: Connection,
   ) {
     const { id, subscriptions } = connection
     this.logger.debug(
@@ -127,7 +130,7 @@ export class EventManager<App extends AnyApplication = AnyApplication> {
   async isSubscribed<E extends Event>(
     event: E,
     options: E['_']['options'],
-    connection: App['_']['connection'],
+    connection: Connection,
   ) {
     const key = event._key(options)
     return connection.subscriptions.has(key)

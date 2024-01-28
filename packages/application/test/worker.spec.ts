@@ -148,7 +148,7 @@ describe.sequential('Application Worker', () => {
       args,
       result: 'task result',
     }))
-    app.loader.register('tasks', task.name, task)
+    app.registry.registerTask(task.name, task)
     const workerData: ApplicationWorkerData = {
       id: 1,
       type: WorkerType.Task,
@@ -183,7 +183,7 @@ describe.sequential('Application Worker', () => {
 
   it('should handle task execution abortion', async () => {
     const task = testTask().withHandler((ctx) => new Promise(noop))
-    app.loader.register('tasks', task.name, task)
+    app.registry.registerTask(task.name, task)
     const workerData: ApplicationWorkerData = {
       id: 1,
       type: WorkerType.Task,

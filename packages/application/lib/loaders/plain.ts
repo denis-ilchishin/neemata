@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { BaseCustomLoader, LoaderModuleType } from '../loader'
+import { BaseCustomLoader, RegistryModuleType } from '../registry'
 import { isJsFile } from '../utils/functions'
 
 export class PlainLoader implements BaseCustomLoader {
@@ -20,7 +20,7 @@ export class PlainLoader implements BaseCustomLoader {
     }
 
     const read = async (
-      type: LoaderModuleType,
+      type: RegistryModuleType,
       root: string,
       dir: string,
       level = 0,

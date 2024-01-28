@@ -1,18 +1,19 @@
-import type { Readable } from 'node:stream'
 import type {
   Subscription as ClientSubscription,
   UpStream,
 } from '@neematajs/common'
+import type { Readable } from 'node:stream'
 import type { Api, Procedure } from './api'
 import type { Application } from './application'
 import type { Container, Provider } from './container'
 import type { Event } from './events'
-import type { Loader } from './loader'
+import type { BaseExtension } from './extension'
 import type { Logger } from './logger'
+import type { Registry } from './registry'
 import type { StreamResponse } from './streams'
 import type { Subscription as ServerSubscription } from './subscription'
 import type { Task, TaskExecution } from './tasks'
-import type { BaseTransportConnection } from './transport'
+import type { BaseTransport, BaseTransportConnection } from './transport'
 
 export enum Scope {
   Global = 'Global',
@@ -55,10 +56,9 @@ export type ErrorClass = new (...args: any[]) => Error
 export type Extra = Record<string, any>
 export type Async<T> = T | Promise<T>
 
-export type Filter<T extends ErrorClass> = (error: InstanceType<T>) => Error
-
-export interface LoaderInterface<T> {
-  modules: Map<string, T>
+export type GuardOptions<App extends AnyApplication = AnyApplication> = {
+  connection: App['_']['connection']
+  path: [Procedure, ...Procedure[]]
 }
 
 export type Command = (
@@ -71,10 +71,7 @@ export type Command = (
 
 export type ConnectionFn<T = any, C = any> = (transportData: T) => C
 
-export type GuardOptions<App extends AnyApplication = AnyApplication> = {
-  connection: App['_']['connection']
-  path: [Procedure, ...Procedure[]]
-}
+export type FilterFn<T extends ErrorClass> = (error: InstanceType<T>) => Error
 
 export type GuardFn<App extends AnyApplication = AnyApplication> = (
   options: GuardOptions<App>,
@@ -88,13 +85,15 @@ export type MiddlewareFn<App extends AnyApplication = AnyApplication> = (
 
 export type Guard = Provider<GuardFn>
 
+export type Filter<T extends ErrorClass = ErrorClass> = Provider<FilterFn<T>>
+
 export type Middleware = Provider<MiddlewareFn>
 
 export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
-export type AnyApplication = Application<any, any, any, any, any, any, any, any>
+export type AnyApplication = Application<any, any, any, any, any, any, any>
 export type AnyProvider = Provider<any, any, any, any, any, any, any>
-export type AnyProcedure = Procedure<any, any, any, any, any, any>
+export type AnyProcedure = Procedure<any, any, any, any, any>
 export type AnyTask = Task<any, any, any, any>
 export type AnyEvent = Event<any, any, any, any>
 
@@ -125,45 +124,22 @@ export type CallHook<T extends string> = (
     : any[]
 ) => Promise<void>
 
-export interface ExtensionApplication<
-  Options extends Extra = {},
-  Context extends Extra = {},
-> {
+export interface ExtensionApplication {
   type: WorkerType
   api: Api
   container: Container
   logger: Logger
   connections: Map<BaseTransportConnection['id'], BaseTransportConnection>
-  loader: Loader
-  registerHook<T extends string>(
-    hookName: T,
-    hook: T extends keyof HooksInterface
-      ? HooksInterface[T]
-      : (...args: any[]) => any,
-  ): void
-  registerMiddleware(middleware: Middleware): void
-  registerCommand(commandName: string, command: Command): void
-  registerFilter<T extends ErrorClass>(error: T, filter: Filter<T>): void
+  registry: Registry
 }
 
-export interface ExtensionInterface<
-  ProcedureOptions extends Extra = {},
-  Context extends Extra = {},
-> {
-  readonly _: {
-    context: Context
-    options: ProcedureOptions
-  }
-  readonly application: AnyApplication
-  context?(): Context
-  initialize?(): any
+export type ResolveExtensionContext<
+  Extensions extends Record<string, BaseExtension>,
+> = {
+  [K in keyof Extensions]: Extensions[K] extends BaseExtension<infer Context>
+    ? Context
+    : never
 }
-
-export type ResolveExtensionProcedureOptions<Extension> =
-  Extension extends ExtensionInterface<infer Options> ? Options : {}
-
-export type ResolveExtensionContext<Extension> =
-  Extension extends ExtensionInterface<any, infer Context> ? Context : {}
 
 export type UnionToIntersection<U> = (
   U extends any

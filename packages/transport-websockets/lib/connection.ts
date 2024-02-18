@@ -5,11 +5,10 @@ import { HttpTransportData, WebSocket } from './types'
 
 export class HttpTransportConnection extends BaseTransportConnection {
   constructor(
-    readonly transportData: HttpTransportData,
-    readonly data: any,
+    data: any,
     private readonly headers: Headers,
   ) {
-    super(transportData, data)
+    super(data)
   }
 
   protected sendEvent(): boolean {
@@ -26,8 +25,8 @@ export class HttpTransportConnection extends BaseTransportConnection {
 export class WebsocketsTransportConnection extends BaseTransportConnection {
   #websocket: WebSocket
 
-  constructor(transportData: any, data: any, websocket: WebSocket, id: string) {
-    super(transportData, data, id)
+  constructor(data: any, websocket: WebSocket, id: string) {
+    super(data, id)
     this.#websocket = websocket
   }
 

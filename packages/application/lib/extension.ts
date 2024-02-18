@@ -9,7 +9,7 @@ export abstract class BaseExtension<
 
   abstract name: string
 
-  initialize?(): any
+  initialize?(): void
   context?(): Context
 
   assign(application: this['application']) {

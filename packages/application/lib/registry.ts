@@ -31,11 +31,15 @@ export interface BaseCustomLoader {
   paths(): string[]
 }
 
+export type RegistryOptions = {
+  namespace: string
+  prefix?: string
+}
+
 // TODO: too much code duplication here, need to refactor
 export class Registry {
   constructor(
     readonly application: AnyApplication,
-    readonly prefix?: string,
     readonly procedures = new Map<string, RegistryModule<Procedure>>(),
     readonly tasks = new Map<string, RegistryModule<Task>>(),
     readonly events = new Map<string, RegistryModule<Event>>(),
@@ -44,11 +48,11 @@ export class Registry {
     readonly filters = new Map<ErrorClass, Filter<ErrorClass>>(),
     readonly middlewares = new Set<Middleware>(),
     readonly guards = new Set<Guard>(),
+    readonly options?: RegistryOptions,
   ) {
     for (const hook of Object.values(Hook)) {
       this.hooks.set(hook, new Set())
     }
-
     this.commands.set(APP_COMMAND, new Map())
   }
 
@@ -101,20 +105,6 @@ export class Registry {
       ]),
     ]
   }
-  copy(prefix?: string) {
-    return new Registry(
-      this.application,
-      prefix,
-      this.procedures,
-      this.tasks,
-      this.events,
-      this.hooks,
-      this.commands,
-      this.filters,
-      this.middlewares,
-      this.guards,
-    )
-  }
 
   registerProcedure(
     name: string,
@@ -123,7 +113,7 @@ export class Registry {
     exportName?: string,
   ) {
     // biome-ignore lint/style/noParameterAssign:
-    name = this.prefix ? `${this.prefix}/${name}` : name
+    name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (typeof procedure.handler !== 'function')
       throw new Error('Procedure handler is not defined or is not a function')
@@ -149,7 +139,7 @@ export class Registry {
     exportName?: string,
   ) {
     // biome-ignore lint/style/noParameterAssign:
-    name = this.prefix ? `${this.prefix}/${name}` : name
+    name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (typeof task.handler !== 'function')
       throw new Error('Task handler is not defined or is not a function')
@@ -171,7 +161,7 @@ export class Registry {
     exportName?: string,
   ) {
     // biome-ignore lint/style/noParameterAssign:
-    name = this.prefix ? `${this.prefix}/${name}` : name
+    name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (this.events.has(name))
       throw new Error(`Event ${name} already registered`)
@@ -194,15 +184,15 @@ export class Registry {
   ) {
     let namespace: string | symbol
     let command: string
-    if (this.prefix) {
+    if (this.options) {
       // biome-ignore lint/style/noParameterAssign:
       callback = commandOrCallback as Command
-      namespace = this.prefix
+      namespace = this.options.namespace
       command = namespaceOrCommand as string
     } else {
       if (!callback) throw new Error('Callback is required')
       namespace = namespaceOrCommand
-      command = namespaceOrCommand as string
+      command = commandOrCallback as string
     }
     let commands = this.commands.get(namespace)
     if (!commands) this.commands.set(namespace, (commands = new Map()))
@@ -234,6 +224,21 @@ export class Registry {
     >,
   ) {
     this.application.api.connection = connection
+  }
+
+  copy(options: RegistryOptions) {
+    return new Registry(
+      this.application,
+      this.procedures,
+      this.tasks,
+      this.events,
+      this.hooks,
+      this.commands,
+      this.filters,
+      this.middlewares,
+      this.guards,
+      options,
+    )
   }
 
   private registerModule(

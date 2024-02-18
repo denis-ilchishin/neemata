@@ -60,7 +60,7 @@ describe.sequential('Application', () => {
 
   it('should chain with transport', () => {
     const transport = testTransport()
-    const newApp = app.registerTransport({ test: transport })
+    const newApp = app.registerTransports({ test: transport })
     expect(newApp).toBe(app)
     expect(app.transports).toHaveProperty('test', transport)
   })

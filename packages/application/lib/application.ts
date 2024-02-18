@@ -3,7 +3,12 @@ import { Container, Provider } from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
 import { Logger, LoggingOptions, createLogger } from './logger'
-import { APP_COMMAND, BaseCustomLoader, Registry } from './registry'
+import {
+  APP_COMMAND,
+  BaseCustomLoader,
+  Registry,
+  RegistryOptions,
+} from './registry'
 import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
@@ -65,6 +70,7 @@ export class Application<
       eventManager: EventManager<
         BaseTransportConnection<
           AppConnectionData,
+          // any
           AppTransports[keyof AppTransports]['_']['transportData']
         >
       >
@@ -217,15 +223,26 @@ export class Application<
     >
   }
 
-  registerTransport<T extends Record<string, BaseTransport>>(
-    transports: T,
-    registryPrefix?: string,
-  ) {
-    for (const [alias, transport] of Object.entries(transports)) {
+  registerTransports<
+    R extends Record<
+      string,
+      BaseTransport | { transport: BaseTransport; options: RegistryOptions }
+    >,
+    T extends Record<string, BaseTransport> = {
+      [K in keyof R]: R[K] extends { transport: BaseTransport }
+        ? R[K]['transport']
+        : R[K] extends BaseTransport
+          ? R[K]
+          : never
+    },
+  >(transports: R) {
+    for (const [alias, entry] of Object.entries(transports)) {
+      const transport = entry instanceof BaseTransport ? entry : entry.transport
+      const options = entry instanceof BaseTransport ? undefined : entry.options
       if (alias in this.transports)
         throw new Error('Transport already registered')
       this.transports[alias] = transport
-      this.initExtension(transport, registryPrefix)
+      this.initExtension(transport, options ?? { namespace: alias })
     }
 
     return this as unknown as Application<
@@ -239,15 +256,26 @@ export class Application<
     >
   }
 
-  registerExtension<T extends Record<string, BaseExtension>>(
-    extensions: T,
-    registryPrefix?: string,
-  ) {
-    for (const [alias, extension] of Object.entries(extensions)) {
+  registerExtensions<
+    R extends Record<
+      string,
+      BaseExtension | { extension: BaseExtension; options: RegistryOptions }
+    >,
+    T extends Record<string, BaseExtension> = {
+      [K in keyof R]: R[K] extends { extension: BaseExtension }
+        ? R[K]['extension']
+        : R[K] extends BaseExtension
+          ? R[K]
+          : never
+    },
+  >(extensions: R) {
+    for (const [alias, entry] of Object.entries(extensions)) {
+      const extension = entry instanceof BaseExtension ? entry : entry.extension
+      const options = entry instanceof BaseExtension ? undefined : entry.options
       if (alias in this.extensions)
         throw new Error('Extension already registered')
       this.extensions[alias] = extension
-      this.initExtension(extension, registryPrefix)
+      this.initExtension(extension, options ?? { namespace: alias })
     }
     return this as unknown as Application<
       AppTransports,
@@ -262,10 +290,10 @@ export class Application<
 
   registerSubscriptionManager(
     subManager: BaseSubscriptionManager,
-    registryPrefix?: string,
+    options?: RegistryOptions,
   ) {
     this.subManager = subManager
-    this.initExtension(subManager, registryPrefix)
+    this.initExtension(subManager, options ?? { namespace: 'subManager' })
     return this
   }
 
@@ -343,14 +371,14 @@ export class Application<
     })
   }
 
-  private initExtension(extension: BaseExtension, registryPrefix?: string) {
+  private initExtension(extension: BaseExtension, options: RegistryOptions) {
     const logger = this.logger.child({ $group: extension.name })
     extension.assign({
       type: this.options.type,
       api: this.api,
       connections: this.connections,
       container: this.container,
-      registry: this.registry.copy(registryPrefix),
+      registry: this.registry.copy(options),
       logger,
     })
   }

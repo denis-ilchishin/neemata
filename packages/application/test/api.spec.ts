@@ -1,9 +1,11 @@
 import {
   TestParser,
+  TestTransport,
   defaultTimeout,
   testApp,
   testConnection,
   testProcedure,
+  testTransport,
 } from './_utils'
 
 import { Api, Procedure, ProcedureCallOptions } from '@/api'
@@ -14,7 +16,7 @@ import { Scope } from '@/types'
 import { ApiError, ErrorCode } from '@neematajs/common'
 
 describe.sequential('Procedure', () => {
-  let procedure: Procedure
+  let procedure: Procedure<Application<{ test: TestTransport }>>
 
   beforeEach(() => {
     procedure = new Procedure()
@@ -152,16 +154,26 @@ describe.sequential('Procedure', () => {
     expect(newProcedure.middlewareEnabled).toEqual(false)
     expect(newProcedure).not.toBe(procedure)
   })
+
+  it('should clone with a transports', () => {
+    const newProcedure = procedure.withTransports({
+      test: true,
+    })
+    expect(newProcedure.transports).toEqual({ test: true })
+    expect(newProcedure).not.toBe(procedure)
+  })
 })
 
 describe.sequential('Api', () => {
-  let app: Application
-  let api: Api
+  let app: ReturnType<typeof createApp>
+  let api: ReturnType<typeof createApp>['api']
+
   const call = (
     options: Pick<ProcedureCallOptions, 'procedure'> &
       Partial<ProcedureCallOptions>,
   ) =>
     api.call({
+      transport: app.transports.test,
       connection: testConnection({}),
       container: app.container,
       payload: {},
@@ -169,8 +181,16 @@ describe.sequential('Api', () => {
       ...options,
     })
 
+  const createApp = () =>
+    testApp()
+      .withConnectionData<{ some: 'connection data' }>()
+      .registerTransports({ test: testTransport() })
+
+  const testProcedure = () =>
+    app.procedure().withName('test').withTransports({ test: true })
+
   beforeEach(async () => {
-    app = testApp()
+    app = createApp()
     await app.initialize()
     api = app.api
   })
@@ -294,9 +314,7 @@ describe.sequential('Api', () => {
   it('should handle timeout', async () => {
     const procedure = testProcedure()
       .withTimeout(10)
-      .withHandler(() => {
-        return new Promise((resolve) => setTimeout(resolve, 100))
-      })
+      .withHandler(() => new Promise((resolve) => setTimeout(resolve, 100)))
     const res = await call({ procedure }).catch((v) => v)
     expect(res).toBeInstanceOf(ApiError)
     expect(res).toHaveProperty('code', ErrorCode.RequestTimeout)

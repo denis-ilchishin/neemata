@@ -40,12 +40,8 @@ export abstract class BaseTransport<
   }
 }
 
-export abstract class BaseTransportConnection<
-  Data = unknown,
-  TransportData = unknown,
-> {
+export abstract class BaseTransportConnection<Data = unknown> {
   constructor(
-    readonly transportData: TransportData,
     readonly data: Data,
     readonly id: string = randomUUID(),
     readonly subscriptions = new Map<string, Subscription>(),

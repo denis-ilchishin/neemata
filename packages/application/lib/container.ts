@@ -39,11 +39,14 @@ export interface Depender<Deps extends Dependencies = {}> {
 export type DependencyContext<
   Context extends Extra,
   Deps extends Dependencies,
-> = {
-  context: GlobalContext & Context
-} & {
-  [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
-}
+> = Merge<
+  {
+    context: Merge<GlobalContext, Context>
+  },
+  {
+    [K in keyof Deps]: ResolvedDependencyInjection<Deps[K]>
+  }
+>
 
 export type ProviderFactoryType<
   App extends AnyApplication,
@@ -121,7 +124,12 @@ export class Provider<
       ProviderOptions,
       Merge<ProviderDeps, Deps>,
       ProviderScope,
-      ProviderFactoryType<App, ProviderOptions, Deps, ProviderScope>
+      ProviderFactoryType<
+        App,
+        ProviderOptions,
+        Merge<ProviderDeps, Deps>,
+        ProviderScope
+      >
     >()
     return Provider.override(provider, this, {
       dependencies: merge(this.dependencies, dependencies),

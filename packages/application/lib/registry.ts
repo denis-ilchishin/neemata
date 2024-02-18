@@ -223,7 +223,7 @@ export class Registry {
       this['application']['_']['connectionData']
     >,
   ) {
-    this.application.api.connection = connection
+    this.application.api.connectionProvider = connection
   }
 
   copy(options: RegistryOptions) {
@@ -275,8 +275,10 @@ type RegistryModule<T> = {
   exportName?: string
 }
 
-const scopeErrorMessage = (name, scope = 'Global') =>
+export const scopeErrorMessage = (name, scope = 'Global') =>
   `${name} must be a ${scope} scope (including all nested dependencies)`
 
-const hasNonInvalidScopeDeps = (providers: Provider[], scope = Scope.Global) =>
-  providers.some((guard) => getProviderScope(guard) !== scope)
+export const hasNonInvalidScopeDeps = (
+  providers: Provider[],
+  scope = Scope.Global,
+) => providers.some((guard) => getProviderScope(guard) !== scope)

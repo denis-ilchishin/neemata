@@ -59,35 +59,26 @@ export class Application<
   AppExtensions extends Record<string, BaseExtension> = {},
   AppContext extends Extra = ResolveExtensionContext<AppExtensions> &
     ResolveExtensionContext<AppTransports>,
-  AppConnectionData = unknown,
+  AppConnectionData = any,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
-    transport: AppTransports[keyof AppTransports]
+    transports: AppTransports
     context: AppContext & {
-      eventManager: EventManager<
-        BaseTransportConnection<
-          AppConnectionData,
-          // any
-          AppTransports[keyof AppTransports]['_']['transportData']
-        >
-      >
+      eventManager: EventManager<BaseTransportConnection<AppConnectionData>>
     }
     transportData: AppTransports[keyof AppTransports]['_']['transportData']
     connectionData: AppConnectionData
-    connection: BaseTransportConnection<
-      AppConnectionData,
-      AppTransports[keyof AppTransports]['_']['transportData']
-    >
+    connection: BaseTransportConnection<AppConnectionData>
     procedures: AppProcedures
     tasks: AppTasks
     events: AppEvents
   }
 
-  readonly transports: Record<string, BaseTransport> = {}
-  readonly extensions: Record<string, BaseExtension> = {}
+  readonly transports: AppTransports = {} as AppTransports
+  readonly extensions: AppExtensions = {} as AppExtensions
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
@@ -241,6 +232,8 @@ export class Application<
       const options = entry instanceof BaseTransport ? undefined : entry.options
       if (alias in this.transports)
         throw new Error('Transport already registered')
+
+      // @ts-expect-error
       this.transports[alias] = transport
       this.initExtension(transport, options ?? { namespace: alias })
     }
@@ -274,6 +267,8 @@ export class Application<
       const options = entry instanceof BaseExtension ? undefined : entry.options
       if (alias in this.extensions)
         throw new Error('Extension already registered')
+
+      // @ts-expect-error
       this.extensions[alias] = extension
       this.initExtension(extension, options ?? { namespace: alias })
     }

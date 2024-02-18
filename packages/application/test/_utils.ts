@@ -75,7 +75,7 @@ export const testApp = (options: Partial<ApplicationOptions> = {}) =>
   )
 
 export const testConnection = (transportData = {}, data = {}) => {
-  return new TestConnection(transportData, data)
+  return new TestConnection(data)
 }
 
 export const testProcedure = () => new Procedure().withName('test')

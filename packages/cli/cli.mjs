@@ -135,7 +135,9 @@ const commands = {
       extension = undefined
     }
 
-    const command = app.commands.get(extension ?? APP_COMMAND)?.get(commandName)
+    const command = app.registry.commands
+      .get(extension ?? APP_COMMAND)
+      ?.get(commandName)
     if (!command) throw new Error('Command not found')
 
     const terminate = () => tryExit(() => defer(() => app.stop()))

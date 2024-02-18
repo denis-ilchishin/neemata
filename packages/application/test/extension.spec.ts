@@ -25,7 +25,7 @@ describe.sequential('Extension', () => {
   beforeEach(() => {
     extension = new TestExtension()
     app = testApp()
-    app.registerExtension({ [alias]: extension }, registryPrefix)
+    app.registerExtensions({ [alias]: extension })
   })
 
   it('should initialize', async () => {
@@ -33,7 +33,7 @@ describe.sequential('Extension', () => {
     const app = testApp()
     const initSpy = vi.spyOn(extension, 'initialize')
     const contextSpy = vi.spyOn(extension, 'context')
-    app.registerExtension({ [alias]: extension }, registryPrefix)
+    app.registerExtensions({ [alias]: extension })
     expect(app.extensions).toHaveProperty(alias, extension)
     expect(extension.application).toBeDefined()
     await app.initialize()
@@ -49,7 +49,9 @@ describe.sequential('Extension', () => {
     expect(extension.application).toHaveProperty('connections', expect.any(Map))
     expect(extension.application).toHaveProperty('registry')
     expect(extension.application.registry).toBeInstanceOf(Registry)
-    expect(extension.application.registry.prefix).toBe(registryPrefix)
+    expect(extension.application.registry.options).toStrictEqual({
+      namespace: alias,
+    })
   })
 
   it('should register commands', async () => {

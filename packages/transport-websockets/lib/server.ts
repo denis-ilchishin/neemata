@@ -235,22 +235,6 @@ export abstract class BaseHttpTransportServer {
       }),
     )
   }
-
-  protected async handleRPC(
-    connection: BaseTransportConnection,
-    procedure: Procedure,
-    container: Container,
-    payload: any,
-  ) {
-    this.logger.debug('Calling [%s] procedure...', procedure.name)
-    return this.application.api.call({
-      connection,
-      procedure,
-      payload,
-      container,
-      path: [procedure],
-    })
-  }
 }
 
 export class WebsocketsTransportServer extends BaseHttpTransportServer {
@@ -331,7 +315,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         this.logger.trace('Open new websocket [%s]', id)
         try {
           const connection = new WebsocketsTransportConnection(
-            transportData,
             connectionData,
             ws,
             id,
@@ -606,17 +589,13 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     try {
       const body = await this.handleHTTPBody(req, res, method, query)
       const connectionData = await this.getConnectionData(transportData)
-      const connection = new HttpTransportConnection(
-        transportData,
-        connectionData,
-        resHeaders,
-      )
+      const connection = new HttpTransportConnection(connectionData, resHeaders)
 
       // TODO: is there any reason to keep connection for http/1 transport?
       // It doesn't support streams and bidi communication anyway,
       // so any of usefull stuff is not available
       // this.transport.addConnection(connection)
-      const procedure = await this.api.find(procedureName)
+      const procedure = this.api.find(procedureName)
       const response = await this.handleRPC(
         connection,
         procedure,
@@ -736,6 +715,23 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
           return ok
         })
       }
+    })
+  }
+
+  protected async handleRPC(
+    connection: BaseTransportConnection,
+    procedure: Procedure,
+    container: Container,
+    payload: any,
+  ) {
+    this.logger.debug('Calling [%s] procedure...', procedure.name)
+    return this.application.api.call({
+      transport: this.transport,
+      connection,
+      procedure,
+      payload,
+      container,
+      path: [procedure],
     })
   }
 }

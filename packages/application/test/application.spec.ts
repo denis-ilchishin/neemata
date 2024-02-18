@@ -94,7 +94,7 @@ describe.sequential('Application', () => {
   it('should register interceptor', () => {
     const provider = new Provider().withValue(() => 'test')
     app.registry.registerConnection(provider)
-    expect(app.api.connection).toBe(provider)
+    expect(app.api.connectionProvider).toBe(provider)
   })
 
   it('should create procedure', () => {

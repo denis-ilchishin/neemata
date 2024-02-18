@@ -4,10 +4,9 @@ import {
   Dependencies,
   DependencyContext,
   Depender,
-  Provider,
   getProviderScope,
 } from './container'
-import { BaseTransportConnection } from './transport'
+import { BaseTransport, BaseTransportConnection } from './transport'
 import {
   AnyApplication,
   AnyProcedure,
@@ -24,24 +23,30 @@ import {
   Scope,
 } from './types'
 import { merge } from './utils/functions'
+import { scopeErrorMessage } from './registry'
 
 export type ResolvedProcedureContext<
   App extends AnyApplication,
   Deps extends Dependencies,
 > = DependencyContext<
-  App['_']['context'] & {
-    connection: App['_']['connection']
-    call: <P extends Procedure>(
-      procedure: P,
-      ...args: P['input'] extends unknown ? [] : [InferSchemaOutput<P['input']>]
-    ) => Promise<
-      Awaited<
-        P['output'] extends unknown
-          ? ReturnType<P['handler']>
-          : InferSchemaOutput<P['output']>
+  Merge<
+    App['_']['context'],
+    {
+      connection: App['_']['connection']
+      call: <P extends Procedure>(
+        procedure: P,
+        ...args: P['input'] extends unknown
+          ? []
+          : [InferSchemaOutput<P['input']>]
+      ) => Promise<
+        Awaited<
+          P['output'] extends unknown
+            ? ReturnType<P['handler']>
+            : InferSchemaOutput<P['output']>
+        >
       >
-    >
-  },
+    }
+  >,
   Deps
 >
 
@@ -77,11 +82,12 @@ export class Procedure<
   > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>,
 > implements Depender<ProcedureDeps>
 {
-  static override<T extends Procedure>(
+  static override<T>(
     newProcedure: T,
     original: any,
     overrides: { [K in keyof Procedure]?: any } = {},
   ): T {
+    // @ts-expect-error
     Object.assign(newProcedure, original, overrides)
     return newProcedure
   }
@@ -95,11 +101,15 @@ export class Procedure<
     timeout: number
     description: string
     tags: string[]
+    transports: {
+      [K in keyof App['_']['transports']]?: boolean
+    }
   }
   name!: string
   readonly handler!: ProcedureHandler
-  readonly dependencies: ProcedureDeps = {} as ProcedureDeps
   readonly timeout!: this['_']['timeout']
+  readonly dependencies: ProcedureDeps = {} as ProcedureDeps
+  readonly transports: this['_']['transports'] = {} as this['_']['transports']
 
   readonly input!: this['_']['input']
   readonly output!: this['_']['output']
@@ -121,7 +131,7 @@ export class Procedure<
       ProcedureOutput,
       ProcedureHandlerType<
         App,
-        ProcedureDeps & Deps,
+        Merge<ProcedureDeps, Deps>,
         ProcedureInput,
         ProcedureOutput
       >
@@ -307,9 +317,23 @@ export class Procedure<
     >()
     return Procedure.override(procedure, this, { name })
   }
+
+  withTransports(transports: this['_']['transports']) {
+    const procedure = new Procedure<
+      App,
+      ProcedureDeps,
+      ProcedureInput,
+      ProcedureOutput,
+      ProcedureHandler
+    >()
+    return Procedure.override(procedure, this, {
+      transports: merge(this.transports, transports),
+    })
+  }
 }
 
 export type ProcedureCallOptions = {
+  transport: BaseTransport
   connection: BaseTransportConnection
   path: [AnyProcedure, ...AnyProcedure[]]
   procedure: AnyProcedure
@@ -321,7 +345,7 @@ const NotFound = (name: string) =>
   new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
 
 export class Api {
-  connection?: ConnectionProvider<any, any>
+  connectionProvider?: ConnectionProvider<any, any>
   connectionFn?: ConnectionFn<any, any>
   parsers: {
     input?: BaseParser
@@ -352,14 +376,14 @@ export class Api {
     callOptions: ProcedureCallOptions,
     withMiddleware = callOptions.procedure.middlewareEnabled,
   ) {
-    const { payload } = callOptions
-
-    const handleProcedure = await this.createProcedureHandler(
-      callOptions,
-      withMiddleware,
-    )
+    const { payload, transport, procedure } = callOptions
 
     try {
+      this.handleTransport(transport, procedure)
+      const handleProcedure = await this.createProcedureHandler(
+        callOptions,
+        withMiddleware,
+      )
       return await handleProcedure(payload)
     } catch (error) {
       throw this.handleFilters(error)
@@ -371,13 +395,13 @@ export class Api {
   }
 
   async load(): Promise<void> {
-    if (!this.connection) {
+    if (!this.connectionProvider) {
       this.application.logger.warn('Connection provider is not defined')
-    } else if (getProviderScope(this.connection) !== Scope.Global) {
+    } else if (getProviderScope(this.connectionProvider) !== Scope.Global) {
       throw new Error(scopeErrorMessage('Connection'))
     } else {
       this.connectionFn = await this.application.container.resolve(
-        this.connection!,
+        this.connectionProvider!,
       )
     }
   }
@@ -477,6 +501,18 @@ export class Api {
     return middlewares[Symbol.iterator]()
   }
 
+  private handleTransport(transport: BaseTransport, procedure: AnyProcedure) {
+    for (const i in procedure.transports) {
+      if (procedure.transports[i] === false) {
+        for (const j in this.application.transports) {
+          if (this.application.transports[j] === transport) {
+            throw NotFound(procedure.name)
+          }
+        }
+      }
+    }
+  }
+
   private handleTimeout(response: any, timeout?: number) {
     const withTimeout = (value: Promise<any>) =>
       new Promise((resolve, reject) => {
@@ -542,9 +578,3 @@ export abstract class BaseParser {
     return {}
   }
 }
-
-const scopeErrorMessage = (name, scope = 'Global') =>
-  `${name} provider must be a ${scope} scope (including all it's dependencies)`
-
-const hasNonInvalidScopeDeps = (providers: Provider[], scope = Scope.Global) =>
-  providers.some((guard) => getProviderScope(guard) !== scope)

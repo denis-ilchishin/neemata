@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import { BaseExtension } from '..'
 import { Event } from './events'
+import { BaseExtension } from './extension'
 import { Subscription } from './subscription'
 import { Extra } from './types'
 

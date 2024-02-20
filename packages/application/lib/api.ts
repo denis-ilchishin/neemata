@@ -6,6 +6,7 @@ import {
   Depender,
   getProviderScope,
 } from './container'
+import { scopeErrorMessage } from './registry'
 import { BaseTransport, BaseTransportConnection } from './transport'
 import {
   AnyApplication,
@@ -23,7 +24,6 @@ import {
   Scope,
 } from './types'
 import { merge } from './utils/functions'
-import { scopeErrorMessage } from './registry'
 
 export type ResolvedProcedureContext<
   App extends AnyApplication,
@@ -95,8 +95,8 @@ export class Procedure<
   _!: {
     input: ProcedureInput
     output: ProcedureOutput
-    middlewares: Middleware[]
-    guards: Guard[]
+    middlewares: Middleware<App>[]
+    guards: Guard<App>[]
     options: Extra
     timeout: number
     description: string

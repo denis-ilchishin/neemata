@@ -13,7 +13,7 @@ import type { Registry } from './registry'
 import type { StreamResponse } from './streams'
 import type { Subscription as ServerSubscription } from './subscription'
 import type { Task, TaskExecution } from './tasks'
-import type { BaseTransport, BaseTransportConnection } from './transport'
+import type { BaseTransportConnection } from './transport'
 
 export enum Scope {
   Global = 'Global',
@@ -69,7 +69,7 @@ export type Command = (
   ...args: any[]
 ) => any
 
-export type ConnectionFn<T = any, C = any> = (transportData: T) => C
+export type ConnectionFn<T = any, C = any> = (transportData: T) => Async<C>
 
 export type FilterFn<T extends ErrorClass> = (error: InstanceType<T>) => Error
 

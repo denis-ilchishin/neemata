@@ -1,10 +1,10 @@
 import { Application } from '@/application'
-import { BaseExtension } from '@/extension'
-import { WorkerType } from '@/types'
 import { Provider } from '@/container'
+import { BaseExtension } from '@/extension'
+import { Registry } from '@/registry'
+import { WorkerType } from '@/types'
 import { noop } from '@/utils/functions'
 import { testApp } from './_utils'
-import { Registry } from '@/registry'
 
 export class TestExtension extends BaseExtension {
   name = 'Test extension'

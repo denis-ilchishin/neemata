@@ -1,8 +1,8 @@
+import type { Readable } from 'node:stream'
 import type {
   Subscription as ClientSubscription,
   UpStream,
 } from '@neematajs/common'
-import type { Readable } from 'node:stream'
 import type { Api, Procedure } from './api'
 import type { Application } from './application'
 import type { Container, Provider } from './container'
@@ -83,11 +83,15 @@ export type MiddlewareFn<App extends AnyApplication = AnyApplication> = (
   payload: any,
 ) => any
 
-export type Guard = Provider<GuardFn>
+export type Guard<App extends AnyApplication = AnyApplication> = Provider<
+  GuardFn<App>
+>
 
 export type Filter<T extends ErrorClass = ErrorClass> = Provider<FilterFn<T>>
 
-export type Middleware = Provider<MiddlewareFn>
+export type Middleware<App extends AnyApplication = AnyApplication> = Provider<
+  MiddlewareFn<App>
+>
 
 export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 

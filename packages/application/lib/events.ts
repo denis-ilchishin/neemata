@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { BaseParser } from './api'
 import { Subscription } from './subscription'
-import { AnyApplication, InferSchemaInput, InferSchemaOutput } from './types'
 import { BaseTransportConnection } from './transport'
+import { AnyApplication, InferSchemaInput, InferSchemaOutput } from './types'
 
 export type EventOptionsType = Record<string, string | number>
 

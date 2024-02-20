@@ -1,8 +1,9 @@
 import type { Procedure } from './api'
-import { Provider, getProviderScope, type Depender } from './container'
+import { type Depender, Provider, getProviderScope } from './container'
 import type { Event } from './events'
 import type { Task } from './tasks'
 import {
+  type AnyApplication,
   AnyEvent,
   AnyProcedure,
   AnyTask,
@@ -14,7 +15,6 @@ import {
   Hook,
   Middleware,
   Scope,
-  type AnyApplication,
 } from './types'
 
 export const APP_COMMAND = Symbol('appCommand')

@@ -100,11 +100,12 @@ export class Provider<
   > = ProviderDisposeType<ProviderValue, App, ProviderOptions, ProviderDeps>,
 > implements Depender<ProviderDeps>
 {
-  static override<T extends Provider<any, any, any, any, any, any, any>>(
+  static override<T>(
     newProvider: T,
     original: any,
     overrides: { [K in keyof Provider]?: any } = {},
   ): T {
+    // @ts-expect-error
     Object.assign(newProvider, original, overrides)
     return newProvider
   }

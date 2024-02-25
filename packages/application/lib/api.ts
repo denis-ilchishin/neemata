@@ -387,18 +387,6 @@ export class Api {
     }
   }
 
-  async load(): Promise<void> {
-    // if (!this.connectionProvider) {
-    //   this.application.logger.warn('Connection provider is not defined')
-    // } else if (getProviderScope(this.connectionProvider) !== Scope.Global) {
-    //   throw new Error(scopeErrorMessage('Connection'))
-    // } else {
-    //   this.connectionFn = await this.application.container.resolve(
-    //     this.connectionProvider!,
-    //   )
-    // }
-  }
-
   private createNestedCall(callOptions: ProcedureCallOptions) {
     return (procedure: Procedure, payload: any) => {
       return this.call(
@@ -441,11 +429,8 @@ export class Api {
       } else {
         await this.handleGuards(callOptions)
         const { dependencies } = procedure
-        const nestedCall = this.createNestedCall(callOptions)
-        const context = await container.createContext(dependencies, {
-          connection,
-          call: nestedCall,
-        })
+        const extra = this.createCallExtraContext(callOptions)
+        const context = await container.createContext(dependencies, extra)
 
         // TODO: maybe disable input handling for nested calls or make it optional at least?
         const data = await this.handleSchema(
@@ -480,16 +465,18 @@ export class Api {
   }
 
   private async resolveMiddlewares(
-    { procedure, container }: ProcedureCallOptions,
+    callOptions: ProcedureCallOptions,
     withMiddleware: boolean,
   ) {
     if (!withMiddleware) return undefined
+    const { procedure, container } = callOptions
     const middlewareProviders = [
       ...this.application.registry.middlewares,
       ...procedure.middlewares,
     ]
+    const extra = this.createCallExtraContext(callOptions)
     const middlewares = await Promise.all(
-      middlewareProviders.map((p) => container.resolve(p)),
+      middlewareProviders.map((p) => container.resolve(p, extra)),
     )
     return middlewares[Symbol.iterator]()
   }
@@ -523,8 +510,9 @@ export class Api {
 
   private async handleGuards(callOptions: ProcedureCallOptions) {
     const { procedure, container, path, connection } = callOptions
+    const extra = this.createCallExtraContext(callOptions)
     const guards = await Promise.all(
-      procedure.guards.map((p) => container.resolve(p)),
+      procedure.guards.map((p) => container.resolve(p, extra)),
     )
     const guardOptions = Object.freeze({ connection, path })
     for (const guard of guards) {
@@ -561,6 +549,15 @@ export class Api {
     const schema = procedure[type]
     if (!schema) return payload
     return parser!.parse(schema, payload, context)
+  }
+
+  private createCallExtraContext(callOptions: ProcedureCallOptions) {
+    const { connection } = callOptions
+    const nestedCall = this.createNestedCall(callOptions)
+    return {
+      connection,
+      call: nestedCall,
+    }
   }
 }
 

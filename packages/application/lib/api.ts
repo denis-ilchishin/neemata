@@ -4,9 +4,7 @@ import {
   Dependencies,
   DependencyContext,
   Depender,
-  getProviderScope,
 } from './container'
-import { scopeErrorMessage } from './registry'
 import { BaseTransport, BaseTransportConnection } from './transport'
 import {
   AnyApplication,
@@ -21,7 +19,6 @@ import {
   Merge,
   Middleware,
   MiddlewareContext,
-  Scope,
 } from './types'
 import { merge } from './utils/functions'
 
@@ -390,20 +387,16 @@ export class Api {
     }
   }
 
-  async getConnectionData(data: any) {
-    return this.connectionFn?.(data)
-  }
-
   async load(): Promise<void> {
-    if (!this.connectionProvider) {
-      this.application.logger.warn('Connection provider is not defined')
-    } else if (getProviderScope(this.connectionProvider) !== Scope.Global) {
-      throw new Error(scopeErrorMessage('Connection'))
-    } else {
-      this.connectionFn = await this.application.container.resolve(
-        this.connectionProvider!,
-      )
-    }
+    // if (!this.connectionProvider) {
+    //   this.application.logger.warn('Connection provider is not defined')
+    // } else if (getProviderScope(this.connectionProvider) !== Scope.Global) {
+    //   throw new Error(scopeErrorMessage('Connection'))
+    // } else {
+    //   this.connectionFn = await this.application.container.resolve(
+    //     this.connectionProvider!,
+    //   )
+    // }
   }
 
   private createNestedCall(callOptions: ProcedureCallOptions) {

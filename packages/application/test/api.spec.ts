@@ -4,7 +4,6 @@ import {
   defaultTimeout,
   testApp,
   testConnection,
-  testProcedure,
   testTransport,
 } from './_utils'
 
@@ -182,9 +181,7 @@ describe.sequential('Api', () => {
     })
 
   const createApp = () =>
-    testApp()
-      .withConnectionData<{ some: 'connection data' }>()
-      .registerTransports({ test: testTransport() })
+    testApp().registerTransports({ test: testTransport() })
 
   const testProcedure = () =>
     app.procedure().withName('test').withTransports({ test: true })

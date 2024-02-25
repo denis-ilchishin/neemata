@@ -12,9 +12,8 @@ import {
 import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
 import { BaseTaskRunner, Task, Tasks } from './tasks'
-import { BaseTransport, BaseTransportConnection } from './transport'
+import { BaseTransport } from './transport'
 import {
-  ConnectionFn,
   Extra,
   GuardFn,
   Hook,
@@ -59,7 +58,6 @@ export class Application<
   AppExtensions extends Record<string, BaseExtension> = {},
   AppContext extends Extra = ResolveExtensionContext<AppExtensions> &
     ResolveExtensionContext<AppTransports>,
-  AppConnectionData = any,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {},
@@ -67,11 +65,11 @@ export class Application<
   readonly _!: {
     transports: AppTransports
     context: AppContext & {
-      eventManager: EventManager<BaseTransportConnection<AppConnectionData>>
+      eventManager: EventManager<
+        AppTransports[keyof AppTransports]['_']['connection']
+      >
     }
-    transportData: AppTransports[keyof AppTransports]['_']['transportData']
-    connectionData: AppConnectionData
-    connection: BaseTransportConnection<AppConnectionData>
+    connection: AppTransports[keyof AppTransports]['_']['connection']
     procedures: AppProcedures
     tasks: AppTasks
     events: AppEvents
@@ -157,18 +155,6 @@ export class Application<
     return this.tasks.execute(this.container, task.name, ...args)
   }
 
-  withConnectionData<T>() {
-    return this as unknown as Application<
-      AppTransports,
-      AppExtensions,
-      AppContext,
-      T,
-      AppProcedures,
-      AppTasks,
-      AppEvents
-    >
-  }
-
   registerEvents<T extends Record<string, Event>>(events: T) {
     for (const [name, event] of Object.entries(events)) {
       this.registry.registerEvent(name, event)
@@ -177,7 +163,6 @@ export class Application<
       AppTransports,
       AppExtensions,
       AppContext,
-      AppConnectionData,
       AppProcedures,
       AppTasks,
       Merge<AppEvents, T>
@@ -192,7 +177,6 @@ export class Application<
       AppTransports,
       AppExtensions,
       AppContext,
-      AppConnectionData,
       Merge<AppProcedures, T>,
       AppTasks,
       AppEvents
@@ -207,7 +191,6 @@ export class Application<
       AppTransports,
       AppExtensions,
       AppContext,
-      AppConnectionData,
       AppProcedures,
       Merge<AppTasks, T>,
       AppEvents
@@ -242,7 +225,6 @@ export class Application<
       Merge<AppTransports, T>,
       AppExtensions,
       AppContext & ResolveExtensionContext<T>,
-      AppConnectionData,
       AppProcedures,
       AppTasks,
       AppEvents
@@ -276,7 +258,6 @@ export class Application<
       AppTransports,
       Merge<AppExtensions, T>,
       AppContext & ResolveExtensionContext<T>,
-      AppConnectionData,
       AppProcedures,
       AppTasks,
       AppEvents
@@ -314,13 +295,6 @@ export class Application<
 
   event() {
     return new Event()
-  }
-
-  connection() {
-    return new Provider<
-      ConnectionFn<this['_']['transportData'], AppConnectionData>,
-      this
-    >()
   }
 
   private async callHook(

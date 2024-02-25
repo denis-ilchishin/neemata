@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "cron-parser": "^4.9.0",
-    "json-schema-to-typescript": "^13.1.1"
+    "json-schema-to-typescript": "^13.1.2"
   },
   "peerDependencies": {
     "@neematajs/application": "workspace:*"

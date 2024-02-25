@@ -15,7 +15,13 @@ export class TestParser extends BaseParser {
   }
 }
 
-export class TestConnection extends BaseTransportConnection {
+export class TestConnection<D> extends BaseTransportConnection {
+  readonly transport = 'test'
+
+  constructor(readonly data: D) {
+    super()
+  }
+
   protected sendEvent(eventName: string, payload: any): boolean {
     return false
   }
@@ -74,8 +80,8 @@ export const testApp = (options: Partial<ApplicationOptions> = {}) =>
     ),
   )
 
-export const testConnection = (transportData = {}, data = {}) => {
-  return new TestConnection(data)
+export const testConnection = <T = {}>(data?: T) => {
+  return new TestConnection(data ?? {})
 }
 
 export const testProcedure = () => new Procedure().withName('test')

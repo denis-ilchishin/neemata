@@ -10,8 +10,8 @@ export interface BaseTransportData {
 }
 export abstract class BaseTransport<
   Context extends Extra = {},
-  TransportData extends BaseTransportData = any,
-> extends BaseExtension<Context, { transportData: TransportData }> {
+  Connection extends BaseTransportConnection = BaseTransportConnection,
+> extends BaseExtension<Context, { connection: Connection }> {
   abstract start(): any
   abstract stop(): any
 
@@ -40,9 +40,11 @@ export abstract class BaseTransport<
   }
 }
 
-export abstract class BaseTransportConnection<Data = unknown> {
+export abstract class BaseTransportConnection {
+  abstract readonly transport: string
+  abstract readonly data: any
+
   constructor(
-    readonly data: Data,
     readonly id: string = randomUUID(),
     readonly subscriptions = new Map<string, Subscription>(),
   ) {}

@@ -40,5 +40,10 @@
       "semicolons": "asNeeded",
       "trailingComma": "all"
     }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true
+    }
   }
 }

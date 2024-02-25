@@ -1,8 +1,8 @@
-import swc from '@swc/core'
 import { readFile } from 'node:fs/promises'
 import { isBuiltin } from 'node:module'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import swc from '@swc/core'
 import { createMatchPath, loadConfig } from 'tsconfig-paths'
 
 const tsExtensions = ['.mts', '.cts', '.ts']
@@ -19,7 +19,7 @@ const matchPath =
         configLoaderResult.absoluteBaseUrl,
         configLoaderResult.paths,
         configLoaderResult.mainFields,
-        configLoaderResult.addMatchAll
+        configLoaderResult.addMatchAll,
       )
 
 const isRelativePath = (path) => path.startsWith('.')
@@ -36,6 +36,7 @@ const toFileUrl = (val, parentURL) => {
 }
 
 const isTs = (path) => {
+  // biome-ignore lint/style/noParameterAssign:
   path = isFileUrl(path) ? new URL(path).pathname : path
   const [_, ...extensions] = basename(path).split('.')
   const toExtname = (parts) => `.${parts.join('.')}`

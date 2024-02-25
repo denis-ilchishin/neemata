@@ -222,9 +222,9 @@ export abstract class BaseHttpTransportServer {
     return '/' + parts.join('/')
   }
 
-  protected async getConnectionData(transportData: any) {
-    return this.application.api.getConnectionData(transportData)
-  }
+  // protected async getConnectionData(transportData: any) {
+  //   return this.application.api.getConnectionData(transportData)
+  // }
 
   protected handleContainerDisposal(container: Container) {
     return defer(() =>
@@ -266,7 +266,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         const container = this.container.createScope(Scope.Connection)
 
         try {
-          const connectionData = await this.getConnectionData(transportData)
+          // const connectionData = await this.getConnectionData(transportData)
           const streams = {
             up: new Map(),
             down: new Map(),
@@ -277,7 +277,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
             id: randomUUID(),
             streams,
             container,
-            connectionData,
+            // connectionData,
             transportData,
             subscriptions: new Map(),
           }
@@ -311,11 +311,11 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       },
       open: async (ws: WebSocket) => {
         this.sockets.add(ws)
-        const { id, connectionData, transportData } = ws.getUserData()
+        const { id, transportData } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
         try {
           const connection = new WebsocketsTransportConnection(
-            connectionData,
+            transportData,
             ws,
             id,
           )
@@ -588,8 +588,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     const container = this.application.container.createScope(Scope.Call)
     try {
       const body = await this.handleHTTPBody(req, res, method, query)
-      const connectionData = await this.getConnectionData(transportData)
-      const connection = new HttpTransportConnection(connectionData, resHeaders)
+      const connection = new HttpTransportConnection(transportData, resHeaders)
 
       // TODO: is there any reason to keep connection for http/1 transport?
       // It doesn't support streams and bidi communication anyway,

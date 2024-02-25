@@ -1,5 +1,8 @@
 #!/usr/bin/env node --enable-source-maps
 
+import { register } from 'node:module'
+import { resolve } from 'node:path'
+import { parseArgs } from 'node:util'
 import {
   APP_COMMAND,
   Application,
@@ -11,9 +14,6 @@ import {
   watchApp,
 } from '@neematajs/application'
 import dotenv from 'dotenv'
-import { register } from 'node:module'
-import { resolve } from 'node:path'
-import { parseArgs } from 'node:util'
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

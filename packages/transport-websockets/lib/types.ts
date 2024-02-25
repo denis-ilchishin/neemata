@@ -50,13 +50,14 @@ export type WebSocketUserData = {
   }
   subscriptions: Map<string, Subscription>
   container: Container
-  connectionData: any
-  transportData: any
+  transportData: WebsocketsTransportData
 }
 
 export type WebSocket = uws.WebSocket<WebSocketUserData>
 
-export type WebsocketsTransportOptions = HttpTransportOptions
+export type WebsocketsTransportOptions = HttpTransportOptions & {
+  enableHttp?: boolean
+}
 
 export type WebsocketsTransportData = {
   transport: 'websockets'

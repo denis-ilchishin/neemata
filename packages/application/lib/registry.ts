@@ -10,7 +10,6 @@ import {
   ErrorClass,
   Filter,
   Guard,
-  Hook,
   Middleware,
   Scope,
   type AnyApplication,
@@ -48,12 +47,7 @@ export class Registry {
     readonly middlewares = new Set<Middleware>(),
     readonly guards = new Set<Guard>(),
     readonly options?: RegistryOptions,
-  ) {
-    for (const hook of Object.values(Hook)) {
-      this.hooks.set(hook, new Set())
-    }
-    this.commands.set(APP_COMMAND, new Map())
-  }
+  ) {}
 
   async load() {
     const { loaders } = this.application.options

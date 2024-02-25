@@ -86,12 +86,6 @@ describe.sequential('Application', () => {
     expect(app.registry.filters.has(Error)).toBe(true)
   })
 
-  // it('should register interceptor', () => {
-  //   const provider = new Provider().withValue(() => 'test')
-  //   app.registry.registerConnection(provider)
-  //   expect(app.api.connectionProvider).toBe(provider)
-  // })
-
   it('should create procedure', () => {
     const procedure = app.procedure()
     expect(procedure).toBeInstanceOf(Procedure)

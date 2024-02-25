@@ -22,5 +22,8 @@
         "types": "./dist/index.d.ts"
       }
     }
+  },
+  "devDependencies": {
+    "esbuild-plugin-file-path-extensions": "^2.0.0"
   }
 }

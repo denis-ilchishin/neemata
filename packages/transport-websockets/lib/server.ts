@@ -1,6 +1,3 @@
-import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
-import { PassThrough, Readable } from 'node:stream'
 import {
   ApiError,
   BaseTransportConnection,
@@ -26,6 +23,9 @@ import {
   encodeNumber,
   encodeText,
 } from '@neematajs/common'
+import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+import { PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
 import { HttpPayloadGetParam, HttpTransportMethod, MessageType } from './common'
 import {
@@ -221,10 +221,6 @@ export abstract class BaseHttpTransportServer {
   protected basePath(...parts: string[]) {
     return '/' + parts.join('/')
   }
-
-  // protected async getConnectionData(transportData: any) {
-  //   return this.application.api.getConnectionData(transportData)
-  // }
 
   protected handleContainerDisposal(container: Container) {
     return defer(() =>
@@ -433,7 +429,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     const [callId, procedureName, payload] = rpcPayload
     const container = data.container.createScope(Scope.Call)
     try {
-      const procedure = await this.api.find(procedureName)
+      const procedure = this.api.find(procedureName)
       const response = await this.handleRPC(
         connection,
         procedure,

@@ -8,7 +8,6 @@ import {
   EventsType,
   ResolveApiProcedureType,
   StreamDataType,
-  type StreamMetadata,
   Subscription,
   UpStream,
   concat,
@@ -17,6 +16,7 @@ import {
   encodeNumber,
   encodeText,
   once,
+  type StreamMetadata,
 } from '@neematajs/common'
 
 import {
@@ -130,8 +130,9 @@ class WebsocketsClient<
 
   async disconnect() {
     this.autoreconnect = false
+    const closing = once(this, '_neemata:close')
     this.ws?.close(1000)
-    await once(this, 'close')
+    await closing
   }
 
   async reconnect(urlParams?: URLSearchParams) {

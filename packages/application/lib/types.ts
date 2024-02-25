@@ -71,7 +71,9 @@ export type Command = (
 
 export type ConnectionFn<T = any, C = any> = (transportData: T) => Async<C>
 
-export type FilterFn<T extends ErrorClass> = (error: InstanceType<T>) => Error
+export type FilterFn<T extends ErrorClass> = (
+  error: InstanceType<T>,
+) => Async<Error>
 
 export type GuardFn<App extends AnyApplication = AnyApplication> = (
   options: GuardOptions<App>,

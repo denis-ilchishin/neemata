@@ -8,6 +8,7 @@ import {
   EventsType,
   ResolveApiProcedureType,
   StreamDataType,
+  type StreamMetadata,
   Subscription,
   UpStream,
   concat,
@@ -16,7 +17,6 @@ import {
   encodeNumber,
   encodeText,
   once,
-  type StreamMetadata,
 } from '@neematajs/common'
 
 import {
@@ -57,7 +57,7 @@ const KEY: Record<MessageType, symbol> = Object.fromEntries(
 )
 
 class WebsocketsClient<
-  Procedures extends any = never,
+  Procedures = never,
   Events extends EventsType = never,
 > extends BaseClient<Procedures, Events, RPCOptions> {
   private ws!: WebSocket

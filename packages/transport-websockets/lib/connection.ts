@@ -1,14 +1,16 @@
 import { BaseTransportConnection } from '@neematajs/application'
 import { MessageType } from './common'
 import { sendPayload } from './server'
-import { HttpTransportData, WebSocket } from './types'
+import { HttpTransportData, WebSocket, WebsocketsTransportData } from './types'
 
 export class HttpTransportConnection extends BaseTransportConnection {
+  readonly transport = 'http'
+
   constructor(
-    data: any,
+    readonly data: HttpTransportData,
     private readonly headers: Headers,
   ) {
-    super(data)
+    super()
   }
 
   protected sendEvent(): boolean {
@@ -23,10 +25,16 @@ export class HttpTransportConnection extends BaseTransportConnection {
 }
 
 export class WebsocketsTransportConnection extends BaseTransportConnection {
+  readonly transport = 'websockets'
+
   #websocket: WebSocket
 
-  constructor(data: any, websocket: WebSocket, id: string) {
-    super(data, id)
+  constructor(
+    readonly data: WebsocketsTransportData,
+    websocket: WebSocket,
+    id: string,
+  ) {
+    super(id)
     this.#websocket = websocket
   }
 

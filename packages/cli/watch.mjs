@@ -36,7 +36,7 @@ export async function initialize(data) {
     const watcher = watch(
       path,
       { persistent: false, recursive: true },
-      onChange
+      onChange,
     )
     watchers.set(path, watcher)
   }

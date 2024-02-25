@@ -23,11 +23,6 @@ describe.sequential('Application', () => {
     expect(app).instanceOf(Application)
   })
 
-  it('should chain with connection data', () => {
-    const newApp = app.withConnectionData<{ some: 'type' }>()
-    expect(newApp).toBe(app)
-  })
-
   it('should chain with events', () => {
     const event = testEvent()
     const key = 'testEventName'
@@ -91,11 +86,11 @@ describe.sequential('Application', () => {
     expect(app.registry.filters.has(Error)).toBe(true)
   })
 
-  it('should register interceptor', () => {
-    const provider = new Provider().withValue(() => 'test')
-    app.registry.registerConnection(provider)
-    expect(app.api.connectionProvider).toBe(provider)
-  })
+  // it('should register interceptor', () => {
+  //   const provider = new Provider().withValue(() => 'test')
+  //   app.registry.registerConnection(provider)
+  //   expect(app.api.connectionProvider).toBe(provider)
+  // })
 
   it('should create procedure', () => {
     const procedure = app.procedure()
@@ -120,11 +115,6 @@ describe.sequential('Application', () => {
   it('should create guard', () => {
     const guard = app.guard()
     expect(guard).toBeInstanceOf(Provider)
-  })
-
-  it('should create connection', () => {
-    const connection = app.connection()
-    expect(connection).toBeInstanceOf(Provider)
   })
 
   it('should create event', () => {

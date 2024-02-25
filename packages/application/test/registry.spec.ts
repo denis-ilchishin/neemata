@@ -84,33 +84,6 @@ describe.sequential('Loader -> Procedure', () => {
     loader.registerProcedure(procedure.name, procedure)
     expect(() => loader.registerProcedure(procedure.name, procedure)).toThrow()
   })
-
-  it('should fail register procedure with invalid guards', async () => {
-    const guard = new Provider().withScope(Scope.Connection)
-    const guard2 = new Provider().withScope(Scope.Call)
-    const procedure = testProcedure()
-      .withHandler(noop)
-      .withGuards(guard, guard2)
-    expect(() => loader.registerProcedure(procedure.name, procedure)).toThrow()
-  })
-
-  it('should fail register procedure with invalid middleware', async () => {
-    const middleware = new Provider().withScope(Scope.Connection)
-    const middleware2 = new Provider().withScope(Scope.Call)
-    const procedure = testProcedure()
-      .withHandler(noop)
-      .withMiddlewares(middleware, middleware2)
-    expect(() => loader.registerProcedure(procedure.name, procedure)).toThrow()
-  })
-
-  it('should fail register procedure with invalid middleware', async () => {
-    const middleware = new Provider().withScope(Scope.Connection)
-    const middleware2 = new Provider().withScope(Scope.Call)
-    const procedure = testProcedure()
-      .withHandler(noop)
-      .withMiddlewares(middleware, middleware2)
-    expect(() => loader.registerProcedure(procedure.name, procedure)).toThrow()
-  })
 })
 
 describe.sequential('Loader -> Task', () => {

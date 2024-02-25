@@ -1,20 +1,19 @@
 import type { Procedure } from './api'
-import { type Depender, Provider, getProviderScope } from './container'
+import { Provider, getProviderScope, type Depender } from './container'
 import type { Event } from './events'
 import type { Task } from './tasks'
 import {
-  type AnyApplication,
   AnyEvent,
   AnyProcedure,
   AnyTask,
   Command,
-  ConnectionProvider,
   ErrorClass,
   Filter,
   Guard,
   Hook,
   Middleware,
   Scope,
+  type AnyApplication,
 } from './types'
 
 export const APP_COMMAND = Symbol('appCommand')
@@ -94,15 +93,9 @@ export class Registry {
 
   globals(): Depender<any>[] {
     return [
-      ...this.guards,
-      ...this.middlewares,
       ...this.filters.values(),
       ...Array.from(this.tasks.values()).map(({ module }) => module),
-      ...Array.from(this.procedures.values()).flatMap(({ module }) => [
-        module,
-        ...module.guards,
-        ...module.middlewares,
-      ]),
+      ...Array.from(this.procedures.values()).map(({ module }) => module),
     ]
   }
 
@@ -120,12 +113,6 @@ export class Registry {
 
     if (this.procedures.has(name))
       throw new Error(`Procedure ${name} already registered`)
-
-    if (hasNonInvalidScopeDeps(procedure.guards))
-      throw new Error(scopeErrorMessage('Guards'))
-
-    if (hasNonInvalidScopeDeps(procedure.middlewares))
-      throw new Error(scopeErrorMessage('Middlewares'))
 
     procedure.name = name
     this.procedures.set(name, { module: procedure, path, exportName })
@@ -206,24 +193,11 @@ export class Registry {
   }
 
   registerMiddleware(middleware: Middleware) {
-    if (hasNonInvalidScopeDeps([middleware]))
-      throw new Error(scopeErrorMessage('Middlewares'))
     this.middlewares.add(middleware)
   }
 
   registerGuard(guard: Guard) {
-    if (hasNonInvalidScopeDeps([guard]))
-      throw new Error(scopeErrorMessage('Guards'))
     this.guards.add(guard)
-  }
-
-  registerConnection(
-    connection: ConnectionProvider<
-      this['application']['_']['transportData'],
-      this['application']['_']['connectionData']
-    >,
-  ) {
-    this.application.api.connectionProvider = connection
   }
 
   copy(options: RegistryOptions) {

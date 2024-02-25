@@ -1,10 +1,12 @@
 import { BaseTransport } from '@neematajs/application'
+import {
+  HttpTransportConnection,
+  WebsocketsTransportConnection,
+} from './connection'
 import { WebsocketsTransportServer } from './server'
 import {
   HttpTransportApplicationContext,
-  HttpTransportData,
   WebsocketsTransportApplicationContext,
-  WebsocketsTransportData,
   WebsocketsTransportOptions,
 } from './types'
 
@@ -12,7 +14,7 @@ export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
   HttpTransportApplicationContext & WebsocketsTransportApplicationContext,
-  HttpTransportData | WebsocketsTransportData
+  HttpTransportConnection | WebsocketsTransportConnection
 > {
   name = 'Websockets Transport'
   server!: WebsocketsTransportServer

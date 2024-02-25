@@ -44,7 +44,6 @@ describe.sequential('Registry', () => {
   beforeEach(() => {
     app = testApp({ loaders: [new TestCustomLoader()] })
     registry = app.registry
-    console.log(registry.commands)
   })
 
   it('should be a loader', () => {

@@ -383,7 +383,7 @@ export class Api {
       )
       return await handleProcedure(payload)
     } catch (error) {
-      throw this.handleFilters(error)
+      throw await this.handleFilters(error)
     }
   }
 

@@ -1,3 +1,4 @@
+import { esbuildPluginFilePathExtensions } from 'esbuild-plugin-file-path-extensions'
 import { defineConfig } from 'tsup'
 
 export default defineConfig({
@@ -6,8 +7,14 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   minify: false,
-  bundle: false,
+  bundle: true,
   format: ['cjs', 'esm'],
   platform: 'neutral',
   external: ['events'],
+  esbuildPlugins: [
+    esbuildPluginFilePathExtensions({
+      esmExtension: 'mjs',
+      esm: ({ format }) => (format === 'esm' ? true : false),
+    }),
+  ],
 })

@@ -301,16 +301,6 @@ export class Container {
     this.resolvers.clear()
   }
 
-  private findCurrentScopeDeclarations() {
-    const declarations: AnyProvider[] = []
-    for (const provider of this.providers) {
-      if (getProviderScope(provider) === this.scope) {
-        declarations.push(provider)
-      }
-    }
-    return declarations
-  }
-
   isResolved(provider: AnyProvider): boolean {
     return !!(
       this.instances.has(provider) ||
@@ -346,6 +336,12 @@ export class Container {
     }
   }
 
+  async createContext(dependencies: Dependencies, ...extra: Extra[]) {
+    const injections = await this.resolveDependecies(dependencies, ...extra)
+    const context = merge(this.application.context, ...extra)
+    return Object.freeze(merge({ context }, injections))
+  }
+
   private async resolveDependecies(
     dependencies: Dependencies,
     ...extra: Extra[]
@@ -360,9 +356,13 @@ export class Container {
     return injections
   }
 
-  async createContext(dependencies: Dependencies, ...extra: Extra[]) {
-    const injections = await this.resolveDependecies(dependencies, ...extra)
-    const context = { context: merge(this.application.context, ...extra) }
-    return Object.freeze(merge(context, injections))
+  private findCurrentScopeDeclarations() {
+    const declarations: AnyProvider[] = []
+    for (const provider of this.providers) {
+      if (getProviderScope(provider) === this.scope) {
+        declarations.push(provider)
+      }
+    }
+    return declarations
   }
 }

@@ -11,9 +11,15 @@ export default defineConfig({
   format: ['cjs', 'esm'],
   platform: 'neutral',
   external: ['events'],
+  outExtension({ format }) {
+    return {
+      js: format === 'esm' ? '.mjs' : '.js',
+    }
+  },
   esbuildPlugins: [
     esbuildPluginFilePathExtensions({
       esmExtension: 'mjs',
+      cjsExtension: 'js',
       esm: ({ format }) => (format === 'esm' ? true : false),
     }),
   ],

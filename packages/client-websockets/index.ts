@@ -8,6 +8,7 @@ import {
   EventsType,
   ResolveApiProcedureType,
   StreamDataType,
+  type StreamMetadata,
   Subscription,
   UpStream,
   concat,
@@ -16,7 +17,6 @@ import {
   encodeNumber,
   encodeText,
   once,
-  type StreamMetadata,
 } from '@neematajs/common'
 
 import {
@@ -40,6 +40,7 @@ type Options = {
   timeout?: number
   autoreconnect?: boolean
   debug?: boolean
+  WebSocket?: typeof WebSocket
 }
 
 type RPCOptions = {
@@ -96,7 +97,9 @@ class WebsocketsClient<
     this.autoreconnect = this.options.autoreconnect ?? true // reset default autoreconnect value
     await this.healthCheck()
 
-    this.ws = new WebSocket(this.getURL('api', 'ws'))
+    this.ws = new (this.options.WebSocket ?? globalThis.WebSocket)(
+      this.getURL('api', 'ws'),
+    )
     this.ws.binaryType = 'arraybuffer'
 
     this.ws.onmessage = (event) => {
@@ -117,7 +120,9 @@ class WebsocketsClient<
       this.isHealthy = false
       this.emit('_neemata:close')
       this.clear(
-        event.code === 1000 ? undefined : new Error('Connection closed'),
+        event.code === 1000
+          ? undefined
+          : new Error('Connection closed with code ' + event.code),
       )
       if (this.autoreconnect) this.connect()
     }

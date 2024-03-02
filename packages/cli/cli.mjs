@@ -2,6 +2,7 @@
 
 import { register } from 'node:module'
 import { resolve } from 'node:path'
+import repl from 'node:repl'
 import { parseArgs } from 'node:util'
 import {
   APP_COMMAND,
@@ -92,6 +93,27 @@ const { logger } = entryApp
 process.on('uncaughtException', (error) => logger.error(error))
 process.on('unhandledRejection', (error) => logger.error(error))
 
+const loadApp = async () => {
+  /** @type {Application} */
+  let app
+
+  if (entryApp instanceof ApplicationServer) {
+    const { applicationPath } = entryApp.options
+    const type = WorkerType.Task
+    /** @type {import('@neematajs/application').ApplicationWorkerOptions} */
+    const options = {
+      id: 0,
+      type,
+    }
+    providerWorkerOptions(options)
+    app = await importDefault(applicationPath)
+  } else if (entryApp instanceof Application) {
+    app = entryApp
+  }
+
+  return app
+}
+
 const commands = {
   start() {
     const terminate = () => tryExit(() => entryApp.stop())
@@ -109,22 +131,7 @@ const commands = {
     this.start()
   },
   async execute() {
-    /** @type {Application} */
-    let app
-
-    if (entryApp instanceof ApplicationServer) {
-      const { applicationPath } = entryApp.options
-      const type = WorkerType.Task
-      /** @type {import('@neematajs/application').ApplicationWorkerOptions} */
-      const options = {
-        id: 0,
-        type,
-      }
-      providerWorkerOptions(options)
-      app = await importDefault(applicationPath)
-    } else if (entryApp instanceof Application) {
-      app = entryApp
-    }
+    const app = await loadApp()
 
     const [inputCommand, ...commandArgs] = args
 
@@ -147,6 +154,12 @@ const commands = {
 
     await app.initialize()
     await command({ args: commandArgs, kwargs }).finally(terminate)
+  },
+  async repl() {
+    const app = await loadApp()
+    await app.initialize()
+    globalThis.app = app
+    repl.start({ useGlobal: true })
   },
 }
 

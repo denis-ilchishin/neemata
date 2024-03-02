@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { resolve } from 'node:path'
+import { PassThrough, Readable } from 'node:stream'
 import {
   ApiError,
   BaseTransportConnection,
@@ -23,9 +26,6 @@ import {
   encodeNumber,
   encodeText,
 } from '@neematajs/common'
-import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
-import { PassThrough, Readable } from 'node:stream'
 import uws from 'uWebSockets.js'
 import { HttpPayloadGetParam, HttpTransportMethod, MessageType } from './common'
 import {
@@ -307,13 +307,14 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       },
       open: async (ws: WebSocket) => {
         this.sockets.add(ws)
-        const { id, transportData } = ws.getUserData()
+        const { id, transportData, subscriptions } = ws.getUserData()
         this.logger.trace('Open new websocket [%s]', id)
         try {
           const connection = new WebsocketsTransportConnection(
             transportData,
             ws,
             id,
+            subscriptions,
           )
           this.transport.addConnection(connection)
         } catch (error) {

@@ -1,4 +1,4 @@
-import { BaseTransportConnection } from '@neematajs/application'
+import { BaseTransportConnection, Subscription } from '@neematajs/application'
 import { MessageType } from './common'
 import { sendPayload } from './server'
 import { HttpTransportData, WebSocket, WebsocketsTransportData } from './types'
@@ -33,8 +33,9 @@ export class WebsocketsTransportConnection extends BaseTransportConnection {
     readonly data: WebsocketsTransportData,
     websocket: WebSocket,
     id: string,
+    subscriptions: Map<string, Subscription>,
   ) {
-    super(id)
+    super(id, subscriptions)
     this.#websocket = websocket
   }
 

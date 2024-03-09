@@ -1,8 +1,7 @@
-import { Application } from '@/application'
 import { Container, Provider, getProviderScope } from '@/container'
-import { EventManager } from '@/events'
+import { Registry } from '@/registry'
 import { Scope } from '@/types'
-import { testApp, testProcedure } from './_utils'
+import { testLogger, testProcedure } from './_utils'
 
 describe.sequential('Provider', () => {
   let provider: Provider
@@ -79,24 +78,23 @@ describe.sequential('Provider', () => {
 })
 
 describe.sequential('Container', () => {
-  let app: Application
+  const logger = testLogger()
+  const registry = new Registry({ logger }, [])
   let container: Container
 
   beforeEach(async () => {
-    app = testApp()
-    await app.initialize()
-    container = app.container
+    container = new Container({ registry, logger })
+    await container.load()
   })
 
   afterEach(async () => {
-    await app?.terminate()
+    await container.dispose()
   })
 
   it('should create context', async () => {
     const dep = new Provider().withValue('dep')
-    const ctx = await container.createContext({ dep }, { extra: 'value' })
-    expect(ctx).toHaveProperty('context')
-    expect(ctx.context.extra).toBe('value')
+    const ctx = await container.createContext({ dep })
+    expect(ctx).toHaveProperty('dep')
   })
 
   it('should be a container', () => {
@@ -105,25 +103,15 @@ describe.sequential('Container', () => {
   })
 
   it('should resolve with value', async () => {
-    const provider = new Provider().withValue('value')
-    expect(await container.resolve(provider)).toBe('value')
+    const value = {}
+    const provider = new Provider().withValue(value)
+    await expect(container.resolve(provider)).resolves.toBe(value)
   })
 
   it('should resolve with factory', async () => {
-    const provider = new Provider().withFactory(() => 'value')
-    expect(await container.resolve(provider)).toBe('value')
-  })
-
-  it('should provide context', async () => {
-    const provider = new Provider().withFactory((ctx) => ctx)
-    const ctx = await container.resolve(provider)
-    expect(ctx).toHaveProperty('context')
-    expect(ctx.context).toHaveProperty('logger')
-    expect(ctx.context).toHaveProperty('execute')
-    expect(ctx.context).toHaveProperty('eventManager')
-
-    expect(ctx.context.eventManager).toBeInstanceOf(EventManager)
-    expect(typeof ctx.context.execute).toBe('function')
+    const value = {}
+    const provider = new Provider().withFactory(() => value)
+    await expect(container.resolve(provider)).resolves.toBe(value)
   })
 
   it('should provide dependencies', async () => {
@@ -256,8 +244,8 @@ describe.sequential('Container', () => {
     const procedure = testProcedure()
       .withDependencies({ provider1, provider2 })
       .withHandler(() => {})
-    app.registry.registerProcedure('test', procedure)
-    await app.container.load()
+    registry.registerProcedure('test', procedure)
+    await container.load()
     expect(factory1).toHaveBeenCalledOnce()
     expect(factory2).not.toHaveBeenCalled()
   })

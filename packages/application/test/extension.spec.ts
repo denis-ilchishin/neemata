@@ -2,7 +2,7 @@ import { Application } from '@/application'
 import { Provider } from '@/container'
 import { BaseExtension } from '@/extension'
 import { Registry } from '@/registry'
-import { WorkerType } from '@/types'
+import { FilterFn, MiddlewareFn, WorkerType } from '@/types'
 import { noop } from '@/utils/functions'
 import { testApp } from './_utils'
 
@@ -32,13 +32,11 @@ describe.sequential('Extension', () => {
     const extension = new TestExtension()
     const app = testApp()
     const initSpy = vi.spyOn(extension, 'initialize')
-    const contextSpy = vi.spyOn(extension, 'context')
     app.registerExtensions({ [alias]: extension })
     expect(app.extensions).toHaveProperty(alias, extension)
     expect(extension.application).toBeDefined()
     await app.initialize()
     expect(initSpy).toHaveBeenCalledOnce()
-    expect(contextSpy).toHaveBeenCalledOnce()
   })
 
   it('should assign an app', async () => {
@@ -67,13 +65,13 @@ describe.sequential('Extension', () => {
   })
 
   it('should register filters', async () => {
-    const filter = new Provider().withValue(() => new Error())
+    const filter = new Provider().withValue((() => new Error()) as FilterFn)
     extension.application.registry.registerFilter(Error, filter)
     expect(app.registry.filters.get(Error)).toBe(filter)
   })
 
   it('should register middleware', async () => {
-    const middleware = new Provider().withValue(noop)
+    const middleware = new Provider().withValue(noop as MiddlewareFn)
     extension.application.registry.registerMiddleware(middleware)
     expect(app.registry.middlewares.has(middleware)).toBe(true)
   })

@@ -1,6 +1,7 @@
 import { BaseParser, Procedure } from '@/api'
 import { Application, ApplicationOptions } from '@/application'
 import { Event } from '@/events'
+import { createLogger } from '@/logger'
 import { BaseTaskRunner, Task } from '@/tasks'
 import { BaseTransport, BaseTransportConnection } from '@/transport'
 import { WorkerType } from '@/types'
@@ -57,20 +58,28 @@ export class TestTransport extends BaseTransport {
   }
 }
 
-export const defaultTimeout = 1000
+export const testDefaultTimeout = 1000
+
+export const testLogger = () =>
+  createLogger(
+    {
+      pinoOptions: { enabled: false },
+    },
+    'test',
+  )
 
 export const testApp = (options: Partial<ApplicationOptions> = {}) =>
   new Application(
     Object.assign(
       {
         type: WorkerType.Api,
-        events: { timeout: defaultTimeout },
+        events: { timeout: testDefaultTimeout },
         loaders: [],
-        procedures: {
-          timeout: defaultTimeout,
+        api: {
+          timeout: testDefaultTimeout,
         },
         tasks: {
-          timeout: defaultTimeout,
+          timeout: testDefaultTimeout,
         },
         logging: {
           pinoOptions: { enabled: false },

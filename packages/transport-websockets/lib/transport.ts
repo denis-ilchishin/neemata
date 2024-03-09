@@ -4,16 +4,11 @@ import {
   WebsocketsTransportConnection,
 } from './connection'
 import { WebsocketsTransportServer } from './server'
-import {
-  HttpTransportApplicationContext,
-  WebsocketsTransportApplicationContext,
-  WebsocketsTransportOptions,
-} from './types'
+import { WebsocketsTransportOptions } from './types'
 
 export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
-  HttpTransportApplicationContext & WebsocketsTransportApplicationContext,
   HttpTransportConnection | WebsocketsTransportConnection
 > {
   name = 'Websockets Transport'

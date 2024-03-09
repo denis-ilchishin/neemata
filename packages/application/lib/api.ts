@@ -1,15 +1,21 @@
 import { ApiError, ErrorCode } from '@neematajs/common'
+import type { ApplicationOptions } from './application'
 import {
-  Container,
-  Dependencies,
-  DependencyContext,
-  Depender,
+  type Container,
+  type Dependencies,
+  type DependencyContext,
+  type Depender,
+  callProvider,
+  connectionProvider,
 } from './container'
-import { BaseTransport, BaseTransportConnection } from './transport'
-import {
+import type { Logger } from './logger'
+import type { Registry } from './registry'
+import type { BaseTransport, BaseTransportConnection } from './transport'
+import type {
   AnyApplication,
   AnyProcedure,
   Async,
+  CallFn,
   ConnectionFn,
   ConnectionProvider,
   Extra,
@@ -22,39 +28,14 @@ import {
 } from './types'
 import { merge } from './utils/functions'
 
-export type ResolvedProcedureContext<
-  App extends AnyApplication,
-  Deps extends Dependencies,
-> = DependencyContext<
-  Merge<
-    App['_']['context'],
-    {
-      connection: App['_']['connection']
-      call: <P extends Procedure>(
-        procedure: P,
-        ...args: P['input'] extends unknown
-          ? []
-          : [InferSchemaOutput<P['input']>]
-      ) => Promise<
-        Awaited<
-          P['output'] extends unknown
-            ? ReturnType<P['handler']>
-            : InferSchemaOutput<P['output']>
-        >
-      >
-    }
-  >,
-  Deps
->
+export type ResolvedProcedureContext<Deps extends Dependencies> =
+  DependencyContext<Deps>
 
-export type ProcedureOptionType<
-  App extends AnyApplication,
-  ProcedureDeps extends Dependencies,
-  T,
-> = T | ((ctx: ResolvedProcedureContext<App, ProcedureDeps>) => Async<T>)
+export type ProcedureOptionType<ProcedureDeps extends Dependencies, T> =
+  | T
+  | ((ctx: ResolvedProcedureContext<ProcedureDeps>) => Async<T>)
 
 export type ProcedureHandlerType<
-  App extends AnyApplication,
   ProcedureDeps extends Dependencies,
   ProcedureInput,
   ProcedureOutput,
@@ -62,7 +43,7 @@ export type ProcedureHandlerType<
     ? any
     : InferSchemaInput<ProcedureOutput>,
 > = (
-  ctx: ResolvedProcedureContext<App, ProcedureDeps>,
+  ctx: ResolvedProcedureContext<ProcedureDeps>,
   data: InferSchemaOutput<ProcedureInput>,
 ) => Response
 
@@ -72,11 +53,10 @@ export class Procedure<
   ProcedureInput = unknown,
   ProcedureOutput = unknown,
   ProcedureHandler extends ProcedureHandlerType<
-    App,
     ProcedureDeps,
     ProcedureInput,
     ProcedureOutput
-  > = ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, ProcedureOutput>,
+  > = ProcedureHandlerType<ProcedureDeps, ProcedureInput, ProcedureOutput>,
 > implements Depender<ProcedureDeps>
 {
   static override<T>(
@@ -92,8 +72,8 @@ export class Procedure<
   _!: {
     input: ProcedureInput
     output: ProcedureOutput
-    middlewares: Middleware<App>[]
-    guards: Guard<App>[]
+    middlewares: Middleware[]
+    guards: Guard[]
     options: Extra
     timeout: number
     description: string
@@ -127,7 +107,6 @@ export class Procedure<
       ProcedureInput,
       ProcedureOutput,
       ProcedureHandlerType<
-        App,
         Merge<ProcedureDeps, Deps>,
         ProcedureInput,
         ProcedureOutput
@@ -138,13 +117,13 @@ export class Procedure<
     })
   }
 
-  withInput<Input>(input: ProcedureOptionType<App, ProcedureDeps, Input>) {
+  withInput<Input>(input: ProcedureOptionType<ProcedureDeps, Input>) {
     const procedure = new Procedure<
       App,
       ProcedureDeps,
       Input,
       ProcedureOutput,
-      ProcedureHandlerType<App, ProcedureDeps, Input, ProcedureOutput>
+      ProcedureHandlerType<ProcedureDeps, Input, ProcedureOutput>
     >()
     return Procedure.override(procedure, this, { input })
   }
@@ -155,7 +134,7 @@ export class Procedure<
       ProcedureDeps,
       ProcedureInput,
       Output,
-      ProcedureHandlerType<App, ProcedureDeps, ProcedureInput, Output>
+      ProcedureHandlerType<ProcedureDeps, ProcedureInput, Output>
     >()
     return Procedure.override(procedure, this, { output })
   }
@@ -175,7 +154,6 @@ export class Procedure<
 
   withHandler<
     H extends ProcedureHandlerType<
-      App,
       ProcedureDeps,
       ProcedureInput,
       ProcedureOutput
@@ -350,8 +328,13 @@ export class Api {
   }
 
   constructor(
-    private readonly application: AnyApplication,
-    private readonly options = application.options.procedures,
+    private readonly application: {
+      container: Container
+      registry: Registry
+      transports: Record<string, BaseTransport>
+      logger: Logger
+    },
+    private readonly options: ApplicationOptions['api'],
   ) {
     if (options.parsers instanceof BaseParser) {
       this.parsers = {
@@ -373,7 +356,13 @@ export class Api {
     callOptions: ProcedureCallOptions,
     withMiddleware = callOptions.procedure.middlewareEnabled,
   ) {
-    const { payload, transport, procedure } = callOptions
+    const { payload, transport, procedure, container, connection } = callOptions
+
+    container.provide(
+      callProvider,
+      this.createNestedCall(callOptions) as CallFn,
+    )
+    container.provide(connectionProvider, connection)
 
     try {
       this.handleTransport(transport, procedure)
@@ -429,8 +418,7 @@ export class Api {
       } else {
         await this.handleGuards(callOptions)
         const { dependencies } = procedure
-        const extra = this.createCallExtraContext(callOptions)
-        const context = await container.createContext(dependencies, extra)
+        const context = await container.createContext(dependencies)
 
         // TODO: maybe disable input handling for nested calls or make it optional at least?
         const data = await this.handleSchema(
@@ -474,9 +462,8 @@ export class Api {
       ...this.application.registry.middlewares,
       ...procedure.middlewares,
     ]
-    const extra = this.createCallExtraContext(callOptions)
     const middlewares = await Promise.all(
-      middlewareProviders.map((p) => container.resolve(p, extra)),
+      middlewareProviders.map((p) => container.resolve(p)),
     )
     return middlewares[Symbol.iterator]()
   }
@@ -510,9 +497,8 @@ export class Api {
 
   private async handleGuards(callOptions: ProcedureCallOptions) {
     const { procedure, container, path, connection } = callOptions
-    const extra = this.createCallExtraContext(callOptions)
     const guards = await Promise.all(
-      procedure.guards.map((p) => container.resolve(p, extra)),
+      procedure.guards.map((p) => container.resolve(p)),
     )
     const guardOptions = Object.freeze({ connection, path })
     for (const guard of guards) {
@@ -549,15 +535,6 @@ export class Api {
     const schema = procedure[type]
     if (!schema) return payload
     return parser!.parse(schema, payload, context)
-  }
-
-  private createCallExtraContext(callOptions: ProcedureCallOptions) {
-    const { connection } = callOptions
-    const nestedCall = this.createNestedCall(callOptions)
-    return {
-      connection,
-      call: nestedCall,
-    }
   }
 }
 

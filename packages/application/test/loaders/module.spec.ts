@@ -58,46 +58,4 @@ describe.sequential('Loaders -> Module', () => {
       }
     })
   }
-
-  // describe('Events', () => {
-  //   it('should load event', async () => {
-  //     for (const [module, key, exportName, singleFile] of keys) {
-  //       const path = join(
-  //         root,
-  //         module,
-  //         `${singleFile ? join(loader.options.events, key) : key}.ts`,
-  //       )
-  //       const name = [module, key].join('/')
-  //       expect(app.registry.events.has(name)).toBe(true)
-  //       expect(app.registry.events.get(name)?.path).toBe(path)
-  //       expect(app.registry.events.get(name)?.exportName).toBe(
-  //         `["${exportName}"]`,
-  //       )
-  //       expect(app.registry.events.get(name)?.module).toBe(
-  //         await import(path).then((m) => m[exportName]),
-  //       )
-  //     }
-  //   })
-  // })
-
-  // describe('Procedures', () => {
-  //   it('should load procedure', async () => {
-  //     for (const [module, key, exportName, singleFile] of keys) {
-  //       const path = join(
-  //         root,
-  //         module,
-  //         `${singleFile ? join(loader.options.procedures, key) : key}.ts`,
-  //       )
-  //       const name = [module, key].join('/')
-  //       expect(app.registry.procedures.has(name)).toBe(true)
-  //       expect(app.registry.procedures.get(name)?.path).toBe(path)
-  //       expect(app.registry.procedures.get(name)?.exportName).toBe(
-  //         `["${exportName}"]`,
-  //       )
-  //       expect(app.registry.procedures.get(name)?.module).toBe(
-  //         await import(path).then((m) => m[exportName]),
-  //       )
-  //     }
-  //   })
-  // })
 })

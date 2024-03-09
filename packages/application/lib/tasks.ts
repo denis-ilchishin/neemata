@@ -1,10 +1,13 @@
+import { ApplicationOptions } from './application'
 import {
   Container,
   Dependencies,
   DependencyContext,
   Depender,
+  taskSignal,
 } from './container'
-import { AnyApplication, Extra, Hook, Merge } from './types'
+import { Registry } from './registry'
+import { Hook, Merge } from './types'
 import { createFuture, defer, merge, noop, onAbort } from './utils/functions'
 
 export type TaskExecution<Res = any> = Promise<
@@ -19,12 +22,8 @@ export type TasksRunner = (
   ...args: any[]
 ) => Promise<any>
 
-type Handler<
-  Context extends Extra,
-  Deps extends Dependencies,
-  Args extends any[],
-> = (
-  ctx: DependencyContext<Context & { signal: AbortSignal }, Deps>,
+type Handler<Deps extends Dependencies, Args extends any[]> = (
+  ctx: DependencyContext<Deps>,
   ...args: Args
 ) => any
 
@@ -37,54 +36,56 @@ export abstract class BaseTaskRunner {
 }
 
 export class Task<
-  TaskContext extends Extra = {},
   TaskDeps extends Dependencies = {},
   TaskArgs extends any[] = any[],
-  TaskHandler extends Handler<TaskContext, TaskDeps, TaskArgs> = Handler<
-    TaskContext,
-    TaskDeps,
-    TaskArgs
-  >,
+  TaskType = unknown,
 > implements Depender<TaskDeps>
 {
   name!: string
+
+  _!: {
+    type: TaskType
+    handler: Handler<TaskDeps, TaskArgs>
+  }
+
   readonly dependencies: TaskDeps = {} as TaskDeps
-  readonly handler!: TaskHandler
+  readonly handler!: this['_']['handler']
   readonly parser!: (
     args: string[],
     kwargs: Record<string, any>,
   ) => TaskArgs | Readonly<TaskArgs>
 
   withArgs<NewArgs extends any[]>() {
-    const task = new Task<TaskContext, TaskDeps, NewArgs>()
+    const task = new Task<TaskDeps, NewArgs>()
     Object.assign(task, this)
     return task
   }
 
   withDependencies<NewDeps extends Dependencies>(dependencies: NewDeps) {
-    const task = new Task<TaskContext, Merge<TaskDeps, NewDeps>, TaskArgs>()
+    const task = new Task<Merge<TaskDeps, NewDeps>, TaskArgs>()
     Object.assign(task, this, {
       dependencies: merge(this.dependencies, dependencies),
     })
     return task
   }
 
-  withHandler<NewHandler extends Handler<TaskContext, TaskDeps, TaskArgs>>(
-    handler: NewHandler,
-  ) {
-    const task = new Task<TaskContext, TaskDeps, TaskArgs, NewHandler>()
+  withHandler<
+    NewHandler extends this['_']['handler'],
+    NewType extends Awaited<ReturnType<NewHandler>>,
+  >(handler: NewHandler) {
+    const task = new Task<TaskDeps, TaskArgs, NewType>()
     Object.assign(task, this, { handler })
     return task
   }
 
   withParser(parser: this['parser']) {
-    const task = new Task<TaskContext, TaskDeps, TaskArgs, TaskHandler>()
+    const task = new Task<TaskDeps, TaskArgs, TaskType>()
     Object.assign(task, this, { parser })
     return task
   }
 
   withName(name: string) {
-    const task = new Task<TaskContext, TaskDeps, TaskArgs, TaskHandler>()
+    const task = new Task<TaskDeps, TaskArgs, TaskType>()
     Object.assign(task, this, { name })
     return task
   }
@@ -92,11 +93,11 @@ export class Task<
 
 export class Tasks {
   constructor(
-    private readonly application: AnyApplication,
-    private readonly options = application.options.tasks,
+    private readonly application: { container: Container; registry: Registry },
+    private readonly options: ApplicationOptions['tasks'],
   ) {}
 
-  execute(container: Container, name: string, ...args: any[]): TaskExecution {
+  execute(name: string, ...args: any[]): TaskExecution {
     const ac = new AbortController()
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const future = createFuture()
@@ -112,8 +113,11 @@ export class Tasks {
         return await this.options.runner.execute(ac.signal, name, ...args)
 
       const { dependencies, handler } = task
-      const extra = { signal: ac.signal }
-      const context = await container.createContext(dependencies, extra)
+      const container = this.application.container.createScope(
+        this.application.container.scope,
+      )
+      container.provide(taskSignal, ac.signal)
+      const context = await container.createContext(dependencies)
       return await handler(context, ...args)
     }).then(...future.toArgs())
 
@@ -127,13 +131,13 @@ export class Tasks {
     )
   }
 
-  command(container: Container, { args, kwargs }) {
+  command({ args, kwargs }) {
     const [name, ...taskArgs] = args
     const task = this.application.registry.task(name)
     if (!task) throw new Error('Task not found')
     const { parser } = task
     const parsedArgs = parser ? parser(taskArgs, kwargs) : []
-    return this.execute(container, name, ...parsedArgs)
+    return this.execute(name, ...parsedArgs)
   }
 
   private handleTermination(

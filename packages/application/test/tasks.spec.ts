@@ -1,8 +1,13 @@
-import { Application } from '@/application'
-import { Provider } from '@/container'
+import { Container, Provider, taskSignal } from '@/container'
+import { Registry } from '@/registry'
 import { Task, Tasks } from '@/tasks'
 import { createFuture, defer, noop, onAbort } from '@/utils/functions'
-import { defaultTimeout, testApp, testTask, testTaskRunner } from './_utils'
+import {
+  testDefaultTimeout,
+  testLogger,
+  testTask,
+  testTaskRunner,
+} from './_utils'
 
 describe.sequential('Task', () => {
   let task: Task
@@ -57,17 +62,21 @@ describe.sequential('Task', () => {
 })
 
 describe.sequential('Tasks', () => {
-  let app: Application
+  const logger = testLogger()
+
+  let registry: Registry
+  let container: Container
   let tasks: Tasks
 
   beforeEach(async () => {
-    app = testApp()
-    await app.initialize()
-    tasks = app.tasks
+    registry = new Registry({ logger }, [])
+    container = new Container({ logger, registry })
+    tasks = new Tasks({ container, registry }, { timeout: testDefaultTimeout })
+    await container.load()
   })
 
   afterEach(async () => {
-    await app?.terminate()
+    await container.dispose()
   })
 
   it('should be a tasks', () => {
@@ -77,21 +86,21 @@ describe.sequential('Tasks', () => {
 
   it('should execute a task', async () => {
     const task = testTask().withHandler(() => 'value')
-    app.registry.tasks.set(task.name, { module: task })
-    const execution = tasks.execute(app.container, 'test')
+    registry.registerTask(task.name, task)
+    const execution = tasks.execute('test')
     expect(execution).toHaveProperty('abort', expect.any(Function))
     const result = await execution
     expect(result).toHaveProperty('result', 'value')
   })
 
   it('should inject context', async () => {
-    const task = testTask().withHandler((ctx) => ctx)
-    app.registry.tasks.set(task.name, { module: task })
-    const { result } = await tasks.execute(app.container, 'test')
-    expect(result).toHaveProperty('context')
-    expect(result.context).toHaveProperty('logger')
-    expect(result.context).toHaveProperty('execute', expect.any(Function))
-    expect(result.context).toHaveProperty('signal', expect.any(AbortSignal))
+    const provider = new Provider().withValue({})
+    const task = testTask()
+      .withDependencies({ dep: provider })
+      .withHandler((ctx) => ctx)
+    registry.registerTask(task.name, task)
+    const { result } = await tasks.execute('test')
+    expect(result).toHaveProperty('dep', provider.value)
   })
 
   it('should handle errors', async () => {
@@ -100,28 +109,36 @@ describe.sequential('Tasks', () => {
       throw thrownError
     })
 
-    app.registry.tasks.set(task.name, { module: task })
-    const { error } = await tasks.execute(app.container, 'test')
+    registry.registerTask(task.name, task)
+    const { error } = await tasks.execute('test')
     expect(error).toBe(thrownError)
   })
 
   it('should inject args', async () => {
     const args = ['arg1', 'arg2']
     const task = testTask().withHandler((ctx, ...args) => args)
-    app.registry.tasks.set(task.name, { module: task })
-    const { result } = await tasks.execute(app.container, 'test', ...args)
+    registry.registerTask(task.name, task)
+    const { result } = await tasks.execute('test', ...args)
+    expect(result).deep.equal(args)
+  })
+
+  it('should inject args', async () => {
+    const args = ['arg1', 'arg2']
+    const task = testTask().withHandler((ctx, ...args) => args)
+    registry.registerTask(task.name, task)
+    const { result } = await tasks.execute('test', ...args)
     expect(result).deep.equal(args)
   })
 
   it('should handle abortion', async () => {
     const future = createFuture<void>()
     const spy = vi.fn(future.resolve)
-    const task = testTask().withHandler(
-      ({ context }) => new Promise(() => onAbort(context.signal, spy)),
-    )
+    const task = testTask()
+      .withDependencies({ signal: taskSignal })
+      .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
-    app.registry.tasks.set(task.name, { module: task })
-    const execution = tasks.execute(app.container, 'test')
+    registry.registerTask(task.name, task)
+    const execution = tasks.execute('test')
     defer(() => execution.abort(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
@@ -131,13 +148,13 @@ describe.sequential('Tasks', () => {
   it('should handle termination', async () => {
     const future = createFuture<void>()
     const spy = vi.fn(future.resolve)
-    const task = testTask().withHandler(
-      ({ context }) => new Promise(() => onAbort(context.signal, spy)),
-    )
+    const task = testTask()
+      .withDependencies({ signal: taskSignal })
+      .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
-    app.registry.tasks.set(task.name, { module: task })
-    const execution = tasks.execute(app.container, 'test')
-    defer(() => app.terminate(), 1)
+    registry.registerTask(task.name, task)
+    const execution = tasks.execute(task.name)
+    defer(() => execution.abort(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
     expect(spy).toHaveBeenCalledOnce()
@@ -146,12 +163,13 @@ describe.sequential('Tasks', () => {
   it('should execute with custom runner', async () => {
     const runnerFn = vi.fn()
     const taskRunner = testTaskRunner(runnerFn)
+    const tasks = new Tasks(
+      { container, registry },
+      { timeout: testDefaultTimeout, runner: taskRunner },
+    )
     const task = testTask().withHandler(noop)
-    const app = testApp({
-      tasks: { timeout: defaultTimeout, runner: taskRunner },
-    })
-    app.registry.tasks.set(task.name, { module: task })
-    await app.tasks.execute(app.container, 'test')
+    registry.registerTask(task.name, task)
+    await tasks.execute(task.name)
     expect(runnerFn).toHaveBeenCalledOnce()
   })
 
@@ -163,8 +181,8 @@ describe.sequential('Tasks', () => {
       })
       .withHandler((ctx, ...args) => args)
 
-    app.registry.tasks.set(task.name, { module: task })
-    const { result } = await app.tasks.command(app.container, {
+    registry.registerTask(task.name, task)
+    const { result } = await tasks.command({
       args: [task.name, 1],
       kwargs: { value: 2 },
     })

@@ -1,9 +1,9 @@
 import type { Procedure } from './api'
 import { type Depender, Provider, getProviderScope } from './container'
 import type { Event } from './events'
+import { Logger } from './logger'
 import type { Task } from './tasks'
 import {
-  type AnyApplication,
   AnyEvent,
   AnyProcedure,
   AnyTask,
@@ -37,10 +37,11 @@ export type RegistryOptions = {
 // TODO: too much code duplication here, need to refactor
 export class Registry {
   constructor(
-    readonly application: AnyApplication,
-    readonly procedures = new Map<string, RegistryModule<Procedure>>(),
-    readonly tasks = new Map<string, RegistryModule<Task>>(),
-    readonly events = new Map<string, RegistryModule<Event>>(),
+    readonly application: { logger: Logger },
+    readonly loaders: BaseCustomLoader[],
+    readonly procedures = new Map<string, RegistryModule<AnyProcedure>>(),
+    readonly tasks = new Map<string, RegistryModule<AnyTask>>(),
+    readonly events = new Map<string, RegistryModule<AnyEvent>>(),
     readonly hooks = new Map<string, Set<(...args: any[]) => any>>(),
     readonly commands = new Map<string | symbol, Map<string, Command>>(),
     readonly filters = new Map<ErrorClass, Filter<ErrorClass>>(),
@@ -50,8 +51,7 @@ export class Registry {
   ) {}
 
   async load() {
-    const { loaders } = this.application.options
-    for (const loader of loaders) {
+    for (const loader of this.loaders) {
       const loaded = await loader.load()
       for (const [type, modules] of Object.entries(loaded)) {
         for (const [name, module] of Object.entries(modules)) {
@@ -197,6 +197,7 @@ export class Registry {
   copy(options: RegistryOptions) {
     return new Registry(
       this.application,
+      this.loaders,
       this.procedures,
       this.tasks,
       this.events,

@@ -1,17 +1,23 @@
 import {
   TestParser,
   TestTransport,
-  defaultTimeout,
   testApp,
   testConnection,
+  testDefaultTimeout,
+  testLogger,
   testTransport,
 } from './_utils'
 
 import { Api, Procedure, ProcedureCallOptions } from '@/api'
 import { Application } from '@/application'
-import { Provider } from '@/container'
-import { EventManager } from '@/events'
-import { Scope } from '@/types'
+import {
+  Container,
+  Provider,
+  callProvider,
+  connectionProvider,
+} from '@/container'
+import { Registry } from '@/registry'
+import { FilterFn, GuardFn, MiddlewareFn } from '@/types'
 import { ApiError, ErrorCode } from '@neematajs/common'
 
 describe.sequential('Procedure', () => {
@@ -64,8 +70,8 @@ describe.sequential('Procedure', () => {
   })
 
   it('should clone with guards', () => {
-    const guard1 = new Provider().withValue(() => false)
-    const guard2 = new Provider().withValue(() => true)
+    const guard1 = new Provider().withValue((() => false) as GuardFn)
+    const guard2 = new Provider().withValue((() => true) as GuardFn)
 
     const newProcedure = procedure.withGuards(guard1)
     const newProcedure2 = newProcedure.withGuards(guard2)
@@ -75,8 +81,8 @@ describe.sequential('Procedure', () => {
   })
 
   it('should clone with middlewares', () => {
-    const middleware1 = new Provider().withValue(() => {})
-    const middleware2 = new Provider().withValue(() => {})
+    const middleware1 = new Provider().withValue((() => void 0) as MiddlewareFn)
+    const middleware2 = new Provider().withValue((() => void 0) as MiddlewareFn)
 
     const newProcedure = procedure.withMiddlewares(middleware1)
     const newProcedure2 = newProcedure.withMiddlewares(middleware2)
@@ -164,32 +170,47 @@ describe.sequential('Procedure', () => {
 })
 
 describe.sequential('Api', () => {
-  let app: ReturnType<typeof createApp>
-  let api: ReturnType<typeof createApp>['api']
+  const inputParser = new TestParser()
+  const outputParser = new TestParser()
+  const transport = testTransport()
+  const logger = testLogger()
+  const registry = new Registry({ logger }, [])
+  const container = new Container({ registry, logger })
+  const app = testApp().registerTransports({ test: testTransport() })
+  let api: Api
 
   const call = (
     options: Pick<ProcedureCallOptions, 'procedure'> &
       Partial<ProcedureCallOptions>,
   ) =>
     api.call({
-      transport: app.transports.test,
+      container,
+      transport,
       connection: testConnection({}),
-      container: app.container,
       payload: {},
       path: [options.procedure],
       ...options,
     })
 
-  const createApp = () =>
-    testApp().registerTransports({ test: testTransport() })
-
   const testProcedure = () =>
-    app.procedure().withName('test').withTransports({ test: true })
+    app.createProcedure().withName('test').withTransports({ test: true })
 
   beforeEach(async () => {
-    app = createApp()
-    await app.initialize()
-    api = app.api
+    api = new Api(
+      {
+        container,
+        logger,
+        registry,
+        transports: app.transports,
+      },
+      {
+        timeout: testDefaultTimeout,
+        parsers: {
+          input: inputParser,
+          output: outputParser,
+        },
+      },
+    )
   })
 
   it('should be an api', () => {
@@ -197,17 +218,19 @@ describe.sequential('Api', () => {
     expect(api).toBeInstanceOf(Api)
   })
 
-  it('should be initiate with options', () => {
+  it('should be initiate corrent', () => {
+    const parser = new TestParser()
     let newApi = new Api(testApp(), {
-      timeout: defaultTimeout,
-      parsers: new TestParser(),
+      timeout: testDefaultTimeout,
+      parsers: parser,
     })
-    expect(newApi.parsers.input).toBeInstanceOf(TestParser)
-    expect(newApi.parsers.output).toBeInstanceOf(TestParser)
+    expect(newApi.parsers.input).toBe(parser)
+    expect(newApi.parsers.output).toBe(parser)
+
     const inputParser = new TestParser()
     const outputParser = new TestParser()
-    newApi = new Api(app, {
-      timeout: defaultTimeout,
+    newApi = new Api(testApp(), {
+      timeout: testDefaultTimeout,
       parsers: {
         input: inputParser,
         output: outputParser,
@@ -223,18 +246,20 @@ describe.sequential('Api', () => {
   })
 
   it('should inject context', async () => {
-    const procedure = testProcedure().withHandler((ctx) => ctx)
+    const procedure = testProcedure()
+      .withDependencies({
+        connection: connectionProvider,
+        call: callProvider,
+      })
+      .withHandler((ctx) => ctx)
     const connection = testConnection({})
     const ctx = await call({
       connection,
       procedure,
     })
-    expect(ctx).toHaveProperty('context')
-    expect(ctx.context).toHaveProperty('connection', connection)
-    expect(ctx.context).toHaveProperty('call', expect.any(Function))
-    expect(ctx.context).toHaveProperty('logger')
-    expect(ctx.context).toHaveProperty('eventManager', expect.any(EventManager))
-    expect(ctx.context).toHaveProperty('execute', expect.any(Function))
+    expect(ctx).toBeDefined()
+    expect(ctx).toHaveProperty('connection', connection)
+    expect(ctx).toHaveProperty('call', expect.any(Function))
   })
 
   it('should inject dependencies', async () => {
@@ -247,8 +272,8 @@ describe.sequential('Api', () => {
 
   it('should inject connection', async () => {
     const provider = new Provider()
-      .withScope(Scope.Connection)
-      .withFactory(({ context: { connection } }) => connection)
+      .withDependencies({ connection: app.providers.connection })
+      .withFactory(({ connection }) => connection)
     const procedure = testProcedure()
       .withDependencies({ provider })
       .withHandler(({ provider }) => provider)
@@ -272,21 +297,22 @@ describe.sequential('Api', () => {
 
   it('should handle filter', async () => {
     class CustomError extends Error {}
-    const filter = new Provider().withValue(() => new ApiError('custom'))
+    const filter = new Provider().withValue(
+      (() => new ApiError('custom')) as FilterFn,
+    )
     const spy = vi.spyOn(filter, 'value')
-    app.registry.registerFilter(CustomError, filter)
+    registry.registerFilter(CustomError, filter)
     const error = new CustomError()
     const procedure = testProcedure().withHandler(() => {
       throw error
     })
-    const result = await call({ procedure }).catch((v) => v)
-    expect(result).toBeInstanceOf(ApiError)
+    await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
     expect(spy).toHaveBeenCalledOnce()
     expect(spy).toHaveBeenCalledWith(error)
   })
 
   it('should handle guard', async () => {
-    const guard = new Provider().withValue(() => false)
+    const guard = new Provider().withValue((() => false) as GuardFn)
     const procedure = testProcedure()
       .withGuards(guard)
       .withHandler(() => 'result')
@@ -297,7 +323,7 @@ describe.sequential('Api', () => {
 
   it('should handle middleware', async () => {
     const middleware = new Provider().withValue(
-      async (ctx, next) => (await next()) + 'middleware',
+      (async (ctx, next) => (await next()) + 'middleware') as MiddlewareFn,
     )
     const spy = vi.spyOn(middleware, 'value')
     const procedure = testProcedure()
@@ -363,22 +389,11 @@ describe.sequential('Api', () => {
 
   it('should find procedure', async () => {
     const procedure = testProcedure().withHandler(() => 'result')
-    app.registry.procedures.set(procedure.name, { module: procedure })
+    registry.procedures.set(procedure.name, { module: procedure })
     expect(api.find(procedure.name)).toBe(procedure)
   })
 
   it('should fail find procedure', async () => {
     expect(() => api.find('non-existing')).toThrow()
-  })
-
-  it('should handle nested call', async () => {
-    const handler = vi.fn(() => 'result')
-    const procedure = testProcedure().withHandler(handler)
-    const procedure2 = testProcedure().withHandler(({ context: { call } }) =>
-      call(procedure),
-    )
-    const res = await call({ procedure: procedure2 })
-    expect(handler).toHaveBeenCalledOnce()
-    expect(res).toBe('result')
   })
 })

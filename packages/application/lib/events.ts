@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto'
 import { BaseParser } from './api'
-import { Subscription } from './subscription'
+import { Logger } from './logger'
+import { Registry } from './registry'
+import { BaseSubscriptionManager, Subscription } from './subscription'
 import { BaseTransportConnection } from './transport'
-import { AnyApplication, InferSchemaInput, InferSchemaOutput } from './types'
+import { InferSchemaInput, InferSchemaOutput } from './types'
 
 export type EventOptionsType = Record<string, string | number>
 
 export class Event<
-  App extends AnyApplication = AnyApplication,
   EventPayload = any,
   EventSchema = unknown,
   EventOptions extends EventOptionsType = {},
@@ -31,7 +32,7 @@ export class Event<
   }
 
   withPayload<NewPayload>() {
-    const event = new Event<App, NewPayload, EventSchema, EventOptions>()
+    const event = new Event<NewPayload, EventSchema, EventOptions>()
     Object.assign(event, this)
     return event
   }
@@ -39,25 +40,25 @@ export class Event<
   withOptions<NewOptions extends Record<string, any>>(
     serializer?: (options: NewOptions) => string,
   ) {
-    const event = new Event<App, EventPayload, EventSchema, NewOptions>()
+    const event = new Event<EventPayload, EventSchema, NewOptions>()
     Object.assign(event, this, serializer ? { serializer } : {})
     return event
   }
 
   withSchema<NewSchema>(schema: NewSchema) {
-    const event = new Event<App, EventPayload, NewSchema, EventOptions>()
+    const event = new Event<EventPayload, NewSchema, EventOptions>()
     Object.assign(event, this, { schema })
     return event
   }
 
   withParser(parser: BaseParser) {
-    const event = new Event<App, EventPayload, EventSchema, EventOptions>()
+    const event = new Event<EventPayload, EventSchema, EventOptions>()
     Object.assign(event, this, { parser })
     return event
   }
 
   withName(name: string) {
-    const event = new Event<App, EventPayload, EventSchema, EventOptions>()
+    const event = new Event<EventPayload, EventSchema, EventOptions>()
     Object.assign(event, this, { name })
     return event
   }
@@ -71,7 +72,13 @@ export class Event<
 export class EventManager<
   Connection extends BaseTransportConnection = BaseTransportConnection,
 > {
-  constructor(private readonly application: AnyApplication) {}
+  constructor(
+    private readonly application: {
+      registry: Registry
+      subManager: BaseSubscriptionManager
+      logger: Logger
+    },
+  ) {}
 
   async subscribe<E extends Event>(
     event: E,

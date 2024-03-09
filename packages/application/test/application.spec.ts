@@ -1,8 +1,6 @@
-import { Procedure } from '@/api'
 import { Application } from '@/application'
 import { Provider } from '@/container'
-import { Event } from '@/events'
-import { Task } from '@/tasks'
+import { FilterFn, GuardFn, MiddlewareFn } from '@/types'
 import {
   testApp,
   testEvent,
@@ -61,13 +59,13 @@ describe.sequential('Application', () => {
   })
 
   it('should register guard', () => {
-    const guard = new Provider().withValue(() => true)
+    const guard = new Provider().withValue((() => true) as GuardFn)
     app.registry.registerGuard(guard)
     expect(app.registry.guards.has(guard)).toBe(true)
   })
 
   it('should register middleware', () => {
-    const middleware = new Provider().withValue(() => true)
+    const middleware = new Provider().withValue((() => void 0) as MiddlewareFn)
     app.registry.registerMiddleware(middleware)
     expect(app.registry.middlewares.has(middleware)).toBe(true)
   })
@@ -79,40 +77,27 @@ describe.sequential('Application', () => {
   })
 
   it('should register filter', () => {
-    app.registry.registerFilter(
-      Error,
-      new Provider().withValue(() => new Error()),
+    const filter = new Provider().withValue(
+      (() => new Error()) as FilterFn<typeof Error>,
     )
+    app.registry.registerFilter(Error, filter)
     expect(app.registry.filters.has(Error)).toBe(true)
   })
 
-  it('should create procedure', () => {
-    const procedure = app.procedure()
-    expect(procedure).toBeInstanceOf(Procedure)
-  })
+  it('should register app context', async () => {
+    const procedure = new Provider()
+      .withDependencies({
+        logger: app.providers.logger,
+        execute: app.providers.execute,
+        eventManager: app.providers.eventManager,
+      })
+      .withFactory((ctx) => ctx)
 
-  it('should create provider', () => {
-    const provider = app.provider()
-    expect(provider).toBeInstanceOf(Provider)
-  })
+    const ctx = await app.container.resolve(procedure)
 
-  it('should create task', () => {
-    const task = app.task()
-    expect(task).toBeInstanceOf(Task)
-  })
-
-  it('should create middleware', () => {
-    const middleware = app.middleware()
-    expect(middleware).toBeInstanceOf(Provider)
-  })
-
-  it('should create guard', () => {
-    const guard = app.guard()
-    expect(guard).toBeInstanceOf(Provider)
-  })
-
-  it('should create event', () => {
-    const event = app.event()
-    expect(event).toBeInstanceOf(Event)
+    expect(ctx).toBeDefined()
+    expect(ctx).toHaveProperty('logger', app.logger)
+    expect(ctx).toHaveProperty('execute', expect.any(Function))
+    expect(ctx).toHaveProperty('eventManager', app.eventManager)
   })
 })

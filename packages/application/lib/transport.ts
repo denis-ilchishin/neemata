@@ -3,15 +3,13 @@ import { randomUUID } from 'node:crypto'
 import { Event } from './events'
 import { BaseExtension } from './extension'
 import { Subscription } from './subscription'
-import { Extra } from './types'
 
 export interface BaseTransportData {
   transport: string
 }
 export abstract class BaseTransport<
-  Context extends Extra = {},
   Connection extends BaseTransportConnection = BaseTransportConnection,
-> extends BaseExtension<Context, { connection: Connection }> {
+> extends BaseExtension<{ connection: Connection }> {
   abstract start(): any
   abstract stop(): any
 

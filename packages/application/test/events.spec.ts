@@ -1,5 +1,3 @@
-// events
-
 import { Application } from '@/application'
 import { Event, EventManager } from '@/events'
 import { BaseTransportConnection } from '@/transport'

@@ -262,7 +262,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         const container = this.container.createScope(Scope.Connection)
 
         try {
-          // const connectionData = await this.getConnectionData(transportData)
           const streams = {
             up: new Map(),
             down: new Map(),
@@ -273,7 +272,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
             id: randomUUID(),
             streams,
             container,
-            // connectionData,
             transportData,
             subscriptions: new Map(),
           }
@@ -591,6 +589,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       // It doesn't support streams and bidi communication anyway,
       // so any of usefull stuff is not available
       // this.transport.addConnection(connection)
+
       const procedure = this.api.find(procedureName)
       const response = await this.handleRPC(
         connection,

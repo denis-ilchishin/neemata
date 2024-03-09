@@ -71,7 +71,7 @@ export type Command = (
 
 export type ConnectionFn<T = any, C = any> = (transportData: T) => Async<C>
 
-export type FilterFn<T extends ErrorClass> = (
+export type FilterFn<T extends ErrorClass = ErrorClass> = (
   error: InstanceType<T>,
 ) => Async<Error>
 
@@ -97,11 +97,12 @@ export type Middleware<App extends AnyApplication = AnyApplication> = Provider<
 
 export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
-export type AnyApplication = Application<any, any, any, any, any, any>
-export type AnyProvider = Provider<any, any, any, any, any, any, any>
-export type AnyProcedure = Procedure<any, any, any, any, any>
-export type AnyTask = Task<any, any, any, any>
-export type AnyEvent = Event<any, any, any, any>
+export type AnyApplication = Application<any, any, any, any, any>
+
+export type AnyProvider = Provider<any, any, any>
+export type AnyProcedure = Procedure<any, any, any, any>
+export type AnyTask = Task<any, any, any>
+export type AnyEvent = Event<any, any, any>
 
 export type MiddlewareContext<App extends AnyApplication = AnyApplication> = {
   connection: App['_']['connection']
@@ -172,10 +173,6 @@ export type Scalars = Primitive | Primitive[]
 
 export type GlobalContext = {
   logger: Logger
-  execute: <T extends Task>(
-    task: T,
-    ...args: OmitFirstItem<Parameters<T['handler']>>
-  ) => TaskExecution<Awaited<ReturnType<T['handler']>>>
 }
 
 export type Filters = Map<ErrorClass, Filter<ErrorClass>>
@@ -186,6 +183,22 @@ export type Commands<T extends string | symbol = string | symbol> = Map<
   Map<string, Command>
 >
 export type Hooks = Map<string, Set<(...args: any[]) => any>>
+
+export type CallFn = <P extends Procedure>(
+  procedure: P,
+  ...args: P['input'] extends unknown ? [] : [InferSchemaOutput<P['input']>]
+) => Promise<
+  Awaited<
+    P['output'] extends unknown
+      ? ReturnType<P['handler']>
+      : InferSchemaOutput<P['output']>
+  >
+>
+
+export type ExecuteFn = <T extends Task>(
+  task: T,
+  ...args: OmitFirstItem<Parameters<T['handler']>>
+) => TaskExecution<Awaited<ReturnType<T['handler']>>>
 
 export type Merge<
   T1 extends Record<string, any>,

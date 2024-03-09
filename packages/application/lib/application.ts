@@ -1,5 +1,13 @@
 import { Api, BaseParser, Procedure } from './api'
-import { Container, Provider } from './container'
+import {
+  Container,
+  Provider,
+  callProvider,
+  connectionProvider,
+  eventManagerProvider,
+  executeProvider,
+  loggerProvider,
+} from './container'
 import { Event, EventManager } from './events'
 import { BaseExtension } from './extension'
 import { Logger, LoggingOptions, createLogger } from './logger'
@@ -11,22 +19,14 @@ import {
 } from './registry'
 import { BasicSubscriptionManager } from './sub-managers/basic'
 import { BaseSubscriptionManager } from './subscription'
-import { BaseTaskRunner, Task, Tasks } from './tasks'
+import { BaseTaskRunner, Task, TaskExecution, Tasks } from './tasks'
 import { BaseTransport } from './transport'
-import {
-  Extra,
-  GuardFn,
-  Hook,
-  Merge,
-  MiddlewareFn,
-  ResolveExtensionContext,
-  WorkerType,
-} from './types'
+import { Hook, Merge, OmitFirstItem, WorkerType } from './types'
 
 export type ApplicationOptions = {
   type: WorkerType
   loaders: BaseCustomLoader[]
-  procedures: {
+  api: {
     timeout: number
     parsers?:
       | BaseParser
@@ -56,19 +56,12 @@ export type ApplicationWorkerOptions = {
 export class Application<
   AppTransports extends Record<string, BaseTransport> = {},
   AppExtensions extends Record<string, BaseExtension> = {},
-  AppContext extends Extra = ResolveExtensionContext<AppExtensions> &
-    ResolveExtensionContext<AppTransports>,
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
     transports: AppTransports
-    context: AppContext & {
-      eventManager: EventManager<
-        AppTransports[keyof AppTransports]['_']['connection']
-      >
-    }
     connection: AppTransports[keyof AppTransports]['_']['connection']
     procedures: AppProcedures
     tasks: AppTasks
@@ -84,11 +77,19 @@ export class Application<
   readonly container: Container
   readonly eventManager: EventManager
   subManager!: BaseSubscriptionManager
-  readonly context: AppContext = {} as AppContext
   readonly connections = new Map<
     this['_']['connection']['id'],
     this['_']['connection']
   >()
+  readonly providers = {
+    connection: connectionProvider as Provider<
+      AppTransports[keyof AppTransports]['_']['connection']
+    >,
+    logger: loggerProvider,
+    call: callProvider,
+    execute: executeProvider,
+    eventManager: eventManagerProvider,
+  }
 
   constructor(readonly options: ApplicationOptions) {
     this.logger = createLogger(
@@ -96,19 +97,18 @@ export class Application<
       `${this.options.type}Worker`,
     )
 
-    this.registry = new Registry(this)
+    this.registry = new Registry(this, this.options.loaders)
     this.eventManager = new EventManager(this)
-    this.api = new Api(this)
-    this.tasks = new Tasks(this)
+    this.api = new Api(this, this.options.api)
+    this.tasks = new Tasks(this, this.options.tasks)
     this.container = new Container(this)
 
-    this.initCommandsAndHooks()
+    this.registerEssential()
     this.registerSubscriptionManager(new BasicSubscriptionManager())
   }
 
   async initialize() {
     await this.callHook(Hook.BeforeInitialize)
-    this.initContext()
     await this.registry.load()
     await this.container.load()
     await this.callHook(Hook.AfterInitialize)
@@ -151,8 +151,11 @@ export class Application<
     await this.callHook(Hook.AfterTerminate)
   }
 
-  execute(task: Task, ...args: any[]) {
-    return this.tasks.execute(this.container, task.name, ...args)
+  execute<T extends Task>(
+    task: T,
+    ...args: OmitFirstItem<Parameters<T['handler']>>
+  ): TaskExecution<Awaited<ReturnType<T['handler']>>> {
+    return this.tasks.execute(task.name, ...args)
   }
 
   registerEvents<T extends Record<string, Event>>(events: T) {
@@ -162,7 +165,6 @@ export class Application<
     return this as unknown as Application<
       AppTransports,
       AppExtensions,
-      AppContext,
       AppProcedures,
       AppTasks,
       Merge<AppEvents, T>
@@ -176,7 +178,6 @@ export class Application<
     return this as unknown as Application<
       AppTransports,
       AppExtensions,
-      AppContext,
       Merge<AppProcedures, T>,
       AppTasks,
       AppEvents
@@ -190,7 +191,6 @@ export class Application<
     return this as unknown as Application<
       AppTransports,
       AppExtensions,
-      AppContext,
       AppProcedures,
       Merge<AppTasks, T>,
       AppEvents
@@ -224,7 +224,6 @@ export class Application<
     return this as unknown as Application<
       Merge<AppTransports, T>,
       AppExtensions,
-      AppContext & ResolveExtensionContext<T>,
       AppProcedures,
       AppTasks,
       AppEvents
@@ -257,7 +256,6 @@ export class Application<
     return this as unknown as Application<
       AppTransports,
       Merge<AppExtensions, T>,
-      AppContext & ResolveExtensionContext<T>,
       AppProcedures,
       AppTasks,
       AppEvents
@@ -273,28 +271,8 @@ export class Application<
     return this
   }
 
-  procedure() {
+  createProcedure() {
     return new Procedure<this>()
-  }
-
-  provider() {
-    return new Provider<any, this>()
-  }
-
-  guard() {
-    return new Provider<GuardFn<this>, this>()
-  }
-
-  middleware() {
-    return new Provider<MiddlewareFn<this>, this>()
-  }
-
-  task() {
-    return new Task<this['_']['context']>()
-  }
-
-  event() {
-    return new Event()
   }
 
   private async callHook(
@@ -321,25 +299,6 @@ export class Application<
     }
   }
 
-  private initContext() {
-    for (const key in this.context) delete this.context[key]
-    const extensions = [
-      ...Object.entries(this.extensions),
-      ...Object.entries(this.transports),
-    ]
-    for (const [alias, extension] of extensions) {
-      if (extension.context) {
-        // @ts-expect-error
-        this.context[alias] = extension.context()
-      }
-    }
-    Object.assign(this.context, {
-      logger: this.logger,
-      execute: this.execute.bind(this),
-      eventManager: this.eventManager,
-    })
-  }
-
   private initExtension(extension: BaseExtension, options: RegistryOptions) {
     const logger = this.logger.child({ $group: extension.name })
     extension.assign({
@@ -352,8 +311,12 @@ export class Application<
     })
   }
 
-  private initCommandsAndHooks() {
-    const taskCommand = this.tasks.command.bind(this.tasks, this.container)
+  private registerEssential() {
+    this.container.provide(loggerProvider, this.logger)
+    this.container.provide(eventManagerProvider, this.eventManager)
+    this.container.provide(executeProvider, this.execute.bind(this))
+
+    const taskCommand = this.tasks.command.bind(this.tasks)
     this.registry.registerCommand(APP_COMMAND, 'task', (arg) =>
       taskCommand(arg),
     )

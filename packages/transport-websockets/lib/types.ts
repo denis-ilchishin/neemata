@@ -29,8 +29,6 @@ export type HttpTransportData = {
   method: HttpTransportMethod
 }
 
-export type HttpTransportApplicationContext = {}
-
 export type Headers = Record<string, string>
 export type Req = HttpRequest
 export type Res = HttpResponse
@@ -66,5 +64,3 @@ export type WebsocketsTransportData = {
   proxyRemoteAddress: string
   remoteAddress: string
 }
-
-export type WebsocketsTransportApplicationContext = {}

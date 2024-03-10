@@ -1,6 +1,6 @@
 import cronParser, { type CronExpression } from 'cron-parser'
 
-import { BaseExtension, Hook, Provider } from '@neematajs/application'
+import { BaseExtension, Hook, type Provider } from '@neematajs/application'
 
 type CronHandler = () => any
 

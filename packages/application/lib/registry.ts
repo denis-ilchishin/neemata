@@ -1,17 +1,14 @@
-import type { Procedure } from './api'
-import { type Depender, Provider, getProviderScope } from './container'
+import type { Filter, Guard, Middleware, Procedure } from './api'
+import { type Depender, type Provider, getProviderScope } from './container'
 import type { Event } from './events'
-import { Logger } from './logger'
+import type { Logger } from './logger'
 import type { Task } from './tasks'
 import {
-  AnyEvent,
-  AnyProcedure,
-  AnyTask,
-  Command,
-  ErrorClass,
-  Filter,
-  Guard,
-  Middleware,
+  type AnyEvent,
+  type AnyProcedure,
+  type AnyTask,
+  type Command,
+  type ErrorClass,
   Scope,
 } from './types'
 
@@ -55,13 +52,18 @@ export class Registry {
       const loaded = await loader.load()
       for (const [type, modules] of Object.entries(loaded)) {
         for (const [name, module] of Object.entries(modules)) {
-          this.registerModule(
-            type as RegistryModuleType,
-            name,
-            module.module,
-            module.path,
-            module.exportName,
-          )
+          try {
+            this.registerModule(
+              type as RegistryModuleType,
+              name,
+              module.module,
+              module.path,
+              module.exportName,
+            )
+          } catch (cause) {
+            const errorMsg = `Error registring (${type}) [${name}] in ${module.path}`
+            this.application.logger.error(new Error(errorMsg, { cause }))
+          }
         }
       }
     }
@@ -165,7 +167,7 @@ export class Registry {
   ) {
     let namespace: string | symbol
     let command: string
-    if (this.options) {
+    if (this.options?.namespace) {
       // biome-ignore lint/style/noParameterAssign:
       callback = commandOrCallback as Command
       namespace = this.options.namespace

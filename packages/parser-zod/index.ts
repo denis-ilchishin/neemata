@@ -1,5 +1,5 @@
-import { Async, BaseParser } from '@neematajs/application'
-import { ZodErrorMap, ZodSchema, z } from 'zod'
+import { type Async, BaseParser } from '@neematajs/application'
+import { type ZodErrorMap, type ZodSchema, z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export class ZodParser extends BaseParser {

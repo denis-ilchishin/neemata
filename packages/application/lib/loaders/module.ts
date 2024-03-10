@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join, parse } from 'node:path'
-import { BaseCustomLoader } from '../registry'
+import type { BaseCustomLoader } from '../registry'
 import { isJsFile } from '../utils/functions'
 import { PlainLoader } from './plain'
 

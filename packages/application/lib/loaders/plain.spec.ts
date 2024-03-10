@@ -1,14 +1,15 @@
-import { testApp } from '../_utils'
-
 import { join, resolve } from 'node:path'
-import { Application } from '@/application'
-import { PlainLoader } from '@/loaders/plain'
+import { testApp } from '@test/_utils'
+import type { Application } from '../application'
+import { PlainLoader } from '../loaders/plain'
+
+const fixturesRoot = 'packages/application/test/fixtures'
 
 describe.sequential('Loaders -> Plain', () => {
   let app: Application
-  const eventsDir = join(__dirname, '../fixtures/loaders/plain/events')
-  const proceduresDir = join(__dirname, '../fixtures/loaders/plain/procedures')
-  const tasksDir = join(__dirname, '../fixtures/loaders/plain/tasks')
+  const eventsDir = resolve(fixturesRoot, 'loaders/plain/events')
+  const proceduresDir = resolve(fixturesRoot, 'loaders/plain/procedures')
+  const tasksDir = resolve(fixturesRoot, 'loaders/plain/tasks')
   const keys = ['test', 'nested/test']
 
   beforeAll(async () => {

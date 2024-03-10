@@ -1,12 +1,13 @@
-import { Readable } from 'node:stream'
-import {
+import type { Readable } from 'node:stream'
+import type {
   BaseTransportConnection,
   Container,
   Stream,
   Subscription,
 } from '@neematajs/application'
-import uws, { AppOptions, HttpRequest, HttpResponse } from 'uWebSockets.js'
-import { HttpTransportMethod } from './common'
+import type uws from 'uWebSockets.js'
+import type { AppOptions, HttpRequest, HttpResponse } from 'uWebSockets.js'
+import type { HttpTransportMethod } from './common'
 
 export type HttpTransportOptions = {
   port?: number

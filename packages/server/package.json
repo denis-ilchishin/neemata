@@ -1,5 +1,5 @@
 {
-  "name": "@neematajs/parser-typebox",
+  "name": "@neematajs/server",
   "author": "ilchishin.denis@gmail.com",
   "license": "MIT",
   "description": "Nodejs application server",
@@ -18,10 +18,9 @@
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
   "peerDependencies": {
-    "@neematajs/application": "workspace:*",
-    "@sinclair/typebox": "^0.31.23"
+    "@neematajs/application": "workspace:*"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.32.15"
+    "@neematajs/application": "workspace:*"
   }
 }

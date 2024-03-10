@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto'
-import EventEmitter, { once } from 'node:events'
-import { MessagePort } from 'node:worker_threads'
-import { Application } from '@/application'
-import { WorkerMessageType, WorkerType } from '@/types'
-import { defer, noop } from '@/utils/functions'
-import { bindPortMessageHandler, injectWorkerOptions } from '@/utils/threads'
-import { ApplicationWorkerData, start as startWorker } from '@/worker'
-import { testApp, testTask } from './_utils'
+import type EventEmitter from 'node:events'
+import { once } from 'node:events'
+import type { MessagePort } from 'node:worker_threads'
+import {
+  Application,
+  Task,
+  WorkerType,
+  defer,
+  noop,
+} from '@neematajs/application'
+import {
+  WorkerMessageType,
+  bindPortMessageHandler,
+  injectWorkerOptions,
+} from './common'
+import { type ApplicationWorkerData, start as startWorker } from './worker'
 
 const applicationPath = '@app'
 
@@ -38,7 +46,7 @@ const bc = await vi.hoisted(async () => {
   }
 })
 
-vi.mock('@/utils/threads', async (originalImport) => {
+vi.mock('./common', async (originalImport) => {
   return {
     ...(await originalImport<any>()),
     createBroadcastChannel: () => bc.port2,
@@ -51,7 +59,13 @@ describe.sequential('Application Worker', () => {
   let app: Application
 
   beforeEach(async () => {
-    app = testApp()
+    app = new Application({
+      api: { timeout: 5000, transports: 'any' },
+      events: { timeout: 5000 },
+      loaders: [],
+      tasks: { timeout: 5000 },
+      type: WorkerType.Api,
+    })
     vi.doMock(applicationPath, () => ({ default: app }))
     const { port1, port2 } = new MessageChannel()
     worker = port1
@@ -144,7 +158,7 @@ describe.sequential('Application Worker', () => {
   })
 
   it('should handle task execution invocation', async () => {
-    const task = testTask().withHandler((ctx, ...args) => ({
+    const task = new Task().withName('test').withHandler((ctx, ...args) => ({
       args,
       result: 'task result',
     }))
@@ -182,7 +196,9 @@ describe.sequential('Application Worker', () => {
   })
 
   it('should handle task execution abortion', async () => {
-    const task = testTask().withHandler((ctx) => new Promise(noop))
+    const task = new Task()
+      .withName('test')
+      .withHandler((ctx) => new Promise(noop))
     app.registry.registerTask(task.name, task)
     const workerData: ApplicationWorkerData = {
       id: 1,

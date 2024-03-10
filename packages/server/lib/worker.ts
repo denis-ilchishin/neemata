@@ -1,21 +1,33 @@
+import {
+  WorkerType,
+  watchApp,
+  type Application,
+  type BaseTaskRunner,
+} from '@neematajs/application'
 import { register } from 'node:module'
 import {
-  MessagePort,
   isMainThread,
   parentPort,
   workerData,
+  type MessagePort,
 } from 'node:worker_threads'
-
-import { Application, ApplicationWorkerOptions } from './application'
-import { WorkerThreadsTaskRunner } from './task-runners/worker-threads'
-import { WorkerMessageType, WorkerType } from './types'
-import { importDefault } from './utils/functions'
 import {
+  WorkerMessageType,
   bindPortMessageHandler,
   createBroadcastChannel,
   providerWorkerOptions,
-} from './utils/threads'
-import { watchApp } from './utils/watch'
+} from './common'
+import { WorkerThreadsTaskRunner } from './task-runner'
+
+export const importDefault = (specifier: any) =>
+  import(`${specifier}`).then((m) => m.default)
+
+export type ApplicationWorkerOptions = {
+  id: number
+  type: WorkerType
+  tasksRunner?: BaseTaskRunner
+  workerOptions?: any
+}
 
 export type ApplicationWorkerData = {
   applicationPath: string
@@ -54,7 +66,7 @@ export async function start(
   process.on('uncaughtException', (err) => app.logger.error(err))
   process.on('unhandledRejection', (err) => app.logger.error(err))
 
-  if (NEEMATA_WATCH) watchApp(NEEMATA_WATCH, app)
+  if (NEEMATA_WATCH) watchApp(NEEMATA_WATCH, app, applicationPath)
 
   bindPortMessageHandler(parentPort)
 
@@ -64,16 +76,20 @@ export async function start(
   })
 
   parentPort.on(WorkerMessageType.Stop, async () => {
-    try {
-      await app.stop()
-      if (!process.env.VITEST) process.exit(0)
-    } catch (err) {
-      if (!process.env.VITEST) {
+    if (process.env.VITEST) {
+      try {
+        await app.stop()
+      } finally {
+        parentPort.postMessage({ type: 'exit' })
+      }
+    } else {
+      try {
+        await app.stop()
+        process.exit(0)
+      } catch (err) {
         app.logger.error(err)
         process.exit(1)
       }
-    } finally {
-      if (process.env.VITEST) parentPort.postMessage({ type: 'exit' })
     }
   })
 

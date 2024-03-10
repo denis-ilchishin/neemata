@@ -1,6 +1,6 @@
 import { BaseParser } from '@neematajs/application'
-import { TSchema } from '@sinclair/typebox'
-import { Value, ValueError } from '@sinclair/typebox/value'
+import type { TSchema } from '@sinclair/typebox'
+import { Value, type ValueError } from '@sinclair/typebox/value'
 
 export class TypeboxParserError extends Error {
   constructor(

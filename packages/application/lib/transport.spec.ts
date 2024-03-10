@@ -1,13 +1,13 @@
-import { Application } from '@/application'
-import { TestTransport, testApp, testConnection, testEvent } from './_utils'
+import { TestTransport, testApp, testConnection, testEvent } from '@test/_utils'
+import type { Application } from './application'
 
 describe.sequential('Transport', () => {
-  let app: Application<{ test: TestTransport }>
+  let app: Application<[TestTransport]>
   let transport: TestTransport
 
   beforeEach(async () => {
     transport = new TestTransport()
-    app = testApp().registerTransports({ test: transport })
+    app = testApp().registerTransport(transport)
     await app.initialize()
   })
 
@@ -55,12 +55,12 @@ describe.sequential('Transport', () => {
 })
 
 describe.sequential('Transport connection', () => {
-  let app: Application<{ test: TestTransport }>
+  let app: Application<[TestTransport]>
   let transport: TestTransport
 
   beforeEach(async () => {
     transport = new TestTransport()
-    app = testApp().registerTransports({ test: transport })
+    app = testApp().registerTransport(transport)
     await app.initialize()
   })
 

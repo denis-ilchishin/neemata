@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events'
-import { ApplicationWorkerOptions } from '../application'
-import { WorkerType } from '../types'
+import { WorkerType } from '@neematajs/application'
+import type { ApplicationWorkerOptions } from './worker'
 
 export const bindPortMessageHandler = (port: EventEmitter) => {
   port.on('message', (message) => {
@@ -44,4 +44,13 @@ export const injectWorkerOptions = (): ApplicationWorkerOptions => {
       type: WorkerType.Api,
     }
   )
+}
+
+export enum WorkerMessageType {
+  Ready = 'Ready',
+  Start = 'Start',
+  Stop = 'Stop',
+  ExecuteInvoke = 'ExecuteInvoke',
+  ExecuteResult = 'ExecuteResult',
+  ExecuteAbort = 'ExecuteAbort',
 }

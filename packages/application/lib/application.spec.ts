@@ -1,19 +1,24 @@
-import { Application } from '@/application'
-import { Provider } from '@/container'
-import { FilterFn, GuardFn, MiddlewareFn } from '@/types'
 import {
   testApp,
   testEvent,
   testProcedure,
   testTask,
   testTransport,
-} from './_utils'
+} from '@test/_utils'
+import { Application } from './application'
+import { Provider } from './container'
+import type { FilterFn, GuardFn, MiddlewareFn } from './types'
 
 describe.sequential('Application', () => {
   let app: Application
 
-  beforeEach(() => {
+  beforeEach(async () => {
     app = testApp()
+    await app.initialize()
+  })
+
+  afterEach(async () => {
+    await app.terminate()
   })
 
   it('should be an application', () => {
@@ -53,9 +58,9 @@ describe.sequential('Application', () => {
 
   it('should chain with transport', () => {
     const transport = testTransport()
-    const newApp = app.registerTransports({ test: transport })
+    const newApp = app.registerTransport(transport)
     expect(newApp).toBe(app)
-    expect(app.transports).toHaveProperty('test', transport)
+    expect(app.transports.has(transport)).toBe(true)
   })
 
   it('should register guard', () => {
@@ -85,7 +90,7 @@ describe.sequential('Application', () => {
   })
 
   it('should register app context', async () => {
-    const procedure = new Provider()
+    const provider = new Provider()
       .withDependencies({
         logger: app.providers.logger,
         execute: app.providers.execute,
@@ -93,7 +98,7 @@ describe.sequential('Application', () => {
       })
       .withFactory((ctx) => ctx)
 
-    const ctx = await app.container.resolve(procedure)
+    const ctx = await app.container.resolve(provider)
 
     expect(ctx).toBeDefined()
     expect(ctx).toHaveProperty('logger', app.logger)

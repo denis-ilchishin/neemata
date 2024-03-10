@@ -1,10 +1,10 @@
-import { Application } from '@/application'
-import { Provider } from '@/container'
-import { BaseExtension } from '@/extension'
-import { Registry } from '@/registry'
-import { FilterFn, MiddlewareFn, WorkerType } from '@/types'
-import { noop } from '@/utils/functions'
-import { testApp } from './_utils'
+import { testApp } from '@test/_utils'
+import type { Application } from './application'
+import { Provider } from './container'
+import { BaseExtension } from './extension'
+import { APP_COMMAND, Registry } from './registry'
+import { type FilterFn, type MiddlewareFn, WorkerType } from './types'
+import { noop } from './utils/functions'
 
 export class TestExtension extends BaseExtension {
   name = 'Test extension'
@@ -25,21 +25,23 @@ describe.sequential('Extension', () => {
   beforeEach(() => {
     extension = new TestExtension()
     app = testApp()
-    app.registerExtensions({ [alias]: extension })
+    app.registerExtension(extension)
   })
 
   it('should initialize', async () => {
     const extension = new TestExtension()
     const app = testApp()
     const initSpy = vi.spyOn(extension, 'initialize')
-    app.registerExtensions({ [alias]: extension })
-    expect(app.extensions).toHaveProperty(alias, extension)
+    app.registerExtension(extension)
+    expect(app.extensions.has(extension)).toBe(true)
     expect(extension.application).toBeDefined()
     await app.initialize()
     expect(initSpy).toHaveBeenCalledOnce()
   })
 
   it('should assign an app', async () => {
+    const extension = new TestExtension()
+    app.registerExtension({ extension, options: { namespace: alias } })
     expect(extension.application).toHaveProperty('type', WorkerType.Api)
     expect(extension.application).toHaveProperty('api', app.api)
     expect(extension.application).toHaveProperty('container', app.container)
@@ -52,7 +54,15 @@ describe.sequential('Extension', () => {
     })
   })
 
-  it('should register commands', async () => {
+  it('should register global commands', async () => {
+    const fn = () => {}
+    extension.application.registry.registerCommand('test', fn)
+    expect(app.registry.commands.get(APP_COMMAND)?.get('test')).toBe(fn)
+  })
+
+  it('should register namespaced commands', async () => {
+    const extension = new TestExtension()
+    app.registerExtension({ extension, options: { namespace: alias } })
     const fn = () => {}
     extension.application.registry.registerCommand('test', fn)
     expect(app.registry.commands.get(registryPrefix)?.get('test')).toBe(fn)

@@ -6,22 +6,22 @@ import {
   testDefaultTimeout,
   testLogger,
   testTransport,
-} from './_utils'
+} from '@test/_utils'
 
-import { Api, Procedure, ProcedureCallOptions } from '@/api'
-import { Application } from '@/application'
+import { ApiError, ErrorCode } from '@neematajs/common'
+import { Api, Procedure, type ProcedureCallOptions } from './api'
+import type { Application } from './application'
 import {
+  CALL_PROVIDER,
+  CONNECTION_PROVIDER,
   Container,
   Provider,
-  callProvider,
-  connectionProvider,
-} from '@/container'
-import { Registry } from '@/registry'
-import { FilterFn, GuardFn, MiddlewareFn } from '@/types'
-import { ApiError, ErrorCode } from '@neematajs/common'
+} from './container'
+import { Registry } from './registry'
+import type { FilterFn, GuardFn, MiddlewareFn } from './types'
 
 describe.sequential('Procedure', () => {
-  let procedure: Procedure<Application<{ test: TestTransport }>>
+  let procedure: Procedure<Application<[TestTransport]>>
 
   beforeEach(() => {
     procedure = new Procedure()
@@ -161,10 +161,8 @@ describe.sequential('Procedure', () => {
   })
 
   it('should clone with a transports', () => {
-    const newProcedure = procedure.withTransports({
-      test: true,
-    })
-    expect(newProcedure.transports).toEqual({ test: true })
+    const newProcedure = procedure.withTransport(TestTransport, true)
+    expect(newProcedure.transports.get(TestTransport)).toEqual(true)
     expect(newProcedure).not.toBe(procedure)
   })
 })
@@ -176,7 +174,7 @@ describe.sequential('Api', () => {
   const logger = testLogger()
   const registry = new Registry({ logger }, [])
   const container = new Container({ registry, logger })
-  const app = testApp().registerTransports({ test: testTransport() })
+  const app = testApp().registerTransport(transport)
   let api: Api
 
   const call = (
@@ -193,7 +191,7 @@ describe.sequential('Api', () => {
     })
 
   const testProcedure = () =>
-    app.createProcedure().withName('test').withTransports({ test: true })
+    new Procedure().withName('test').withTransport(TestTransport, true)
 
   beforeEach(async () => {
     api = new Api(
@@ -209,6 +207,7 @@ describe.sequential('Api', () => {
           input: inputParser,
           output: outputParser,
         },
+        transports: 'any',
       },
     )
   })
@@ -223,6 +222,7 @@ describe.sequential('Api', () => {
     let newApi = new Api(testApp(), {
       timeout: testDefaultTimeout,
       parsers: parser,
+      transports: 'any',
     })
     expect(newApi.parsers.input).toBe(parser)
     expect(newApi.parsers.output).toBe(parser)
@@ -235,6 +235,7 @@ describe.sequential('Api', () => {
         input: inputParser,
         output: outputParser,
       },
+      transports: 'any',
     })
     expect(newApi.parsers.input).toBe(inputParser)
     expect(newApi.parsers.output).toBe(outputParser)
@@ -248,8 +249,8 @@ describe.sequential('Api', () => {
   it('should inject context', async () => {
     const procedure = testProcedure()
       .withDependencies({
-        connection: connectionProvider,
-        call: callProvider,
+        connection: CONNECTION_PROVIDER,
+        call: CALL_PROVIDER,
       })
       .withHandler((ctx) => ctx)
     const connection = testConnection({})

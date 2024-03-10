@@ -1,7 +1,14 @@
-import { BaseTransportConnection, Subscription } from '@neematajs/application'
+import {
+  BaseTransportConnection,
+  type Subscription,
+} from '@neematajs/application'
 import { MessageType } from './common'
 import { sendPayload } from './server'
-import { HttpTransportData, WebSocket, WebsocketsTransportData } from './types'
+import type {
+  HttpTransportData,
+  WebSocket,
+  WebsocketsTransportData,
+} from './types'
 
 export class HttpTransportConnection extends BaseTransportConnection {
   readonly transport = 'http'

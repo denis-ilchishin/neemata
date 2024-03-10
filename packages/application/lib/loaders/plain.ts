@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { BaseCustomLoader, RegistryModuleType } from '../registry'
+import type { BaseCustomLoader, RegistryModuleType } from '../registry'
 import { isJsFile } from '../utils/functions'
 
 export class PlainLoader implements BaseCustomLoader {

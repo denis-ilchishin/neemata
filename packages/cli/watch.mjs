@@ -10,13 +10,15 @@ let tsmp = Date.now()
 /** @type {Map<string, import('node:fs').FSWatcher>} */
 const watchers = new Map()
 const cwd = process.cwd()
+const include = []
+const ignore = []
 
 const isRelativePath = (path) => path.startsWith('.')
 const isFileUrl = (path) => path.startsWith('file://')
 
-async function isIgnored(path) {
+async function isIgnored(/** @type {string}*/ path) {
   if (
-    !path.startsWith(cwd) ||
+    ignore.some((p) => path.startsWith(p)) ||
     path.includes('/node_modules/') ||
     path.includes('/dist/') ||
     watchers.has(path) ||
@@ -31,6 +33,8 @@ const onChange = () => {
 }
 
 export async function initialize(data) {
+  include.push(...data.include)
+  ignore.push(...data.ignore)
   port = data.port
   for (const path of data.paths) {
     const watcher = watch(

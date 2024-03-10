@@ -79,7 +79,7 @@ export class Provider<
   readonly value!: ProviderValue
   readonly dependencies: ProviderDeps = {} as ProviderDeps
   readonly scope: Scope = Scope.Global
-  readonly factory?: ProviderFactoryType<
+  readonly factory!: ProviderFactoryType<
     ProviderValue,
     ProviderOptions,
     ProviderDeps
@@ -192,7 +192,7 @@ export class Container {
     }
 
     const providers = this.findCurrentScopeDeclarations()
-    await Promise.all(providers.map((val) => this.resolve(val)))
+    await Promise.all(providers.map((provider) => this.resolve(provider)))
   }
 
   createScope(scope: Scope) {
@@ -233,14 +233,12 @@ export class Container {
 
   resolve<T extends AnyProvider>(provider: T): Promise<ResolveProviderType<T>> {
     if (this.instances.has(provider)) {
-      return Promise.resolve(this.instances.get(provider))
+      return Promise.resolve(this.instances.get(provider)!)
     } else if (this.resolvers.has(provider)) {
       return this.resolvers.get(provider)!
     } else {
       const { value, factory, scope, dependencies, options } = provider
       if (typeof value !== 'undefined') return Promise.resolve(value)
-      if (typeof factory !== 'function')
-        return Promise.reject(new Error('No factory or value provided'))
       const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
       if (this.parent && isStricter && this.parent.isResolved(provider))
         return this.parent.resolve(provider)
@@ -291,11 +289,25 @@ export class Container {
   }
 }
 
-export const connectionProvider = new Provider<
+export const CONNECTION_PROVIDER = new Provider<
   BaseTransport['_']['connection']
->().withScope(Scope.Connection)
-export const callProvider = new Provider<CallFn>().withScope(Scope.Connection)
-export const executeProvider = new Provider<ExecuteFn>()
-export const eventManagerProvider = new Provider<EventManager>()
-export const taskSignal = new Provider<AbortSignal>()
-export const loggerProvider = new Provider<Logger>()
+>()
+  .withScope(Scope.Connection)
+  .withDescription('RPC connection')
+
+export const CALL_PROVIDER = new Provider<CallFn>()
+  .withScope(Scope.Connection)
+  .withDescription('RPC nested call function')
+
+export const EXECUTE_PROVIDER = new Provider<ExecuteFn>().withDescription(
+  'Task execution function',
+)
+
+export const EVENT_MANAGER_PROVIDER =
+  new Provider<EventManager>().withDescription('Event manager')
+
+export const TASK_SIGNAL_PROVIDER = new Provider<AbortSignal>().withDescription(
+  'Task abort signal',
+)
+
+export const LOGGER_PROVIDER = new Provider<Logger>().withDescription('Logger')

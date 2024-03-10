@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { PassThrough, Readable } from 'node:stream'
+import { PassThrough, type Readable } from 'node:stream'
 import {
   ApiError,
-  BaseTransportConnection,
-  BinaryStreamResponse,
-  Container,
-  ExtensionApplication,
+  type BaseTransportConnection,
+  type BinaryStreamResponse,
+  type Container,
+  type ExtensionApplication,
   JsonStreamResponse,
-  Procedure,
+  type Procedure,
   Scope,
   Stream,
   StreamResponse,
@@ -32,16 +32,16 @@ import {
   HttpTransportConnection,
   WebsocketsTransportConnection,
 } from './connection'
-import { WebsocketsTransport } from './transport'
+import type { WebsocketsTransport } from './transport'
 import {
   Headers,
-  HttpTransportData,
-  HttpTransportOptions,
-  Req,
-  Res,
-  WebSocket,
-  WebSocketUserData,
-  WebsocketsTransportData,
+  type HttpTransportData,
+  type HttpTransportOptions,
+  type Req,
+  type Res,
+  type WebSocket,
+  type WebSocketUserData,
+  type WebsocketsTransportData,
 } from './types'
 
 export const AUTH_KEY = Symbol('auth')
@@ -412,7 +412,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         value.startsWith(STREAM_SERIALIZE_KEY)
       ) {
         return data.streams.up.get(
-          parseInt(value.slice(STREAM_SERIALIZE_KEY.length)),
+          Number.parseInt(value.slice(STREAM_SERIALIZE_KEY.length)),
         )
       }
       return value

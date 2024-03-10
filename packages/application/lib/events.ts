@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
-import { BaseParser } from './api'
-import { Logger } from './logger'
-import { Registry } from './registry'
-import { BaseSubscriptionManager, Subscription } from './subscription'
-import { BaseTransportConnection } from './transport'
-import { InferSchemaInput, InferSchemaOutput } from './types'
+import type { BaseParser } from './api'
+import type { Logger } from './logger'
+import type { Registry } from './registry'
+import { type BaseSubscriptionManager, Subscription } from './subscription'
+import type { BaseTransportConnection } from './transport'
+import type { InferSchemaInput, InferSchemaOutput } from './types'
 
 export type EventOptionsType = Record<string, string | number>
 

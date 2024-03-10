@@ -1,8 +1,8 @@
+import swc from '@swc/core'
 import { readFile } from 'node:fs/promises'
 import { isBuiltin } from 'node:module'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import swc from '@swc/core'
 import { createMatchPath, loadConfig } from 'tsconfig-paths'
 
 const tsExtensions = ['.mts', '.cts', '.ts']
@@ -53,7 +53,7 @@ const transform = async (specifier) => {
     : pathToFileURL(specifier)
   const contents = await fileContents(fileURLToPath(url))
   const { code } = await swc.transform(contents, {
-    module: { type: 'es6', ignoreDynamic: true },
+    module: { type: 'nodenext', ignoreDynamic: true },
     filename: fileURLToPath(url),
     isModule: true,
     sourceFileName: fileURLToPath(url),

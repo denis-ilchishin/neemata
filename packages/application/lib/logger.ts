@@ -24,7 +24,7 @@ const levelColors = {
   40: 104,
   50: 101,
   60: 105,
-  [Infinity]: 0,
+  [Number.POSITIVE_INFINITY]: 0,
 }
 const messageColors = {
   10: 0,
@@ -33,7 +33,7 @@ const messageColors = {
   40: 4,
   50: 1,
   60: 5,
-  [Infinity]: 0,
+  [Number.POSITIVE_INFINITY]: 0,
 }
 
 const levelLabels = {
@@ -43,7 +43,7 @@ const levelLabels = {
   40: ' WARN  ',
   50: ' ERROR ',
   60: ' FATAL ',
-  [Infinity]: 'SILENT',
+  [Number.POSITIVE_INFINITY]: 'SILENT',
 }
 
 export const createLogger = (options: LoggingOptions = {}, $group: string) => {
@@ -59,9 +59,9 @@ export const createLogger = (options: LoggingOptions = {}, $group: string) => {
         acc,
         'stream' in destination
           ? pino.levels.values[destination.level!]
-          : Infinity,
+          : Number.POSITIVE_INFINITY,
       ),
-    Infinity,
+    Number.POSITIVE_INFINITY,
   )
   const level = pino.levels.labels[lowestLevelValue]
   return pino(

@@ -17,8 +17,7 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./lib/*"],
-      "@test/*": ["./test/*"]
+      "@/*": ["./lib/*"]
     }
   },
   "include": ["./index.ts", "./lib/**/*.ts", "./test/**/*.ts"]

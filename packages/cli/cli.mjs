@@ -1,20 +1,21 @@
 #!/usr/bin/env node --enable-source-maps
 
+import {
+  APP_COMMAND,
+  Application,
+  WorkerType,
+  defer,
+  importDefault,
+  watchApp,
+} from '@neematajs/application'
+import dotenv from 'dotenv'
 import { register } from 'node:module'
 import { resolve } from 'node:path'
 import repl from 'node:repl'
 import { parseArgs } from 'node:util'
-import {
-  APP_COMMAND,
-  Application,
-  ApplicationServer,
-  WorkerType,
-  defer,
-  importDefault,
-  providerWorkerOptions,
-  watchApp,
-} from '@neematajs/application'
-import dotenv from 'dotenv'
+
+/** @type {import('@neematajs/server')} */
+const NeemataServer = await import('@neematajs/server').catch(() => null)
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -50,7 +51,7 @@ if (env) {
 }
 
 const entryPath = resolve(
-  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.js'),
+  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.ts'),
 )
 
 if (swc) {
@@ -81,7 +82,10 @@ const tryExit = async (cb) => {
 const entryApp = await import(entryPath).then((module) => module.default)
 
 if (
-  !(entryApp instanceof ApplicationServer || entryApp instanceof Application)
+  !(
+    (NeemataServer && entryApp instanceof NeemataServer.ApplicationServer) ||
+    entryApp instanceof Application
+  )
 ) {
   throw new Error(
     'Invalid entry module. Must be an instance of Application or ApplicationServer',
@@ -97,15 +101,15 @@ const loadApp = async () => {
   /** @type {Application} */
   let app
 
-  if (entryApp instanceof ApplicationServer) {
+  if (NeemataServer && entryApp instanceof NeemataServer.ApplicationServer) {
     const { applicationPath } = entryApp.options
     const type = WorkerType.Task
-    /** @type {import('@neematajs/application').ApplicationWorkerOptions} */
+    /** @type {import('@neematajs/server').ApplicationWorkerOptions} */
     const options = {
       id: 0,
       type,
     }
-    providerWorkerOptions(options)
+    NeemataServer.providerWorkerOptions(options)
     app = await importDefault(applicationPath)
   } else if (entryApp instanceof Application) {
     app = entryApp
@@ -124,7 +128,7 @@ const commands = {
   watch() {
     const url = new URL('./watch.mjs', import.meta.url)
     if (entryApp instanceof Application) {
-      watchApp(url.toString(), entryApp)
+      watchApp(url.toString(), entryApp, entryPath)
     } else {
       process.env.NEEMATA_WATCH = url.toString()
     }

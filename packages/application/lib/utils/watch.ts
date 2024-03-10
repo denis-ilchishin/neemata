@@ -3,12 +3,16 @@ import { pathToFileURL } from 'node:url'
 import type { Application } from '../application'
 import { debounce } from './functions'
 
-export const watchApp = (registerPath: string, app: Application) => {
+export const watchApp = (
+  registerPath: string,
+  app: Application,
+  entryPath: string,
+) => {
   const { port1, port2 } = new MessageChannel()
-  const paths = app.options.loaders.flatMap((loader) => loader.paths())
+  const include = app.options.loaders.flatMap((loader) => loader.paths())
   register(registerPath, {
     parentURL: pathToFileURL(__filename),
-    data: { port: port2, paths },
+    data: { port: port2, include, ingnore: [entryPath] },
     transferList: [port2],
   })
   let restarting = false

@@ -1,4 +1,4 @@
-import { Callback } from '../types'
+import type { Callback } from '../types'
 
 interface PoolOptions {
   timeout?: number

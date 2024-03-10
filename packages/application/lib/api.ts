@@ -1,12 +1,13 @@
 import { ApiError, ErrorCode } from '@neematajs/common'
 import type { ApplicationOptions } from './application'
 import {
+  CALL_PROVIDER,
+  CONNECTION_PROVIDER,
   type Container,
   type Dependencies,
   type DependencyContext,
   type Depender,
-  callProvider,
-  connectionProvider,
+  Provider,
 } from './container'
 import type { Logger } from './logger'
 import type { Registry } from './registry'
@@ -18,15 +19,21 @@ import type {
   CallFn,
   ConnectionFn,
   ConnectionProvider,
+  ErrorClass,
   Extra,
-  Guard,
+  FilterFn,
+  // Guard,
+  GuardFn,
   InferSchemaInput,
   InferSchemaOutput,
   Merge,
-  Middleware,
+  // Middleware,
   MiddlewareContext,
+  MiddlewareFn,
 } from './types'
 import { merge } from './utils/functions'
+
+export type AnyTransportClass = new (...args: any[]) => BaseTransport<any>
 
 export type ResolvedProcedureContext<Deps extends Dependencies> =
   DependencyContext<Deps>
@@ -78,15 +85,14 @@ export class Procedure<
     timeout: number
     description: string
     tags: string[]
-    transports: {
-      [K in keyof App['_']['transports']]?: boolean
-    }
+    transports: Map<AnyTransportClass, boolean>
   }
   name!: string
   readonly handler!: ProcedureHandler
   readonly timeout!: this['_']['timeout']
   readonly dependencies: ProcedureDeps = {} as ProcedureDeps
-  readonly transports: this['_']['transports'] = {} as this['_']['transports']
+  readonly transports: this['_']['transports'] =
+    new Map() as this['_']['transports']
 
   readonly input!: this['_']['input']
   readonly output!: this['_']['output']
@@ -293,7 +299,7 @@ export class Procedure<
     return Procedure.override(procedure, this, { name })
   }
 
-  withTransports(transports: this['_']['transports']) {
+  withTransport(transport: AnyTransportClass, enabled: boolean) {
     const procedure = new Procedure<
       App,
       ProcedureDeps,
@@ -301,9 +307,9 @@ export class Procedure<
       ProcedureOutput,
       ProcedureHandler
     >()
-    return Procedure.override(procedure, this, {
-      transports: merge(this.transports, transports),
-    })
+    const transports = new Map(this.transports)
+    transports.set(transport, enabled)
+    return Procedure.override(procedure, this, { transports })
   }
 }
 
@@ -331,7 +337,7 @@ export class Api {
     private readonly application: {
       container: Container
       registry: Registry
-      transports: Record<string, BaseTransport>
+      transports: Set<BaseTransport>
       logger: Logger
     },
     private readonly options: ApplicationOptions['api'],
@@ -359,10 +365,10 @@ export class Api {
     const { payload, transport, procedure, container, connection } = callOptions
 
     container.provide(
-      callProvider,
+      CALL_PROVIDER,
       this.createNestedCall(callOptions) as CallFn,
     )
-    container.provide(connectionProvider, connection)
+    container.provide(CONNECTION_PROVIDER, connection)
 
     try {
       this.handleTransport(transport, procedure)
@@ -469,15 +475,18 @@ export class Api {
   }
 
   private handleTransport(transport: BaseTransport, procedure: AnyProcedure) {
-    for (const i in procedure.transports) {
-      if (procedure.transports[i] === false) {
-        for (const j in this.application.transports) {
-          if (this.application.transports[j] === transport) {
-            throw NotFound(procedure.name)
-          }
-        }
+    if (this.options.transports === 'any' && !procedure.transports.size) {
+      return
+    }
+
+    for (const [transportClass, enabled] of procedure.transports.entries()) {
+      if (transport instanceof transportClass) {
+        if (!enabled) break
+        if (enabled) return
       }
     }
+
+    throw NotFound(procedure.name)
   }
 
   private handleTimeout(response: any, timeout?: number) {
@@ -537,6 +546,18 @@ export class Api {
     return parser!.parse(schema, payload, context)
   }
 }
+
+export class Guard<
+  App extends AnyApplication = AnyApplication,
+> extends Provider<GuardFn<App>> {}
+
+export class Middleware<
+  App extends AnyApplication = AnyApplication,
+> extends Provider<MiddlewareFn<App>> {}
+
+export class Filter<Error extends ErrorClass = ErrorClass> extends Provider<
+  FilterFn<Error>
+> {}
 
 export abstract class BaseParser {
   abstract parse(schema: any, data: any, ctx: any): any

@@ -1,5 +1,5 @@
 import { BaseParser, Procedure } from '@/api'
-import { Application, ApplicationOptions } from '@/application'
+import { Application, type ApplicationOptions } from '@/application'
 import { Event } from '@/events'
 import { createLogger } from '@/logger'
 import { BaseTaskRunner, Task } from '@/tasks'
@@ -40,7 +40,7 @@ export class TestTaskRunner extends BaseTaskRunner {
   }
 }
 
-export class TestTransport extends BaseTransport {
+export class TestTransport extends BaseTransport<TestConnection<any>> {
   name = 'Test transport'
 
   async start() {
@@ -52,10 +52,6 @@ export class TestTransport extends BaseTransport {
   }
 
   initialize() {}
-
-  context(): {} {
-    return {}
-  }
 }
 
 export const testDefaultTimeout = 1000

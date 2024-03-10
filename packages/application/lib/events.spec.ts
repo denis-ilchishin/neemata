@@ -1,7 +1,7 @@
-import { Application } from '@/application'
-import { Event, EventManager } from '@/events'
-import { BaseTransportConnection } from '@/transport'
-import { TestParser, testApp, testConnection, testEvent } from './_utils'
+import { TestParser, testApp, testConnection, testEvent } from '@test/_utils'
+import type { Application } from './application'
+import { Event, EventManager } from './events'
+import type { BaseTransportConnection } from './transport'
 
 describe.sequential('Event', () => {
   let event: Event

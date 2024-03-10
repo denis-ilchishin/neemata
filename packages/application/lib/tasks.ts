@@ -1,13 +1,13 @@
-import { ApplicationOptions } from './application'
+import type { ApplicationOptions } from './application'
 import {
-  Container,
-  Dependencies,
-  DependencyContext,
-  Depender,
-  taskSignal,
+  type Container,
+  type Dependencies,
+  type DependencyContext,
+  type Depender,
+  TASK_SIGNAL_PROVIDER,
 } from './container'
-import { Registry } from './registry'
-import { Hook, Merge } from './types'
+import type { Registry } from './registry'
+import { Hook, type Merge } from './types'
 import { createFuture, defer, merge, noop, onAbort } from './utils/functions'
 
 export type TaskExecution<Res = any> = Promise<
@@ -116,7 +116,7 @@ export class Tasks {
       const container = this.application.container.createScope(
         this.application.container.scope,
       )
-      container.provide(taskSignal, ac.signal)
+      container.provide(TASK_SIGNAL_PROVIDER, ac.signal)
       const context = await container.createContext(dependencies)
       return await handler(context, ...args)
     }).then(...future.toArgs())

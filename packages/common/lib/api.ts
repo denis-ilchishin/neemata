@@ -1,5 +1,5 @@
-import { EventEmitter, EventsType } from './event-emitter'
-import { DownStream, StreamMetadata, UpStream } from './streams'
+import { EventEmitter, type EventsType } from './event-emitter'
+import { type DownStream, type StreamMetadata, UpStream } from './streams'
 
 export class ApiError extends Error {
   code: string

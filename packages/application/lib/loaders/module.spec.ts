@@ -1,14 +1,16 @@
-import { testApp } from '../_utils'
+import { testApp } from '@test/_utils'
 
 import { join, resolve } from 'node:path'
-import { Application } from '@/application'
-import { ModuleLoader } from '@/loaders/module'
-import { RegistryModuleType } from '@/registry'
+import type { Application } from '../application'
+import { ModuleLoader } from '../loaders/module'
+import type { RegistryModuleType } from '../registry'
+
+const fixturesRoot = 'packages/application/test/fixtures'
 
 describe.sequential('Loaders -> Module', () => {
   let app: Application
   let loader: ModuleLoader
-  const root = resolve(__dirname, '../fixtures/loaders/module')
+  const root = resolve(fixturesRoot, 'loaders/module')
   const types = ['events', 'procedures', 'tasks'] as RegistryModuleType[]
   const keys = [
     ['module1', 'test', () => 'test', (type) => join('module1', type)],

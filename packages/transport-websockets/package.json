@@ -18,7 +18,7 @@
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
   "dependencies": {
-    "uWebSockets.js": "uNetworking/uWebSockets.js#v20.42.0"
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.42.0"
   },
   "peerDependencies": {
     "@neematajs/application": "workspace:*",

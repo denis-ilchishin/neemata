@@ -1,8 +1,8 @@
-import { Provider } from '@/container'
-import { APP_COMMAND, BaseCustomLoader, Registry } from '@/registry'
-import { Scope } from '@/types'
-import { noop } from '@/utils/functions'
-import { testEvent, testLogger, testProcedure, testTask } from './_utils'
+import { testEvent, testLogger, testProcedure, testTask } from '@test/_utils'
+import { Provider } from './container'
+import { APP_COMMAND, type BaseCustomLoader, Registry } from './registry'
+import { Scope } from './types'
+import { noop } from './utils/functions'
 
 class TestCustomLoader implements BaseCustomLoader {
   async load() {

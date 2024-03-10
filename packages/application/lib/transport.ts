@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
-import { Event } from './events'
+import type { Event } from './events'
 import { BaseExtension } from './extension'
-import { Subscription } from './subscription'
+import type { Subscription } from './subscription'
 
 export interface BaseTransportData {
   transport: string

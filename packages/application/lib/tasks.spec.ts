@@ -1,13 +1,13 @@
-import { Container, Provider, taskSignal } from '@/container'
-import { Registry } from '@/registry'
-import { Task, Tasks } from '@/tasks'
-import { createFuture, defer, noop, onAbort } from '@/utils/functions'
 import {
   testDefaultTimeout,
   testLogger,
   testTask,
   testTaskRunner,
-} from './_utils'
+} from '@test/_utils'
+import { Container, Provider, TASK_SIGNAL_PROVIDER } from './container'
+import { Registry } from './registry'
+import { Task, Tasks } from './tasks'
+import { createFuture, defer, noop, onAbort } from './utils/functions'
 
 describe.sequential('Task', () => {
   let task: Task
@@ -134,7 +134,7 @@ describe.sequential('Tasks', () => {
     const future = createFuture<void>()
     const spy = vi.fn(future.resolve)
     const task = testTask()
-      .withDependencies({ signal: taskSignal })
+      .withDependencies({ signal: TASK_SIGNAL_PROVIDER })
       .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
     registry.registerTask(task.name, task)
@@ -149,7 +149,7 @@ describe.sequential('Tasks', () => {
     const future = createFuture<void>()
     const spy = vi.fn(future.resolve)
     const task = testTask()
-      .withDependencies({ signal: taskSignal })
+      .withDependencies({ signal: TASK_SIGNAL_PROVIDER })
       .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
     registry.registerTask(task.name, task)
@@ -177,7 +177,7 @@ describe.sequential('Tasks', () => {
     const task = testTask()
       .withArgs<[number, number]>()
       .withParser((args, kwargs) => {
-        return [parseInt(args[0]), kwargs.value]
+        return [Number.parseInt(args[0]), kwargs.value]
       })
       .withHandler((ctx, ...args) => args)
 

@@ -1,7 +1,7 @@
-import { Application } from '@/application'
-import { Event } from '@/events'
-import { BaseSubscriptionManager, Subscription } from '@/subscription'
-import { testApp } from './_utils'
+import { testApp } from '@test/_utils'
+import type { Application } from './application'
+import type { Event } from './events'
+import { BaseSubscriptionManager, type Subscription } from './subscription'
 
 export class TestSubscriptionManager extends BaseSubscriptionManager {
   name = 'Test subscription manager'

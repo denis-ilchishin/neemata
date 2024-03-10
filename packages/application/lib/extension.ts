@@ -1,4 +1,4 @@
-import { ExtensionApplication, Extra } from './types'
+import type { ExtensionApplication, Extra } from './types'
 
 export abstract class BaseExtension<E extends Extra = {}> {
   readonly _!: {} & E

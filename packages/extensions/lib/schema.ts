@@ -1,8 +1,8 @@
 import fsp from 'node:fs/promises'
 import { BaseExtension, Procedure, match } from '@neematajs/application'
-import { JSONSchema, compile } from 'json-schema-to-typescript'
+import { type JSONSchema, compile } from 'json-schema-to-typescript'
 
-export type SchemaExtensionOptions<> = {
+export type SchemaExtensionOptions = {
   procedureName?: string
   variants?: {
     typescript?: {

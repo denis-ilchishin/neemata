@@ -1,33 +1,41 @@
-import { Api, BaseParser, Procedure } from './api'
+import { Api, type BaseParser, type Procedure } from './api'
 import {
+  CALL_PROVIDER,
+  CONNECTION_PROVIDER,
   Container,
-  Provider,
-  callProvider,
-  connectionProvider,
-  eventManagerProvider,
-  executeProvider,
-  loggerProvider,
+  EVENT_MANAGER_PROVIDER,
+  EXECUTE_PROVIDER,
+  LOGGER_PROVIDER,
+  type Provider,
 } from './container'
-import { Event, EventManager } from './events'
+import { type Event, EventManager } from './events'
 import { BaseExtension } from './extension'
-import { Logger, LoggingOptions, createLogger } from './logger'
+import { type Logger, type LoggingOptions, createLogger } from './logger'
 import {
   APP_COMMAND,
-  BaseCustomLoader,
+  type BaseCustomLoader,
   Registry,
-  RegistryOptions,
+  type RegistryOptions,
 } from './registry'
-import { BasicSubscriptionManager } from './sub-managers/basic'
-import { BaseSubscriptionManager } from './subscription'
-import { BaseTaskRunner, Task, TaskExecution, Tasks } from './tasks'
+import {
+  type BaseSubscriptionManager,
+  BasicSubscriptionManager,
+} from './subscription'
+import {
+  type BaseTaskRunner,
+  type Task,
+  type TaskExecution,
+  Tasks,
+} from './tasks'
 import { BaseTransport } from './transport'
-import { Hook, Merge, OmitFirstItem, WorkerType } from './types'
+import { Hook, type Merge, type OmitFirstItem, WorkerType } from './types'
 
 export type ApplicationOptions = {
   type: WorkerType
   loaders: BaseCustomLoader[]
   api: {
     timeout: number
+    transports: 'any' | 'specified'
     parsers?:
       | BaseParser
       | {
@@ -46,30 +54,23 @@ export type ApplicationOptions = {
   logging?: LoggingOptions
 }
 
-export type ApplicationWorkerOptions = {
-  id: number
-  type: WorkerType
-  tasksRunner?: BaseTaskRunner
-  workerOptions?: any
-}
-
 export class Application<
-  AppTransports extends Record<string, BaseTransport> = {},
-  AppExtensions extends Record<string, BaseExtension> = {},
+  AppTransports extends BaseTransport[] = [],
+  // AppExtensions extends BaseExtension = {},
   AppProcedures extends Record<string, Procedure> = {},
   AppTasks extends Record<string, Task> = {},
   AppEvents extends Record<string, Event> = {},
 > {
   readonly _!: {
     transports: AppTransports
-    connection: AppTransports[keyof AppTransports]['_']['connection']
+    connection: AppTransports[number]['_']['connection']
     procedures: AppProcedures
     tasks: AppTasks
     events: AppEvents
   }
 
-  readonly transports: AppTransports = {} as AppTransports
-  readonly extensions: AppExtensions = {} as AppExtensions
+  readonly transports = new Set<BaseTransport>()
+  readonly extensions = new Set<BaseExtension>()
   readonly api: Api
   readonly tasks: Tasks
   readonly logger: Logger
@@ -82,13 +83,13 @@ export class Application<
     this['_']['connection']
   >()
   readonly providers = {
-    connection: connectionProvider as Provider<
-      AppTransports[keyof AppTransports]['_']['connection']
+    connection: CONNECTION_PROVIDER as Provider<
+      AppTransports[number]['_']['connection']
     >,
-    logger: loggerProvider,
-    call: callProvider,
-    execute: executeProvider,
-    eventManager: eventManagerProvider,
+    logger: LOGGER_PROVIDER,
+    call: CALL_PROVIDER,
+    execute: EXECUTE_PROVIDER,
+    eventManager: EVENT_MANAGER_PROVIDER,
   }
 
   constructor(readonly options: ApplicationOptions) {
@@ -98,16 +99,20 @@ export class Application<
     )
 
     this.registry = new Registry(this, this.options.loaders)
+    this.container = new Container(this)
     this.eventManager = new EventManager(this)
     this.api = new Api(this, this.options.api)
     this.tasks = new Tasks(this, this.options.tasks)
-    this.container = new Container(this)
 
-    this.registerEssential()
+    this.initializeEssential()
     this.registerSubscriptionManager(new BasicSubscriptionManager())
   }
 
   async initialize() {
+    this.container.provide(this.providers.logger, this.logger)
+    this.container.provide(this.providers.eventManager, this.eventManager)
+    this.container.provide(this.providers.execute, this.execute.bind(this))
+
     await this.callHook(Hook.BeforeInitialize)
     await this.registry.load()
     await this.container.load()
@@ -118,7 +123,7 @@ export class Application<
     await this.initialize()
     await this.callHook(Hook.BeforeStart)
     if (this.isApiWorker) {
-      for (const transport of Object.values(this.transports)) {
+      for (const transport of this.transports) {
         await transport
           .start()
           .catch((cause) =>
@@ -132,7 +137,7 @@ export class Application<
   async stop() {
     await this.callHook(Hook.BeforeStop)
     if (this.isApiWorker) {
-      for (const transport of Object.values(this.transports)) {
+      for (const transport of this.transports) {
         await transport
           .stop()
           .catch((cause) =>
@@ -164,7 +169,6 @@ export class Application<
     }
     return this as unknown as Application<
       AppTransports,
-      AppExtensions,
       AppProcedures,
       AppTasks,
       Merge<AppEvents, T>
@@ -177,7 +181,6 @@ export class Application<
     }
     return this as unknown as Application<
       AppTransports,
-      AppExtensions,
       Merge<AppProcedures, T>,
       AppTasks,
       AppEvents
@@ -190,76 +193,47 @@ export class Application<
     }
     return this as unknown as Application<
       AppTransports,
-      AppExtensions,
       AppProcedures,
       Merge<AppTasks, T>,
       AppEvents
     >
   }
 
-  registerTransports<
-    R extends Record<
-      string,
-      BaseTransport | { transport: BaseTransport; options: RegistryOptions }
-    >,
-    T extends Record<string, BaseTransport> = {
-      [K in keyof R]: R[K] extends { transport: BaseTransport }
-        ? R[K]['transport']
-        : R[K] extends BaseTransport
-          ? R[K]
-          : never
-    },
-  >(transports: R) {
-    for (const [alias, entry] of Object.entries(transports)) {
-      const transport = entry instanceof BaseTransport ? entry : entry.transport
-      const options = entry instanceof BaseTransport ? undefined : entry.options
-      if (alias in this.transports)
-        throw new Error('Transport already registered')
-
-      // @ts-expect-error
-      this.transports[alias] = transport
-      this.initExtension(transport, options ?? { namespace: alias })
-    }
+  registerTransport<
+    T extends
+      | BaseTransport
+      | { transport: BaseTransport; options: RegistryOptions },
+  >(entry: T) {
+    const transport = entry instanceof BaseTransport ? entry : entry.transport
+    const options = entry instanceof BaseTransport ? undefined : entry.options
+    if (this.transports.has(transport))
+      throw new Error('Transport already registered')
+    this.transports.add(transport)
+    this.initializeExtension(transport, options)
 
     return this as unknown as Application<
-      Merge<AppTransports, T>,
-      AppExtensions,
+      [
+        ...AppTransports,
+        T extends { transport: BaseTransport } ? T['transport'] : T,
+      ],
       AppProcedures,
       AppTasks,
       AppEvents
     >
   }
 
-  registerExtensions<
-    R extends Record<
-      string,
-      BaseExtension | { extension: BaseExtension; options: RegistryOptions }
-    >,
-    T extends Record<string, BaseExtension> = {
-      [K in keyof R]: R[K] extends { extension: BaseExtension }
-        ? R[K]['extension']
-        : R[K] extends BaseExtension
-          ? R[K]
-          : never
-    },
-  >(extensions: R) {
-    for (const [alias, entry] of Object.entries(extensions)) {
-      const extension = entry instanceof BaseExtension ? entry : entry.extension
-      const options = entry instanceof BaseExtension ? undefined : entry.options
-      if (alias in this.extensions)
-        throw new Error('Extension already registered')
-
-      // @ts-expect-error
-      this.extensions[alias] = extension
-      this.initExtension(extension, options ?? { namespace: alias })
-    }
-    return this as unknown as Application<
-      AppTransports,
-      Merge<AppExtensions, T>,
-      AppProcedures,
-      AppTasks,
-      AppEvents
-    >
+  registerExtension<
+    T extends
+      | BaseExtension
+      | { extension: BaseExtension; options: RegistryOptions },
+  >(entry: T) {
+    const extension = entry instanceof BaseExtension ? entry : entry.extension
+    const options = entry instanceof BaseExtension ? undefined : entry.options
+    if (this.extensions.has(extension))
+      throw new Error('Extension already registered')
+    this.extensions.add(extension)
+    this.initializeExtension(extension, options)
+    return this
   }
 
   registerSubscriptionManager(
@@ -267,12 +241,8 @@ export class Application<
     options?: RegistryOptions,
   ) {
     this.subManager = subManager
-    this.initExtension(subManager, options ?? { namespace: 'subManager' })
+    this.initializeExtension(subManager, options)
     return this
-  }
-
-  createProcedure() {
-    return new Procedure<this>()
   }
 
   private async callHook(
@@ -299,7 +269,10 @@ export class Application<
     }
   }
 
-  private initExtension(extension: BaseExtension, options: RegistryOptions) {
+  private initializeExtension(
+    extension: BaseExtension,
+    options: RegistryOptions = { namespace: APP_COMMAND as unknown as string },
+  ) {
     const logger = this.logger.child({ $group: extension.name })
     extension.assign({
       type: this.options.type,
@@ -311,11 +284,7 @@ export class Application<
     })
   }
 
-  private registerEssential() {
-    this.container.provide(loggerProvider, this.logger)
-    this.container.provide(eventManagerProvider, this.eventManager)
-    this.container.provide(executeProvider, this.execute.bind(this))
-
+  private initializeEssential() {
     const taskCommand = this.tasks.command.bind(this.tasks)
     this.registry.registerCommand(APP_COMMAND, 'task', (arg) =>
       taskCommand(arg),

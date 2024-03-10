@@ -1,9 +1,13 @@
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
-import { Logger, LoggingOptions, createLogger } from './logger'
-import { WorkerMessageType, WorkerType } from './types'
-import { Pool } from './utils/pool'
-import { bindPortMessageHandler } from './utils/threads'
+import {
+  type Logger,
+  type LoggingOptions,
+  Pool,
+  WorkerType,
+  createLogger,
+} from '@neematajs/application'
+import { WorkerMessageType, bindPortMessageHandler } from './common'
 import type { ApplicationWorkerData } from './worker'
 
 export type ApplicationServerOptions = {
@@ -72,7 +76,7 @@ export class ApplicationServer {
 
   private createWorker(type: WorkerType, id: number, options: any) {
     const isTaskWorker = type === WorkerType.Task
-    const execArgv = process.execArgv
+    const execArgv = [...process.execArgv, '--watch']
     const { applicationPath, taskWorkers } = this.options
 
     const workerData: ApplicationWorkerData = {

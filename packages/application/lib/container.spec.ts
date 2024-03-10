@@ -1,7 +1,7 @@
-import { Container, Provider, getProviderScope } from '@/container'
-import { Registry } from '@/registry'
-import { Scope } from '@/types'
-import { testLogger, testProcedure } from './_utils'
+import { testLogger, testProcedure } from '@test/_utils'
+import { Container, Provider, getProviderScope } from './container'
+import { Registry } from './registry'
+import { Scope } from './types'
 
 describe.sequential('Provider', () => {
   let provider: Provider

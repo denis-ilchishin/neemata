@@ -38,15 +38,6 @@ export enum WorkerType {
   Task = 'Task',
 }
 
-export enum WorkerMessageType {
-  Ready = 'Ready',
-  Start = 'Start',
-  Stop = 'Stop',
-  ExecuteInvoke = 'ExecuteInvoke',
-  ExecuteResult = 'ExecuteResult',
-  ExecuteAbort = 'ExecuteAbort',
-}
-
 export type Callback = (...args: any[]) => any
 export type Pattern = RegExp | string | ((value: string) => boolean)
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
@@ -85,19 +76,9 @@ export type MiddlewareFn<App extends AnyApplication = AnyApplication> = (
   payload: any,
 ) => any
 
-export type Guard<App extends AnyApplication = AnyApplication> = Provider<
-  GuardFn<App>
->
-
-export type Filter<T extends ErrorClass = ErrorClass> = Provider<FilterFn<T>>
-
-export type Middleware<App extends AnyApplication = AnyApplication> = Provider<
-  MiddlewareFn<App>
->
-
 export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
-export type AnyApplication = Application<any, any, any, any, any>
+export type AnyApplication = Application<any, any, any, any>
 
 export type AnyProvider = Provider<any, any, any>
 export type AnyProcedure = Procedure<any, any, any, any>
@@ -174,15 +155,6 @@ export type Scalars = Primitive | Primitive[]
 export type GlobalContext = {
   logger: Logger
 }
-
-export type Filters = Map<ErrorClass, Filter<ErrorClass>>
-export type Middlewares = Set<Middleware>
-export type Guards = Set<Guard>
-export type Commands<T extends string | symbol = string | symbol> = Map<
-  T,
-  Map<string, Command>
->
-export type Hooks = Map<string, Set<(...args: any[]) => any>>
 
 export type CallFn = <P extends Procedure>(
   procedure: P,

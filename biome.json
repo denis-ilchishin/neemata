@@ -16,7 +16,8 @@
         "noInferrableTypes": "off",
         "useTemplate": "off",
         "noUselessElse": "off",
-        "useDefaultParameterLast": "off"
+        "useDefaultParameterLast": "off",
+        "noParameterAssign": "off"
       },
       "suspicious": { "noExplicitAny": "off", "noAssignInExpressions": "off" },
       "security": {

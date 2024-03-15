@@ -73,6 +73,14 @@ describe.sequential('Application Worker', () => {
     bindPortMessageHandler(port1)
   })
 
+  it('should inject default worker options', () => {
+    expect(injectWorkerOptions()).toEqual({
+      id: 0,
+      isServer: false,
+      workerType: WorkerType.Api,
+    })
+  })
+
   it('should start api worker', async () => {
     const initializeSpy = vi.spyOn(app, 'initialize')
     const startSpy = vi.spyOn(app, 'start')
@@ -80,38 +88,11 @@ describe.sequential('Application Worker', () => {
 
     const workerData: ApplicationWorkerData = {
       id: 1,
-      type: WorkerType.Api,
+      workerType: WorkerType.Api,
       applicationPath: applicationPath,
       hasTaskRunners: false,
       workerOptions: ['workerOpt'],
-    }
-    await expect(startWorker(mPort, workerData)).resolves.toBe(app)
-    worker.postMessage({ type: WorkerMessageType.Start })
-    await once(worker, WorkerMessageType.Ready)
-    worker.postMessage({ type: WorkerMessageType.Stop })
-    await once(worker, 'exit')
-
-    expect(initializeSpy).toHaveBeenCalledOnce()
-    expect(startSpy).toHaveBeenCalledOnce()
-    expect(stopSpy).toHaveBeenCalledOnce()
-    expect(injectWorkerOptions()).toEqual({
-      id: 1,
-      type: WorkerType.Api,
-      workerOptions: ['workerOpt'],
-    })
-  })
-
-  it('should initialize/start/stop task worker', async () => {
-    const initializeSpy = vi.spyOn(app, 'initialize')
-    const startSpy = vi.spyOn(app, 'start')
-    const stopSpy = vi.spyOn(app, 'stop')
-
-    const workerData: ApplicationWorkerData = {
-      id: 1,
-      type: WorkerType.Task,
-      applicationPath: applicationPath,
-      hasTaskRunners: false,
-      workerOptions: ['workerOpt'],
+      isServer: true,
     }
     await expect(startWorker(mPort, workerData)).resolves.toBe(app)
     worker.postMessage({ type: WorkerMessageType.Start })
@@ -124,18 +105,51 @@ describe.sequential('Application Worker', () => {
     expect(stopSpy).toHaveBeenCalledOnce()
     expect(injectWorkerOptions()).toEqual({
       id: workerData.id,
-      type: workerData.type,
+      isServer: workerData.isServer,
+      workerType: workerData.workerType,
       workerOptions: workerData.workerOptions,
+    })
+  })
+
+  it('should initialize/start/stop task worker', async () => {
+    const initializeSpy = vi.spyOn(app, 'initialize')
+    const startSpy = vi.spyOn(app, 'start')
+    const stopSpy = vi.spyOn(app, 'stop')
+
+    const workerData: ApplicationWorkerData = {
+      id: 1,
+      workerType: WorkerType.Task,
+      applicationPath: applicationPath,
+      hasTaskRunners: false,
+      workerOptions: ['workerOpt'],
+      isServer: true,
+    }
+    await expect(startWorker(mPort, workerData)).resolves.toBe(app)
+    worker.postMessage({ type: WorkerMessageType.Start })
+    await once(worker, WorkerMessageType.Ready)
+    worker.postMessage({ type: WorkerMessageType.Stop })
+    await once(worker, 'exit')
+
+    expect(initializeSpy).toHaveBeenCalledOnce()
+    expect(startSpy).toHaveBeenCalledOnce()
+    expect(stopSpy).toHaveBeenCalledOnce()
+    expect(injectWorkerOptions()).toEqual({
+      id: workerData.id,
+      isServer: workerData.isServer,
+      workerType: workerData.workerType,
+      workerOptions: workerData.workerOptions,
+      taskRunner: workerData.tasksRunner,
     })
   })
 
   it('should fail task execution invocation ', async () => {
     const workerData: ApplicationWorkerData = {
       id: 1,
-      type: WorkerType.Task,
+      workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
       workerOptions: ['workerOpt'],
+      isServer: true,
     }
     startWorker(mPort, workerData)
     const id = 'test'
@@ -165,10 +179,11 @@ describe.sequential('Application Worker', () => {
     app.registry.registerTask(task.name, task)
     const workerData: ApplicationWorkerData = {
       id: 1,
-      type: WorkerType.Task,
+      workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
       workerOptions: ['workerOpt'],
+      isServer: true,
     }
     startWorker(mPort, workerData)
     const executeSpy = vi.spyOn(app, 'execute')
@@ -202,9 +217,10 @@ describe.sequential('Application Worker', () => {
     app.registry.registerTask(task.name, task)
     const workerData: ApplicationWorkerData = {
       id: 1,
-      type: WorkerType.Task,
+      workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
+      isServer: true,
     }
     startWorker(mPort, workerData)
     const id = 'task execution abortion'

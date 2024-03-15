@@ -41,7 +41,8 @@ export const injectWorkerOptions = (): ApplicationWorkerOptions => {
   return (
     globalThis[WORKER_OPTIONS_KEY] ?? {
       id: 0,
-      type: WorkerType.Api,
+      workerType: WorkerType.Api,
+      isServer: false,
     }
   )
 }

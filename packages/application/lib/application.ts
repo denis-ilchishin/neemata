@@ -28,7 +28,13 @@ import {
   Tasks,
 } from './tasks'
 import { BaseTransport } from './transport'
-import { Hook, type Merge, type OmitFirstItem, WorkerType } from './types'
+import {
+  Hook,
+  type Merge,
+  type OmitFirstItem,
+  Scope,
+  WorkerType,
+} from './types'
 
 export type ApplicationOptions = {
   type: WorkerType
@@ -99,8 +105,21 @@ export class Application<
     )
 
     this.registry = new Registry(this, this.options.loaders)
-    this.container = new Container(this)
+
     this.eventManager = new EventManager(this)
+
+    // create hidden container for internal providers
+    // never gets disposed
+    const container = new Container(this)
+
+    container.provide(this.providers.logger, this.logger)
+    container.provide(this.providers.eventManager, this.eventManager)
+    container.provide(this.providers.execute, this.execute.bind(this))
+
+    // create a global container for rest of the application
+    // including transports, extensions, etc.
+    this.container = container.createScope(Scope.Global)
+
     this.api = new Api(this, this.options.api)
     this.tasks = new Tasks(this, this.options.tasks)
 
@@ -109,10 +128,6 @@ export class Application<
   }
 
   async initialize() {
-    this.container.provide(this.providers.logger, this.logger)
-    this.container.provide(this.providers.eventManager, this.eventManager)
-    this.container.provide(this.providers.execute, this.execute.bind(this))
-
     await this.callHook(Hook.BeforeInitialize)
     await this.registry.load()
     await this.container.load()
@@ -287,7 +302,9 @@ export class Application<
   private initializeEssential() {
     const taskCommand = this.tasks.command.bind(this.tasks)
     this.registry.registerCommand(APP_COMMAND, 'task', (arg) =>
-      taskCommand(arg),
+      taskCommand(arg).then(({ error }) => {
+        if (error) this.logger.error(error)
+      }),
     )
   }
 

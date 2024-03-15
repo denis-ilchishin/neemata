@@ -1,8 +1,8 @@
-import swc from '@swc/core'
 import { readFile } from 'node:fs/promises'
 import { isBuiltin } from 'node:module'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import swc from '@swc/core'
 import { createMatchPath, loadConfig } from 'tsconfig-paths'
 
 const tsExtensions = ['.mts', '.cts', '.ts']
@@ -36,7 +36,6 @@ const toFileUrl = (val, parentURL) => {
 }
 
 const isTs = (path) => {
-  // biome-ignore lint/style/noParameterAssign:
   path = isFileUrl(path) ? new URL(path).pathname : path
   const [_, ...extensions] = basename(path).split('.')
   const toExtname = (parts) => `.${parts.join('.')}`
@@ -51,12 +50,13 @@ const transform = async (specifier) => {
   const url = isFileUrl(specifier)
     ? new URL(specifier)
     : pathToFileURL(specifier)
-  const contents = await fileContents(fileURLToPath(url))
+  const path = fileURLToPath(url)
+  const contents = await fileContents(path)
   const { code } = await swc.transform(contents, {
     module: { type: 'nodenext', ignoreDynamic: true },
-    filename: fileURLToPath(url),
+    filename: path,
     isModule: true,
-    sourceFileName: fileURLToPath(url),
+    sourceFileName: path,
     sourceMaps: 'inline',
     minify: false,
     jsc: {

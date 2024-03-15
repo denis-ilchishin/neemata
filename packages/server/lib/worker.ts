@@ -1,16 +1,15 @@
-import {
-  WorkerType,
-  watchApp,
-  type Application,
-  type BaseTaskRunner,
-} from '@neematajs/application'
 import { register } from 'node:module'
 import {
+  type MessagePort,
   isMainThread,
   parentPort,
   workerData,
-  type MessagePort,
 } from 'node:worker_threads'
+import {
+  type Application,
+  type BaseTaskRunner,
+  WorkerType,
+} from '@neematajs/application'
 import {
   WorkerMessageType,
   bindPortMessageHandler,
@@ -23,8 +22,9 @@ export const importDefault = (specifier: any) =>
   import(`${specifier}`).then((m) => m.default)
 
 export type ApplicationWorkerOptions = {
-  id: number
-  type: WorkerType
+  isServer: boolean
+  workerType: WorkerType
+  id?: number
   tasksRunner?: BaseTaskRunner
   workerOptions?: any
 }
@@ -40,15 +40,15 @@ export async function start(
   parentPort: MessagePort,
   workerData: ApplicationWorkerData,
 ) {
-  const { id, workerOptions, applicationPath, type, hasTaskRunners } =
+  const { id, workerOptions, applicationPath, workerType, hasTaskRunners } =
     workerData
 
-  const { NEEMATA_SWC, NEEMATA_WATCH } = process.env
+  const { NEEMATA_SWC } = process.env
 
   if (NEEMATA_SWC) register(NEEMATA_SWC)
 
-  const isApiWorker = type === WorkerType.Api
-  const isTaskWorker = type === WorkerType.Task
+  const isApiWorker = workerType === WorkerType.Api
+  const isTaskWorker = workerType === WorkerType.Task
   const tasksRunner =
     isApiWorker && hasTaskRunners
       ? new WorkerThreadsTaskRunner(parentPort)
@@ -56,17 +56,16 @@ export async function start(
 
   providerWorkerOptions({
     id,
-    type,
+    workerType,
     workerOptions,
     tasksRunner,
+    isServer: true,
   })
 
   const app: Application = await importDefault(applicationPath)
 
   process.on('uncaughtException', (err) => app.logger.error(err))
   process.on('unhandledRejection', (err) => app.logger.error(err))
-
-  if (NEEMATA_WATCH) watchApp(NEEMATA_WATCH, app, applicationPath)
 
   bindPortMessageHandler(parentPort)
 

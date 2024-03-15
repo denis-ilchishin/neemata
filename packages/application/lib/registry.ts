@@ -101,7 +101,6 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
-    // biome-ignore lint/style/noParameterAssign:
     name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (typeof procedure.handler !== 'function')
@@ -121,7 +120,6 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
-    // biome-ignore lint/style/noParameterAssign:
     name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (typeof task.handler !== 'function')
@@ -143,7 +141,6 @@ export class Registry {
     path?: string,
     exportName?: string,
   ) {
-    // biome-ignore lint/style/noParameterAssign:
     name = this.options?.prefix ? `${this.options?.prefix}/${name}` : name
 
     if (this.events.has(name))
@@ -168,7 +165,6 @@ export class Registry {
     let namespace: string | symbol
     let command: string
     if (this.options?.namespace) {
-      // biome-ignore lint/style/noParameterAssign:
       callback = commandOrCallback as Command
       namespace = this.options.namespace
       command = namespaceOrCommand as string

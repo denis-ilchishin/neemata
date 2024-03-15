@@ -102,11 +102,12 @@ export class Tasks {
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const future = createFuture()
     const task = this.application.registry.task(name)
-    if (!task) throw new Error('Task not found')
 
     onAbort(ac.signal, future.reject)
 
     defer(async () => {
+      if (!task) throw new Error('Task not found')
+
       ac.signal.throwIfAborted()
 
       if (this.options.runner)
@@ -126,18 +127,18 @@ export class Tasks {
     return Object.assign(
       future.promise
         .then((result) => ({ result }))
-        .catch((error = new Error('Undefined error')) => ({ error })),
+        .catch((error = new Error('Task execution')) => ({ error })),
       { abort },
     )
   }
 
-  command({ args, kwargs }) {
+  async command({ args, kwargs }) {
     const [name, ...taskArgs] = args
     const task = this.application.registry.task(name)
     if (!task) throw new Error('Task not found')
     const { parser } = task
     const parsedArgs = parser ? parser(taskArgs, kwargs) : []
-    return this.execute(name, ...parsedArgs)
+    return await this.execute(name, ...parsedArgs)
   }
 
   private handleTermination(

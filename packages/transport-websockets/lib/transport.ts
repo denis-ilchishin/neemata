@@ -9,7 +9,9 @@ import type { WebsocketsTransportOptions } from './types'
 export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
-  HttpTransportConnection | WebsocketsTransportConnection
+  Options['enableHttp'] extends true
+    ? HttpTransportConnection | WebsocketsTransportConnection
+    : WebsocketsTransportConnection
 > {
   name = 'Websockets Transport'
   server!: WebsocketsTransportServer

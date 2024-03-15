@@ -239,9 +239,9 @@ export class Container {
     } else {
       const { value, factory, scope, dependencies, options } = provider
       if (typeof value !== 'undefined') return Promise.resolve(value)
-      const isStricter = ScopeStrictness[this.scope] > ScopeStrictness[scope]
-      if (this.parent && isStricter && this.parent.isResolved(provider))
+      if (this.parent?.isResolved(provider))
         return this.parent.resolve(provider)
+      // if (typeof factory !== 'function') console.log(provider)
       const resolution = this.createContext(dependencies)
         .then((ctx) => factory(ctx, options))
         .then((instance) => {

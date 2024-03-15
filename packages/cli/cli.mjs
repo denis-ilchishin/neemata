@@ -1,18 +1,16 @@
 #!/usr/bin/env node --enable-source-maps
 
+import { register } from 'node:module'
+import { resolve } from 'node:path'
+import repl from 'node:repl'
+import { parseArgs } from 'node:util'
 import {
   APP_COMMAND,
   Application,
   WorkerType,
   defer,
   importDefault,
-  watchApp,
 } from '@neematajs/application'
-import dotenv from 'dotenv'
-import { register } from 'node:module'
-import { resolve } from 'node:path'
-import repl from 'node:repl'
-import { parseArgs } from 'node:util'
 
 /** @type {import('@neematajs/server')} */
 const NeemataServer = await import('@neematajs/server').catch(() => null)
@@ -30,25 +28,11 @@ const { values, positionals } = parseArgs({
       type: 'boolean',
       multiple: false,
     },
-    env: {
-      type: 'string',
-      short: 'e',
-      multiple: true,
-    },
   },
 })
 
 const [command, ...args] = positionals
 const { env, entry, swc, ...kwargs } = values
-
-if (env) {
-  for (const path of env) {
-    if (typeof path === 'string') {
-      const { error } = dotenv.config({ path: resolve(path) })
-      if (error) throw error
-    }
-  }
-}
 
 const entryPath = resolve(
   process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.ts'),
@@ -97,17 +81,17 @@ const { logger } = entryApp
 process.on('uncaughtException', (error) => logger.error(error))
 process.on('unhandledRejection', (error) => logger.error(error))
 
-const loadApp = async () => {
+const loadApp = async (workerType) => {
   /** @type {Application} */
   let app
 
   if (NeemataServer && entryApp instanceof NeemataServer.ApplicationServer) {
     const { applicationPath } = entryApp.options
-    const type = WorkerType.Task
     /** @type {import('@neematajs/server').ApplicationWorkerOptions} */
     const options = {
       id: 0,
-      type,
+      workerType,
+      isServer: false,
     }
     NeemataServer.providerWorkerOptions(options)
     app = await importDefault(applicationPath)
@@ -125,17 +109,8 @@ const commands = {
     process.on('SIGINT', terminate)
     entryApp.start()
   },
-  watch() {
-    const url = new URL('./watch.mjs', import.meta.url)
-    if (entryApp instanceof Application) {
-      watchApp(url.toString(), entryApp, entryPath)
-    } else {
-      process.env.NEEMATA_WATCH = url.toString()
-    }
-    this.start()
-  },
   async execute() {
-    const app = await loadApp()
+    const app = await loadApp(WorkerType.Task)
 
     const [inputCommand, ...commandArgs] = args
 
@@ -149,7 +124,7 @@ const commands = {
     const command = app.registry.commands
       .get(extension ?? APP_COMMAND)
       ?.get(commandName)
-    if (!command) throw new Error('Command not found')
+    if (!command) throw new Error(`Unknown application command: ${commandName}`)
 
     const terminate = () => tryExit(() => defer(() => app.stop()))
 
@@ -160,11 +135,14 @@ const commands = {
     await command({ args: commandArgs, kwargs }).finally(terminate)
   },
   async repl() {
-    const app = await loadApp()
+    const app = await loadApp(WorkerType.Api)
     await app.initialize()
     globalThis.app = app
     repl.start({ useGlobal: true })
   },
 }
+
+if (command in commands === false)
+  throw new Error(`Unknown CLI command: ${command}`)
 
 commands[command]()

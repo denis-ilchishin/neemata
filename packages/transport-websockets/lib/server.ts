@@ -690,7 +690,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     stream.on('error', () => tryRespond(() => res.close()))
     stream.on('end', () => tryRespond(() => res.end()))
     stream.on('data', (chunk) => {
-      // biome-ignore lint/style/noParameterAssign:
       chunk = encodeText(chunk + '\n')
       const arrayBuffer = chunk.buffer.slice(
         chunk.byteOffset,

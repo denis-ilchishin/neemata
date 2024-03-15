@@ -1,12 +1,12 @@
+import { join } from 'node:path'
+import { Worker } from 'node:worker_threads'
 import {
+  type Logger,
+  type LoggingOptions,
   Pool,
   WorkerType,
   createLogger,
-  type Logger,
-  type LoggingOptions,
 } from '@neematajs/application'
-import { join } from 'node:path'
-import { Worker } from 'node:worker_threads'
 import { WorkerMessageType, bindPortMessageHandler } from './common'
 import type { ApplicationWorkerData } from './worker'
 
@@ -82,9 +82,10 @@ export class ApplicationServer {
     const workerData: ApplicationWorkerData = {
       applicationPath: applicationPath.toString(),
       id,
-      type,
+      workerType: type,
       workerOptions: options,
       hasTaskRunners: !!taskWorkers,
+      isServer: true,
     }
 
     const worker = new Worker(join(__dirname, 'worker'), {

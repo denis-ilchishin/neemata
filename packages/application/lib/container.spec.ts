@@ -42,15 +42,6 @@ describe.sequential('Provider', () => {
     expect(newProvider).not.toBe(provider)
   })
 
-  it('should clone with a options', () => {
-    let newProvider = provider.withOptions({ some: 'option' })
-    expect(newProvider.options).to.deep.eq({ some: 'option' })
-    expect(newProvider).not.toBe(provider)
-    newProvider = provider.withOptions({ some: 'option', other: 'option' })
-    expect(newProvider.options).to.deep.eq({ some: 'option', other: 'option' })
-    expect(newProvider.scope).not.toBe(Scope.Transient)
-  })
-
   it('should clone with a dependencies', () => {
     const dep1 = new Provider().withValue('dep1')
     const dep2 = new Provider().withValue('dep2')
@@ -68,11 +59,6 @@ describe.sequential('Provider', () => {
   it('should clone with a description', () => {
     const newProvider = provider.withDescription('description')
     expect(newProvider.description).toBe('description')
-    expect(newProvider).not.toBe(provider)
-  })
-
-  it('should clone with options type', () => {
-    const newProvider = provider.withOptionsType<number>().withOptions(1)
     expect(newProvider).not.toBe(provider)
   })
 })
@@ -118,16 +104,16 @@ describe.sequential('Container', () => {
     const dep1 = new Provider().withValue('dep1')
     const dep2 = new Provider()
       .withDependencies({ dep1 })
-      .withFactory(({ dep1 }) => ({ dep1 }))
+      .withFactory((deps) => deps)
     const dep3 = new Provider().withFactory(() => 'dep3')
     const provider = new Provider()
-      .withDependencies({ dep2, dep3 })
-      .withFactory(({ ...deps }) => deps)
+      .withDependencies({ dep2, dep3, dep4: dep3.optional() })
+      .withFactory((deps) => deps)
     const deps = await container.resolve(provider)
     expect(deps).toHaveProperty('dep2')
     expect(deps).toHaveProperty('dep3')
-    expect(deps).toHaveProperty('dep2.dep1')
-    expect(deps.dep2.dep1).toBe('dep1')
+    expect(deps).toHaveProperty('dep4', deps.dep3)
+    expect(deps).toHaveProperty('dep2.dep1', 'dep1')
   })
 
   it('should dispose', async () => {
@@ -138,12 +124,6 @@ describe.sequential('Container', () => {
     await container.resolve(provider)
     await container.dispose()
     expect(spy).toHaveBeenCalledOnce()
-  })
-
-  it('should provide with options', async () => {
-    const options = {}
-    const provider = new Provider().withFactory((ctx, options) => options)
-    expect(await container.resolve(provider.withOptions(options))).toBe(options)
   })
 
   it('should be cached', async () => {

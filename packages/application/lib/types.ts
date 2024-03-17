@@ -80,8 +80,8 @@ export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
 export type AnyApplication = Application<any, any, any, any>
 
-export type AnyProvider = Provider<any, any, any>
-export type AnyProcedure = Procedure<any, any, any, any>
+export type AnyProvider = Provider<any, any>
+export type AnyProcedure = Procedure<any, any, any, any, any>
 export type AnyTask = Task<any, any, any>
 export type AnyEvent = Event<any, any, any>
 

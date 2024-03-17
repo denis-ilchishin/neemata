@@ -5,6 +5,7 @@ import {
   testTask,
   testTransport,
 } from '@test/_utils'
+import { Guard, Middleware } from './api'
 import { Application } from './application'
 import { Provider } from './container'
 import type { FilterFn, GuardFn, MiddlewareFn } from './types'
@@ -64,13 +65,15 @@ describe.sequential('Application', () => {
   })
 
   it('should register guard', () => {
-    const guard = new Provider().withValue((() => true) as GuardFn)
+    const guard = new Guard().withValue((() => true) as GuardFn)
     app.registry.registerGuard(guard)
     expect(app.registry.guards.has(guard)).toBe(true)
   })
 
   it('should register middleware', () => {
-    const middleware = new Provider().withValue((() => void 0) as MiddlewareFn)
+    const middleware = new Middleware().withValue(
+      (() => void 0) as MiddlewareFn,
+    )
     app.registry.registerMiddleware(middleware)
     expect(app.registry.middlewares.has(middleware)).toBe(true)
   })

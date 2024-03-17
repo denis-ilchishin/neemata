@@ -79,8 +79,8 @@ export class Procedure<
   _!: {
     input: ProcedureInput
     output: ProcedureOutput
-    middlewares: Middleware[]
-    guards: Guard[]
+    middlewares: AnyMiddleware[]
+    guards: AnyGuard[]
     options: Extra
     timeout: number
     description: string
@@ -549,11 +549,15 @@ export class Api {
 
 export class Guard<
   App extends AnyApplication = AnyApplication,
-> extends Provider<GuardFn<App>> {}
+  Deps extends Dependencies = {},
+> extends Provider<GuardFn<App>, Deps> {}
+export type AnyGuard = Guard<AnyApplication, any>
 
 export class Middleware<
   App extends AnyApplication = AnyApplication,
-> extends Provider<MiddlewareFn<App>> {}
+  Deps extends Dependencies = {},
+> extends Provider<MiddlewareFn<App>, Deps> {}
+export type AnyMiddleware = Middleware<AnyApplication, any>
 
 export class Filter<Error extends ErrorClass = ErrorClass> extends Provider<
   FilterFn<Error>

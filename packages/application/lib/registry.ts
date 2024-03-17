@@ -1,4 +1,11 @@
-import type { Filter, Guard, Middleware, Procedure } from './api'
+import type {
+  AnyGuard,
+  AnyMiddleware,
+  Filter,
+  Guard,
+  Middleware,
+  Procedure,
+} from './api'
 import { type Depender, type Provider, getProviderScope } from './container'
 import type { Event } from './events'
 import type { Logger } from './logger'
@@ -184,11 +191,11 @@ export class Registry {
     this.filters.set(errorClass, filter)
   }
 
-  registerMiddleware(middleware: Middleware) {
+  registerMiddleware(middleware: AnyMiddleware) {
     this.middlewares.add(middleware)
   }
 
-  registerGuard(guard: Guard) {
+  registerGuard(guard: AnyGuard) {
     this.guards.add(guard)
   }
 

@@ -1,4 +1,5 @@
 import { testApp } from '@test/_utils'
+import { Filter, Middleware } from './api'
 import type { Application } from './application'
 import { Provider } from './container'
 import { BaseExtension } from './extension'
@@ -75,13 +76,13 @@ describe.sequential('Extension', () => {
   })
 
   it('should register filters', async () => {
-    const filter = new Provider().withValue((() => new Error()) as FilterFn)
+    const filter = new Filter().withValue((() => new Error()) as FilterFn)
     extension.application.registry.registerFilter(Error, filter)
     expect(app.registry.filters.get(Error)).toBe(filter)
   })
 
   it('should register middleware', async () => {
-    const middleware = new Provider().withValue(noop as MiddlewareFn)
+    const middleware = new Middleware().withValue(noop as MiddlewareFn)
     extension.application.registry.registerMiddleware(middleware)
     expect(app.registry.middlewares.has(middleware)).toBe(true)
   })

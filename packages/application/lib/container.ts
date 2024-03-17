@@ -20,8 +20,12 @@ const ScopeStrictness = {
 
 export function getProviderScope(provider: AnyProvider) {
   let scope = provider.scope
-  for (const dependency of Object.values<AnyProvider>(provider.dependencies)) {
-    const dependencyScope = getProviderScope(dependency)
+  for (const dependency of Object.values(
+    provider.dependencies as Dependencies,
+  )) {
+    const provider =
+      dependency instanceof Provider ? dependency : dependency.provider
+    const dependencyScope = getProviderScope(provider)
     if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
       scope = dependencyScope
     }
@@ -141,14 +145,14 @@ export class Provider<
     }
   }
 
-  async resolve(
+  resolve(
     ...args: keyof ProviderDeps extends never
       ? []
       : [DependencyContext<ProviderDeps>]
   ) {
     if (this.value) return this.value
     const [ctx = {}] = args
-    return await this.factory(ctx as any)
+    return this.factory(ctx as any)
   }
 }
 

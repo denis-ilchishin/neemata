@@ -179,7 +179,7 @@ describe.sequential('Api', () => {
 
   const call = (
     options: Pick<ProcedureCallOptions, 'procedure'> &
-      Partial<ProcedureCallOptions>,
+      Partial<Omit<ProcedureCallOptions, 'procedure'>>,
   ) =>
     api.call({
       container,

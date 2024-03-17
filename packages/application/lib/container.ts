@@ -20,8 +20,12 @@ const ScopeStrictness = {
 
 export function getProviderScope(provider: AnyProvider) {
   let scope = provider.scope
-  for (const dependency of Object.values<AnyProvider>(provider.dependencies)) {
-    const dependencyScope = getProviderScope(dependency)
+  for (const dependency of Object.values(
+    provider.dependencies as Dependencies,
+  )) {
+    const provider =
+      dependency instanceof Provider ? dependency : dependency.provider
+    const dependencyScope = getProviderScope(provider)
     if (ScopeStrictness[dependencyScope] > ScopeStrictness[scope]) {
       scope = dependencyScope
     }
@@ -29,7 +33,10 @@ export function getProviderScope(provider: AnyProvider) {
   return scope
 }
 
-export type Dependencies = Record<string, AnyProvider>
+export type Dependencies = Record<
+  string,
+  AnyProvider | { isOptional: true; provider: AnyProvider }
+>
 
 export type ResolveProviderType<T extends Provider> = Awaited<T['value']>
 
@@ -38,31 +45,38 @@ export interface Depender<Deps extends Dependencies = {}> {
 }
 
 export type DependencyContext<Deps extends Dependencies> = {
-  [K in keyof Deps]: ResolveProviderType<Deps[K]>
+  [K in keyof Deps as Deps[K] extends AnyProvider
+    ? K
+    : never]: Deps[K] extends AnyProvider ? ResolveProviderType<Deps[K]> : never
+} & {
+  [K in keyof Deps as Deps[K] extends {
+    isOptional: true
+    provider: AnyProvider
+  }
+    ? K
+    : never]?: Deps[K] extends {
+    isOptional: true
+    provider: AnyProvider
+  }
+    ? ResolveProviderType<Deps[K]['provider']>
+    : never
 }
 
 export type ProviderFactoryType<
   ProviderType,
-  ProviderOptions,
   ProviderDeps extends Dependencies,
-> = (
-  injections: DependencyContext<ProviderDeps>,
-  options: ProviderOptions,
-) => ProviderType
+> = (injections: DependencyContext<ProviderDeps>) => ProviderType
 
 export type ProviderDisposeType<
   ProviderType,
-  ProviderOptions,
   ProviderDeps extends Dependencies,
 > = (
   instance: Awaited<ProviderType>,
   ctx: DependencyContext<ProviderDeps>,
-  options: ProviderOptions,
 ) => any
 
 export class Provider<
   ProviderValue = any,
-  ProviderOptions = unknown,
   ProviderDeps extends Dependencies = {},
 > implements Depender<ProviderDeps>
 {
@@ -79,56 +93,34 @@ export class Provider<
   readonly value!: ProviderValue
   readonly dependencies: ProviderDeps = {} as ProviderDeps
   readonly scope: Scope = Scope.Global
-  readonly factory!: ProviderFactoryType<
-    ProviderValue,
-    ProviderOptions,
-    ProviderDeps
-  >
-  readonly dispose?: ProviderDisposeType<
-    ProviderValue,
-    ProviderOptions,
-    ProviderDeps
-  >
-  readonly options!: ProviderOptions
+  readonly factory!: ProviderFactoryType<ProviderValue, ProviderDeps>
+  readonly dispose?: ProviderDisposeType<ProviderValue, ProviderDeps>
   readonly description!: string
 
   withDependencies<Deps extends Dependencies>(dependencies: Deps) {
-    const provider = new Provider<
-      ProviderValue,
-      ProviderOptions,
-      Merge<ProviderDeps, Deps>
-    >()
+    const provider = new Provider<ProviderValue, Merge<ProviderDeps, Deps>>()
     return Provider.override(provider, this, {
       dependencies: merge(this.dependencies, dependencies),
     })
   }
 
   withScope<S extends Scope>(scope: S) {
-    const provider = new Provider<
-      ProviderValue,
-      ProviderOptions,
-      ProviderDeps
-    >()
+    const provider = new Provider<ProviderValue, ProviderDeps>()
     return Provider.override(provider, this, { scope })
   }
 
-  withOptionsType<Options>() {
-    const provider = new Provider<ProviderValue, Options, ProviderDeps>()
-    return Provider.override(provider, this)
-  }
-
   withFactory<
-    F extends ProviderFactoryType<ProviderValue, ProviderOptions, ProviderDeps>,
+    F extends ProviderFactoryType<ProviderValue, ProviderDeps>,
     T extends Awaited<ReturnType<F>>,
   >(factory: F) {
-    const provider = new Provider<T, ProviderOptions, ProviderDeps>()
+    const provider = new Provider<T, ProviderDeps>()
     return Provider.override(provider, this, { factory, value: undefined })
   }
 
   withValue<T extends ProviderValue extends never ? any : ProviderValue>(
     value: T,
   ) {
-    const provider = new Provider<T, ProviderOptions, ProviderDeps>()
+    const provider = new Provider<T, ProviderDeps>()
     return Provider.override(provider, this, {
       value,
       factory: undefined,
@@ -137,30 +129,30 @@ export class Provider<
   }
 
   withDisposal(dispose: this['dispose']) {
-    const provider = new Provider<
-      ProviderValue,
-      ProviderOptions,
-      ProviderDeps
-    >()
+    const provider = new Provider<ProviderValue, ProviderDeps>()
     return Provider.override(provider, this, { dispose })
   }
 
-  withOptions(options: ProviderOptions) {
-    const provider = new Provider<
-      ProviderValue,
-      ProviderOptions,
-      ProviderDeps
-    >()
-    return Provider.override(provider, this, { options })
+  withDescription(description: string) {
+    const provider = new Provider<ProviderValue, ProviderDeps>()
+    return Provider.override(provider, this, { description })
   }
 
-  withDescription(description: string) {
-    const provider = new Provider<
-      ProviderValue,
-      ProviderOptions,
-      ProviderDeps
-    >()
-    return Provider.override(provider, this, { description })
+  optional() {
+    return {
+      isOptional: true as const,
+      provider: this as Provider<ProviderValue, ProviderDeps>,
+    }
+  }
+
+  resolve(
+    ...args: keyof ProviderDeps extends never
+      ? []
+      : [DependencyContext<ProviderDeps>]
+  ) {
+    if (this.value) return this.value
+    const [ctx = {}] = args
+    return this.factory(ctx as any)
   }
 }
 
@@ -182,8 +174,10 @@ export class Container {
     const traverse = (dependencies: Dependencies) => {
       for (const key in dependencies) {
         const depender = dependencies[key]
-        this.providers.add(depender)
-        traverse(depender.dependencies)
+        const provider =
+          depender instanceof Provider ? depender : depender.provider
+        this.providers.add(provider)
+        traverse(provider.dependencies)
       }
     }
 
@@ -204,11 +198,11 @@ export class Container {
     // to prevent first disposal of a provider
     // that other disposing provider depends on
     this.application.logger.trace('Disposing [%s] scope context...', this.scope)
-    for (const [{ dispose, options, dependencies }, value] of this.instances) {
+    for (const [{ dispose, dependencies }, value] of this.instances) {
       if (dispose) {
         try {
           const ctx = await this.createContext(dependencies)
-          await dispose(value, ctx, options)
+          await dispose(value, ctx)
         } catch (cause) {
           this.application.logger.error(
             new Error('Context disposal error. Potential memory leak', {
@@ -237,13 +231,12 @@ export class Container {
     } else if (this.resolvers.has(provider)) {
       return this.resolvers.get(provider)!
     } else {
-      const { value, factory, scope, dependencies, options } = provider
+      const { value, factory, scope, dependencies } = provider
       if (typeof value !== 'undefined') return Promise.resolve(value)
       if (this.parent?.isResolved(provider))
         return this.parent.resolve(provider)
-      // if (typeof factory !== 'function') console.log(provider)
       const resolution = this.createContext(dependencies)
-        .then((ctx) => factory(ctx, options))
+        .then((ctx) => factory(ctx))
         .then((instance) => {
           if (ScopeStrictness[this.scope] >= ScopeStrictness[scope])
             this.instances.set(provider, instance)
@@ -271,7 +264,9 @@ export class Container {
     const injections: any = {}
     const resolvers: Promise<any>[] = []
     for (const [key, dependency] of Object.entries(dependencies)) {
-      const resolver = this.resolve(dependency)
+      const provider =
+        dependency instanceof Provider ? dependency : dependency.provider
+      const resolver = this.resolve(provider)
       resolvers.push(resolver.then((value) => (injections[key] = value)))
     }
     await Promise.all(resolvers)

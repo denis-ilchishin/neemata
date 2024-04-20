@@ -163,7 +163,7 @@ export type GlobalContext = {
   logger: Logger
 }
 
-export type CallFn = <P extends Procedure>(
+export type CallFn = <P extends AnyProcedure>(
   procedure: P,
   ...args: P['input'] extends unknown ? [] : [InferSchemaOutput<P['input']>]
 ) => Promise<
@@ -174,7 +174,7 @@ export type CallFn = <P extends Procedure>(
   >
 >
 
-export type ExecuteFn = <T extends Task>(
+export type ExecuteFn = <T extends AnyTask>(
   task: T,
   ...args: OmitFirstItem<Parameters<T['handler']>>
 ) => TaskExecution<Awaited<ReturnType<T['handler']>>>

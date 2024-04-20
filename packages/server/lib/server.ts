@@ -92,6 +92,7 @@ export class ApplicationServer {
       name: type,
       execArgv,
       workerData,
+      env: process.env,
     })
 
     const { threadId } = worker

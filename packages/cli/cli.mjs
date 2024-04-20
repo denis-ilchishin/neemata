@@ -11,6 +11,7 @@ import {
   defer,
   importDefault,
 } from '@neematajs/application'
+import { config } from 'dotenv'
 
 /** @type {import('@neematajs/server')} */
 const NeemataServer = await import('@neematajs/server').catch(() => null)
@@ -31,14 +32,26 @@ const { values, positionals } = parseArgs({
       type: 'string',
       multiple: false,
     },
+    env: {
+      type: 'string',
+      multiple: true,
+      default: [],
+    },
   },
 })
 
 const [command, ...args] = positionals
-const { env, entry, swc, timeout, ...kwargs } = values
+const { env: envPaths, entry, swc, timeout, ...kwargs } = values
 
 const shutdownTimeout =
   (typeof timeout === 'string' ? Number.parseInt(timeout) : undefined) || 1000
+
+for (const env of envPaths) {
+  if (typeof env === 'string') {
+    const { error } = config({ path: env })
+    if (error) console.warn(error)
+  }
+}
 
 const entryPath = resolve(
   process.env.NEEMATA_ENTRY ||

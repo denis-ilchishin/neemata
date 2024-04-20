@@ -21,21 +21,28 @@ const { values, positionals } = parseArgs({
   options: {
     entry: {
       type: 'string',
-      short: 'a',
       multiple: false,
     },
     swc: {
       type: 'boolean',
       multiple: false,
     },
+    timeout: {
+      type: 'string',
+      multiple: false,
+    },
   },
 })
 
 const [command, ...args] = positionals
-const { env, entry, swc, ...kwargs } = values
+const { env, entry, swc, timeout, ...kwargs } = values
+
+const shutdownTimeout =
+  (typeof timeout === 'string' ? Number.parseInt(timeout) : undefined) || 1000
 
 const entryPath = resolve(
-  process.env.NEEMATA_ENTRY || (typeof entry === 'string' ? entry : 'index.ts'),
+  process.env.NEEMATA_ENTRY ||
+    (typeof entry === 'string' ? entry : swc ? 'index.ts' : 'index.js'),
 )
 
 if (swc) {
@@ -53,7 +60,7 @@ const exitProcess = () => {
 
 const tryExit = async (cb) => {
   if (exitTimeout) return
-  exitTimeout = setTimeout(exitProcess, 10000)
+  exitTimeout = setTimeout(exitProcess, shutdownTimeout)
   try {
     await cb()
   } catch (error) {

@@ -18,9 +18,6 @@ import {
 } from './common'
 import { WorkerThreadsTaskRunner } from './task-runner'
 
-export const importDefault = (specifier: any) =>
-  import(`${specifier}`).then((m) => m.default)
-
 export type ApplicationWorkerOptions = {
   isServer: boolean
   workerType: WorkerType
@@ -62,7 +59,7 @@ export async function start(
     isServer: true,
   })
 
-  const app: Application = await importDefault(applicationPath)
+  const app: Application = await import(applicationPath).then((m) => m.default)
 
   process.on('uncaughtException', (err) => app.logger.error(err))
   process.on('unhandledRejection', (err) => app.logger.error(err))

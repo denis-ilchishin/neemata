@@ -13,7 +13,10 @@
   "publishConfig": {
     "types": "./dist/index.d.ts"
   },
-  "os": ["darwin", "linux"],
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "engines": {
     "node": ">=18.19.0 <19 || >=20.6.0 <21"
   },
@@ -22,6 +25,6 @@
     "@sinclair/typebox": "^0.31.23"
   },
   "devDependencies": {
-    "@sinclair/typebox": "^0.32.15"
+    "@sinclair/typebox": "^0.32.21"
   }
 }

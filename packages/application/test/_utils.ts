@@ -1,10 +1,12 @@
 import { BaseParser, Procedure } from '@/api'
 import { Application, type ApplicationOptions } from '@/application'
+import { WorkerType } from '@/common'
 import { Event } from '@/events'
+import { BaseExtension } from '@/extension'
 import { createLogger } from '@/logger'
+import type { Registry } from '@/registry'
 import { BaseTaskRunner, Task } from '@/tasks'
 import { BaseTransport, BaseTransportConnection } from '@/transport'
-import { WorkerType } from '@/types'
 
 export class TestParser extends BaseParser {
   constructor(private readonly custom?: (schema, val) => any) {
@@ -19,8 +21,11 @@ export class TestParser extends BaseParser {
 export class TestConnection<D> extends BaseTransportConnection {
   readonly transport = 'test'
 
-  constructor(readonly data: D) {
-    super()
+  constructor(
+    registry: Registry,
+    readonly data: D,
+  ) {
+    super(registry)
   }
 
   protected sendEvent(eventName: string, payload: any): boolean {
@@ -39,8 +44,13 @@ export class TestTaskRunner extends BaseTaskRunner {
     return this.custom ? this.custom(name, ...args) : Promise.resolve()
   }
 }
+export class TestExtension extends BaseExtension {
+  name = 'Test extension'
+}
 
 export class TestTransport extends BaseTransport<TestConnection<any>> {
+  static readonly key = 'test'
+
   name = 'Test transport'
 
   async start() {
@@ -50,8 +60,6 @@ export class TestTransport extends BaseTransport<TestConnection<any>> {
   async stop() {
     return true
   }
-
-  initialize() {}
 }
 
 export const testDefaultTimeout = 1000
@@ -85,19 +93,17 @@ export const testApp = (options: Partial<ApplicationOptions> = {}) =>
     ),
   )
 
-export const testConnection = <T = {}>(data?: T) => {
-  return new TestConnection(data ?? {})
+export const testConnection = <T = {}>(registry: Registry, data?: T) => {
+  return new TestConnection(registry, data ?? {})
 }
 
-export const testProcedure = () => new Procedure().withName('test')
+export const testProcedure = () => new Procedure().withTransport(TestTransport)
 
-export const testTask = () => new Task().withName('test')
+export const testTask = () => new Task()
 
-export const testEvent = () => new Event().withName('test')
+export const testEvent = () => new Event()
 
 export const testTaskRunner = (...args) => new TestTaskRunner(...args)
-
-export const testTransport = () => new TestTransport()
 
 export const expectCopy = (source, targer) => {
   expect(targer).not.toBe(source)

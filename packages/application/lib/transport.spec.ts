@@ -1,14 +1,22 @@
-import { TestTransport, testApp, testConnection, testEvent } from '@test/_utils'
+import {
+  type TestConnection,
+  TestTransport,
+  testApp,
+  testConnection,
+  testEvent,
+} from '@test/_utils'
 import type { Application } from './application'
 
 describe.sequential('Transport', () => {
   let app: Application<[TestTransport]>
   let transport: TestTransport
+  let connection: TestConnection<any>
 
   beforeEach(async () => {
-    transport = new TestTransport()
-    app = testApp().registerTransport(transport)
+    app = testApp().registerTransport(TestTransport)
     await app.initialize()
+    for (const t of app.transports) transport = t as TestTransport
+    connection = testConnection(app.registry)
   })
 
   it('should start and stop', async () => {
@@ -21,36 +29,29 @@ describe.sequential('Transport', () => {
   })
 
   it('should add connection', async () => {
-    transport.addConnection(testConnection())
+    transport.application.connections.add(connection)
     expect(app.connections.size).toBe(1)
   })
 
   it('should remove connection', async () => {
-    const connection = testConnection()
-    transport.addConnection(connection)
+    transport.application.connections.add(connection)
     expect(app.connections.size).toBe(1)
-    transport.removeConnection(connection)
+    transport.application.connections.remove(connection)
     expect(app.connections.size).toBe(0)
   })
 
   it('should remove connection by id', async () => {
-    const connection = testConnection()
-    transport.addConnection(connection)
+    transport.application.connections.add(connection)
     expect(app.connections.size).toBe(1)
-    transport.removeConnection(connection.id)
+    transport.application.connections.remove(connection.id)
     expect(app.connections.size).toBe(0)
   })
 
   it('should get connection', async () => {
-    const connection = testConnection()
-    transport.addConnection(connection)
-    expect(transport.getConnection(connection.id)).toBe(connection)
-  })
-
-  it('should check connection', async () => {
-    const connection = testConnection()
-    transport.addConnection(connection)
-    expect(transport.hasConnection(connection)).toBe(true)
+    transport.application.connections.add(connection)
+    expect(transport.application.connections.get(connection.id)).toBe(
+      connection,
+    )
   })
 })
 
@@ -59,18 +60,19 @@ describe.sequential('Transport connection', () => {
   let transport: TestTransport
 
   beforeEach(async () => {
-    transport = new TestTransport()
-    app = testApp().registerTransport(transport)
+    app = testApp().registerTransport(TestTransport)
     await app.initialize()
+    for (const t of app.transports) transport = t as TestTransport
   })
 
   it('should send event', async () => {
-    const connection = testConnection()
-    transport.addConnection(connection)
+    const connection = testConnection(app.registry)
+    transport.application.connections.add(connection)
     const event = testEvent()
+    app.registry.registerEvent('test', 'test', event)
     const payload = { some: 'data' }
     const sendSpy = vi.spyOn(connection, 'sendEvent' as any)
     connection.send(event, payload)
-    expect(sendSpy).toHaveBeenCalledWith(event.name, payload)
+    expect(sendSpy).toHaveBeenCalledWith('test/test', payload)
   })
 })

@@ -40,7 +40,7 @@ type Options = {
   timeout?: number
   autoreconnect?: boolean
   debug?: boolean
-  WebSocket?: typeof WebSocket
+  WebSocket?: new (...args: any[]) => WebSocket
 }
 
 type RPCOptions = {
@@ -52,7 +52,7 @@ type HTTPRPCOptions = RPCOptions & {
   headers?: Record<string, string>
 }
 
-// to make dynamic private keys
+// TODO: to make dynamic private keys... is it really necessary?
 const KEY: Record<MessageType, symbol> = Object.fromEntries(
   Object.values(MessageType).map((type) => [type as any, Symbol()]),
 )

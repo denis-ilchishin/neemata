@@ -1,128 +1,106 @@
 import { testEvent, testLogger, testProcedure, testTask } from '@test/_utils'
+import { Scope } from './common'
 import { Provider } from './container'
-import { APP_COMMAND, type BaseCustomLoader, Registry } from './registry'
-import { Scope } from './types'
+import { Module } from './module'
+import { Registry } from './registry'
 import { noop } from './utils/functions'
-
-class TestCustomLoader implements BaseCustomLoader {
-  async load() {
-    return {
-      procedures: {
-        test: {
-          module: testProcedure().withHandler(noop),
-          exportName: '',
-          path: '',
-        },
-      },
-      tasks: {
-        test: {
-          module: testTask().withHandler(noop),
-          exportName: '',
-          path: '',
-        },
-      },
-      events: {
-        test: {
-          module: testEvent(),
-          exportName: '',
-          path: '',
-        },
-      },
-    }
-  }
-
-  paths() {
-    return []
-  }
-}
 
 describe(() => {
   const logger = testLogger()
   let registry: Registry
 
   beforeEach(() => {
-    registry = new Registry({ logger }, [new TestCustomLoader()])
+    const testModule = new Module()
+      .withProcedures({
+        test: testProcedure().withHandler(noop),
+      })
+      .withTasks({
+        test: testTask().withHandler(noop),
+      })
+      .withEvents({
+        test: testEvent(),
+      })
+      .withCommand('test', noop)
+
+    registry = new Registry({ logger, modules: { test: testModule } })
   })
 
   describe.sequential('Registry', () => {
-    it('should be a loader', () => {
+    it('should be a registry', () => {
       expect(registry).toBeDefined()
       expect(registry).toBeInstanceOf(Registry)
     })
 
-    it('should load', async () => {
+    it('should load modules', async () => {
       await registry.load()
-      expect(registry.procedures.has('test')).toBe(true)
-      expect(registry.tasks.has('test')).toBe(true)
-      expect(registry.events.has('test')).toBe(true)
-    })
-
-    it('should registry "task" command', () => {
-      const taskCommand = registry.commands.get(APP_COMMAND)?.get('task')
+      expect(registry.procedures.has('test/test')).toBe(true)
+      expect(registry.tasks.has('test/test')).toBe(true)
+      expect(registry.events.has('test/test')).toBe(true)
+      const taskCommand = registry.commands.get('test')?.get('test')
       expect(taskCommand).toBeDefined()
       expect(taskCommand).toBeTypeOf('function')
     })
   })
 
   describe.sequential('Registry -> Procedure', () => {
-    it('should register procedure', async () => {
+    it('should register procedure', () => {
       const procedure = testProcedure().withHandler(noop)
-      registry.registerProcedure(procedure.name, procedure)
-      expect(registry.procedure('test')).toBe(procedure)
+      registry.registerProcedure('test', 'test', procedure)
+      expect(registry.getByName('procedure', 'test/test')).toBe(procedure)
     })
 
-    it('should fail register procedure without handler', async () => {
+    it('should fail register procedure without handler', () => {
       const procedure = testProcedure()
       expect(() =>
-        registry.registerProcedure(procedure.name, procedure),
+        registry.registerProcedure('test', 'test', procedure),
       ).toThrow()
     })
 
-    it('should fail register duplicate procedure', async () => {
+    it('should fail register duplicate procedure', () => {
       const procedure = testProcedure().withHandler(noop)
-      registry.registerProcedure(procedure.name, procedure)
+      registry.registerProcedure('test', 'test', procedure)
       expect(() =>
-        registry.registerProcedure(procedure.name, procedure),
+        registry.registerProcedure('test', 'test', procedure),
       ).toThrow()
     })
   })
 
   describe.sequential('Registry -> Task', () => {
-    it('should register task', async () => {
+    it('should register task', () => {
       const task = testTask().withHandler(noop)
-      registry.registerTask(task.name, task)
-      expect(registry.task(task.name)).toBe(task)
+      registry.registerTask('test', 'test', task)
+      expect(registry.getByName('task', 'test/test')).toBe(task)
     })
 
-    it('should fail register task without handler', async () => {
+    it('should fail register task without handler', () => {
       const task = testTask()
-      expect(() => registry.registerTask(task.name, task)).toThrow()
+      expect(() => registry.registerTask('test', 'test', task)).toThrow()
     })
 
-    it('should fail register duplicate task', async () => {
+    it('should fail register duplicate task', () => {
       const task = testTask().withHandler(noop)
-      registry.registerTask(task.name, task)
-      expect(() => registry.registerTask(task.name, task)).toThrow()
+      registry.registerTask('test', 'test', task)
+      expect(() => registry.registerTask('test', 'test', task)).toThrow()
     })
 
-    it('should fail register task with non-global dependencies', async () => {
+    it('should fail register task with non-global dependencies', () => {
       const provider = new Provider().withScope(Scope.Connection)
       const task = testTask().withHandler(noop).withDependencies({ provider })
-      expect(() => registry.registerTask(task.name, task)).toThrow()
+      expect(() => registry.registerTask('test', 'test', task)).toThrow()
     })
   })
 
   describe.sequential('Registry -> Event', () => {
-    it('should register event', async () => {
+    it('should register event', () => {
       const event = testEvent()
-      registry.registerEvent(event.name, event)
-      expect(registry.event(event.name)).toBe(event)
+      registry.registerEvent('test', 'test', event)
+      expect(registry.getByName('event', 'test/test')).toBe(event)
     })
 
-    it('should fail register duplicate event', async () => {
+    it('should fail register duplicate event', () => {
       const event = testEvent()
-      registry.registerEvent(event.name, event)
-      expect(() => registry.registerEvent(event.name, event)).toThrow()
+      registry.registerEvent('test', 'test', event)
+      expect(() => registry.registerEvent('test', 'test', event)).toThrow()
     })
   })
 })

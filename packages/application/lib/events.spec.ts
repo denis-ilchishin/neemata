@@ -1,5 +1,6 @@
 import { TestParser, testApp, testConnection, testEvent } from '@test/_utils'
 import type { Application } from './application'
+import type { AnyEvent } from './common'
 import { Event, EventManager } from './events'
 import type { BaseTransportConnection } from './transport'
 
@@ -49,17 +50,6 @@ describe.sequential('Event', () => {
     expect(newEvent).toBeInstanceOf(Event)
     expect(newEvent).not.toBe(event)
   })
-
-  it('should copy with name', () => {
-    const newEvent = event.withName('test')
-    expect(newEvent).toBeInstanceOf(Event)
-    expect(newEvent).not.toBe(event)
-  })
-
-  it('should handle key', () => {
-    const key = event._key({ some: 'type' })
-    expect(typeof key).toBe('string')
-  })
 })
 
 describe.sequential('Event manager', () => {
@@ -67,10 +57,13 @@ describe.sequential('Event manager', () => {
   let manager: EventManager
   let connection: BaseTransportConnection
 
+  const getEventKey = (event: AnyEvent, eventName: string, options: any) =>
+    'test/test:' + event.serializer(options)
+
   beforeEach(() => {
     app = testApp()
     manager = app.eventManager
-    connection = testConnection()
+    connection = testConnection(app.registry)
   })
 
   it('should be an event manager', () => {
@@ -80,16 +73,17 @@ describe.sequential('Event manager', () => {
 
   it('should subscribe to event', async () => {
     const event = testEvent()
-    app.registry.registerEvent(event.name, event)
+    app.registry.registerEvent('test', 'test', event)
     const options = { some: 'type' }
     const { subscription } = await manager.subscribe(event, options, connection)
+    const eventKey = `test/test:${event.serializer(options)}`
     expect(connection.subscriptions.size).toBe(1)
-    expect(connection.subscriptions.get(event._key(options))).toBe(subscription)
+    expect(connection.subscriptions.get(eventKey)).toBe(subscription)
   })
 
   it('should unsubscribe from event', async () => {
     const event = testEvent()
-    app.registry.registerEvent(event.name, event)
+    app.registry.registerEvent('test', 'test', event)
     const options = { some: 'type' }
     await manager.subscribe(event, options, connection)
     expect(connection.subscriptions.size).toBe(1)
@@ -105,7 +99,7 @@ describe.sequential('Event manager', () => {
 
   it('should return isSubscribed', async () => {
     const event = testEvent()
-    app.registry.registerEvent(event.name, event)
+    app.registry.registerEvent('test', 'test', event)
     const options = { some: 'type' }
 
     await expect(
@@ -123,7 +117,7 @@ describe.sequential('Event manager', () => {
 
   it('should return existing subscription', async () => {
     const event = testEvent()
-    app.registry.registerEvent(event.name, event)
+    app.registry.registerEvent('event', 'event', event)
     const options = { some: 'type' }
     const sub1 = await manager.subscribe(event, options, connection)
     expect(sub1.isNew).toBe(true)
@@ -135,7 +129,7 @@ describe.sequential('Event manager', () => {
 
   it('should publish event', async () => {
     const event = testEvent()
-    app.registry.registerEvent(event.name, event)
+    app.registry.registerEvent('event', 'event', event)
     const options = { some: 'type' }
     const payload = { some: 'payload' }
     const { subscription } = await manager.subscribe(event, options, connection)

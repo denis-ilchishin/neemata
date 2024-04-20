@@ -5,12 +5,12 @@ import {
   testConnection,
   testDefaultTimeout,
   testLogger,
-  testTransport,
+  testProcedure,
 } from '@test/_utils'
 
 import { ApiError, ErrorCode } from '@neematajs/common'
 import { Api, Procedure, type ProcedureCallOptions } from './api'
-import type { Application } from './application'
+import type { AnyProcedure, FilterFn, GuardFn, MiddlewareFn } from './common'
 import {
   CALL_PROVIDER,
   CONNECTION_PROVIDER,
@@ -18,24 +18,17 @@ import {
   Provider,
 } from './container'
 import { Registry } from './registry'
-import type { FilterFn, GuardFn, MiddlewareFn } from './types'
 
 describe.sequential('Procedure', () => {
-  let procedure: Procedure<Application<[TestTransport]>>
+  let procedure: AnyProcedure
 
   beforeEach(() => {
-    procedure = new Procedure()
+    procedure = testProcedure()
   })
 
   it('should be a procedure', () => {
     expect(procedure).toBeDefined()
     expect(procedure).toBeInstanceOf(Procedure)
-  })
-
-  it('should clone with a description', () => {
-    const newProcedure = procedure.withDescription('description')
-    expect(newProcedure.description).toBe('description')
-    expect(newProcedure).not.toBe(procedure)
   })
 
   it('should clone with a dependencies', () => {
@@ -136,14 +129,6 @@ describe.sequential('Procedure', () => {
     expect(newProcedure.parsers?.output).toBe(parser)
   })
 
-  it('should clone with a tags', () => {
-    const newProcedure = procedure.withTags('tag1')
-    const newProcedure2 = newProcedure.withTags('tag2')
-    expect(newProcedure.tags).toEqual(['tag1'])
-    expect(newProcedure2.tags).toEqual(['tag1', 'tag2'])
-    expect(newProcedure2).not.toBe(procedure)
-  })
-
   it('should clone with a timeout', () => {
     const newProcedure = procedure.withTimeout(1000)
     expect(newProcedure.timeout).toEqual(1000)
@@ -154,15 +139,9 @@ describe.sequential('Procedure', () => {
     expect(() => procedure.withTimeout(-1000)).toThrow()
   })
 
-  it('should clone with a middlewareEnabled', () => {
-    const newProcedure = procedure.withMiddlewareEnabled(false)
-    expect(newProcedure.middlewareEnabled).toEqual(false)
-    expect(newProcedure).not.toBe(procedure)
-  })
-
   it('should clone with a transports', () => {
-    const newProcedure = procedure.withTransport(TestTransport, true)
-    expect(newProcedure.transports.get(TestTransport)).toEqual(true)
+    const newProcedure = procedure.withTransport(TestTransport)
+    expect(newProcedure.transports.has(TestTransport)).toEqual(true)
     expect(newProcedure).not.toBe(procedure)
   })
 })
@@ -170,11 +149,11 @@ describe.sequential('Procedure', () => {
 describe.sequential('Api', () => {
   const inputParser = new TestParser()
   const outputParser = new TestParser()
-  const transport = testTransport()
   const logger = testLogger()
-  const registry = new Registry({ logger }, [])
+  const registry = new Registry({ logger, modules: {} })
   const container = new Container({ registry, logger })
-  const app = testApp().registerTransport(transport)
+  const app = testApp().registerTransport(TestTransport)
+  const transport = app.transports.values().next().value as TestTransport
   let api: Api
 
   const call = (
@@ -182,16 +161,16 @@ describe.sequential('Api', () => {
       Partial<Omit<ProcedureCallOptions, 'procedure'>>,
   ) =>
     api.call({
+      name: 'test',
       container,
       transport,
-      connection: testConnection({}),
+      connection: testConnection(registry, {}),
       payload: {},
       path: [options.procedure],
       ...options,
     })
 
-  const testProcedure = () =>
-    new Procedure().withName('test').withTransport(TestTransport, true)
+  const testProcedure = () => new Procedure().withTransport(TestTransport)
 
   beforeEach(async () => {
     api = new Api(
@@ -207,7 +186,6 @@ describe.sequential('Api', () => {
           input: inputParser,
           output: outputParser,
         },
-        transports: 'any',
       },
     )
   })
@@ -222,7 +200,6 @@ describe.sequential('Api', () => {
     let newApi = new Api(testApp(), {
       timeout: testDefaultTimeout,
       parsers: parser,
-      transports: 'any',
     })
     expect(newApi.parsers.input).toBe(parser)
     expect(newApi.parsers.output).toBe(parser)
@@ -235,7 +212,6 @@ describe.sequential('Api', () => {
         input: inputParser,
         output: outputParser,
       },
-      transports: 'any',
     })
     expect(newApi.parsers.input).toBe(inputParser)
     expect(newApi.parsers.output).toBe(outputParser)
@@ -253,7 +229,7 @@ describe.sequential('Api', () => {
         call: CALL_PROVIDER,
       })
       .withHandler((ctx) => ctx)
-    const connection = testConnection({})
+    const connection = testConnection(registry, {})
     const ctx = await call({
       connection,
       procedure,
@@ -273,12 +249,12 @@ describe.sequential('Api', () => {
 
   it('should inject connection', async () => {
     const provider = new Provider()
-      .withDependencies({ connection: app.providers.connection })
+      .withDependencies({ connection: CONNECTION_PROVIDER })
       .withFactory(({ connection }) => connection)
     const procedure = testProcedure()
       .withDependencies({ provider })
       .withHandler(({ provider }) => provider)
-    const connection = testConnection({})
+    const connection = testConnection(registry, {})
     await expect(call({ connection, procedure })).resolves.toBe(connection)
   })
 
@@ -390,8 +366,8 @@ describe.sequential('Api', () => {
 
   it('should find procedure', async () => {
     const procedure = testProcedure().withHandler(() => 'result')
-    registry.procedures.set(procedure.name, { module: procedure })
-    expect(api.find(procedure.name)).toBe(procedure)
+    registry.procedures.set('test', procedure)
+    expect(api.find('test')).toBe(procedure)
   })
 
   it('should fail find procedure', async () => {

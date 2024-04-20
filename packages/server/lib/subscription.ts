@@ -19,7 +19,7 @@ export class WorkerThreadsSubscriptionManager extends BasicSubscriptionManager {
       this.bc = createBroadcastChannel(WORKER_THREADS_SM_CHANNEL)
 
       if (this.isApiWorker) {
-        this.application.registry.registerHook(Hook.BeforeStart, () => {
+        this.application.registry.hooks.add(Hook.BeforeStart, () => {
           this.bc!.on(
             WORKER_THREADS_SM_MESSAGE,
             this.broadcastHandler.bind(this),
@@ -27,28 +27,27 @@ export class WorkerThreadsSubscriptionManager extends BasicSubscriptionManager {
         })
       }
 
-      this.application.registry.registerHook(Hook.AfterStop, () =>
+      this.application.registry.hooks.add(Hook.AfterStop, () =>
         this.bc!.close(),
       )
     }
   }
 
-  async publish(event: Event, key: string, payload: any) {
+  async publish(key: string, payload: any) {
     if (!isMainThread) {
       this.bc!.postMessage({
         type: WORKER_THREADS_SM_MESSAGE,
         payload: {
-          eventName: event.name,
           key,
           payload,
         },
       })
     }
-    super.publish(event, key, payload)
+    super.publish(key, payload)
   }
 
-  private broadcastHandler({ eventName, key, payload }) {
-    this.logger.debug(payload, `Received event [${eventName}] from [${key}]`)
-    this.emit(eventName, key, payload)
+  private broadcastHandler({ key, payload }) {
+    this.logger.debug(payload, `Received event [${key}]`)
+    this.emit(key, payload)
   }
 }

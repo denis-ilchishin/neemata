@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream'
+import { WorkerType } from './common'
 import type { Event } from './events'
 import { BaseExtension } from './extension'
-import { WorkerType } from './types'
 
 export class Subscription<E extends Event = Event> extends PassThrough {
   readonly _!: {
@@ -21,7 +21,7 @@ export class Subscription<E extends Event = Event> extends PassThrough {
 export abstract class BaseSubscriptionManager extends BaseExtension {
   abstract subscribe(subscription: Subscription): any
   abstract unsubscribe(subscription: Subscription): any
-  abstract publish(event: Event, key: string, payload: any): any
+  abstract publish(key: string, payload: any): any
 }
 
 export class BasicSubscriptionManager extends BaseSubscriptionManager {
@@ -45,12 +45,12 @@ export class BasicSubscriptionManager extends BaseSubscriptionManager {
     if (!subscriptions.size) this.subscriptions.delete(subscription.key)
   }
 
-  async publish(event: Event, key: string, payload: any) {
-    if (this.isApiWorker) this.emit(event.name, key, payload)
+  async publish(key: string, payload: any) {
+    if (this.isApiWorker) this.emit(key, payload)
   }
 
-  protected emit(eventName: string, key: string, payload: any) {
-    this.logger.debug(payload, `Emitting event [${eventName}] to [${key}]`)
+  protected emit(key: string, payload: any) {
+    this.logger.debug(payload, `Emitting event [${key}]`)
     const subscriptions = this.subscriptions.get(key)
     if (!subscriptions) return
     for (const subscription of subscriptions) {

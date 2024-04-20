@@ -1,5 +1,6 @@
 import {
   BaseTransportConnection,
+  type Registry,
   type Subscription,
 } from '@neematajs/application'
 import { MessageType } from './common'
@@ -14,10 +15,11 @@ export class HttpTransportConnection extends BaseTransportConnection {
   readonly transport = 'http'
 
   constructor(
+    protected readonly registry: Registry,
     readonly data: HttpTransportData,
     private readonly headers: Headers,
   ) {
-    super()
+    super(registry)
   }
 
   protected sendEvent(): boolean {
@@ -37,12 +39,13 @@ export class WebsocketsTransportConnection extends BaseTransportConnection {
   #websocket: WebSocket
 
   constructor(
+    protected readonly registry: Registry,
     readonly data: WebsocketsTransportData,
     websocket: WebSocket,
     id: string,
     subscriptions: Map<string, Subscription>,
   ) {
-    super(id, subscriptions)
+    super(registry, id, subscriptions)
     this.#websocket = websocket
   }
 

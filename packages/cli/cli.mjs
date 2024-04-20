@@ -121,18 +121,24 @@ const commands = {
       extension = undefined
     }
 
-    const command = app.registry.commands
-      .get(extension ?? APP_COMMAND)
-      ?.get(commandName)
-    if (!command) throw new Error(`Unknown application command: ${commandName}`)
-
     const terminate = () => tryExit(() => defer(() => app.stop()))
 
     process.on('SIGTERM', terminate)
     process.on('SIGINT', terminate)
 
     await app.initialize()
-    await command({ args: commandArgs, kwargs }).finally(terminate)
+
+    const command = app.registry.commands
+      .get(extension ?? APP_COMMAND)
+      ?.get(commandName)
+
+    if (!command) throw new Error(`Unknown application command: ${commandName}`)
+
+    try {
+      await command({ args: commandArgs, kwargs })
+    } finally {
+      terminate()
+    }
   },
   async repl() {
     const app = await loadApp(WorkerType.Api)

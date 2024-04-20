@@ -14,7 +14,9 @@ export class WorkerThreadsSubscriptionManager extends BasicSubscriptionManager {
 
   protected bc?: ReturnType<typeof createBroadcastChannel>
 
-  initialize() {
+  constructor(application, options) {
+    super(application, options)
+
     if (!isMainThread) {
       this.bc = createBroadcastChannel(WORKER_THREADS_SM_CHANNEL)
 

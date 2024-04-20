@@ -341,9 +341,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         this.sockets.delete(ws)
         this.application.connections.remove(id)
         for (const _streams of [streams.up, streams.down, subscriptions]) {
-          for (const stream of _streams.values()) {
-            stream.destroy(new Error('Connection closed'))
-          }
+          for (const stream of _streams.values()) stream.destroy()
           _streams.clear()
         }
         this.handleContainerDisposal(container)

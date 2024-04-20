@@ -1,14 +1,14 @@
-import type { EventManager } from './events'
-import type { Logger } from './logger'
-import type { Registry } from './registry'
-import type { BaseTransport } from './transport'
 import {
   type AnyProvider,
   type CallFn,
   type ExecuteFn,
   type Merge,
   Scope,
-} from './types'
+} from './common'
+import type { EventManager } from './events'
+import type { Logger } from './logger'
+import type { Registry } from './registry'
+import type { BaseTransport } from './transport'
 import { merge } from './utils/functions'
 
 const ScopeStrictness = {
@@ -38,7 +38,7 @@ export type Dependencies = Record<
   AnyProvider | { isOptional: true; provider: AnyProvider }
 >
 
-export type ResolveProviderType<T extends Provider> = Awaited<T['value']>
+export type ResolveProviderType<T extends AnyProvider> = Awaited<T['value']>
 
 export interface Depender<Deps extends Dependencies = {}> {
   dependencies: Deps
@@ -88,6 +88,10 @@ export class Provider<
     // @ts-expect-error
     Object.assign(newProvider, original, overrides)
     return newProvider
+  }
+
+  static key<T>() {
+    return new Provider<T>()
   }
 
   readonly value!: ProviderValue
@@ -171,6 +175,14 @@ export class Container {
   ) {}
 
   async load() {
+    for (const module of this.application.registry.modules) {
+      await module.initializer?.({
+        container: this,
+        logger: this.application.logger,
+        hooks: this.application.registry.hooks,
+      })
+    }
+
     const traverse = (dependencies: Dependencies) => {
       for (const key in dependencies) {
         const depender = dependencies[key]
@@ -181,7 +193,7 @@ export class Container {
       }
     }
 
-    for (const depender of this.application.registry.globals()) {
+    for (const depender of this.getGlobals()) {
       traverse(depender.dependencies)
     }
 
@@ -281,6 +293,14 @@ export class Container {
       }
     }
     return declarations
+  }
+
+  private getGlobals() {
+    return [
+      ...this.application.registry.filters.values(),
+      ...Array.from(this.application.registry.tasks.values()),
+      ...Array.from(this.application.registry.procedures.values()),
+    ]
   }
 }
 

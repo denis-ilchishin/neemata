@@ -60,9 +60,8 @@ describe.sequential('Application Worker', () => {
 
   beforeEach(async () => {
     app = new Application({
-      api: { timeout: 5000, transports: 'any' },
+      api: { timeout: 5000 },
       events: { timeout: 5000 },
-      loaders: [],
       tasks: { timeout: 5000 },
       type: WorkerType.Api,
     })
@@ -172,11 +171,11 @@ describe.sequential('Application Worker', () => {
   })
 
   it('should handle task execution invocation', async () => {
-    const task = new Task().withName('test').withHandler((ctx, ...args) => ({
+    const task = new Task().withHandler((ctx, ...args) => ({
       args,
       result: 'task result',
     }))
-    app.registry.registerTask(task.name, task)
+    app.registry.registerTask('test', 'test', task)
     const workerData: ApplicationWorkerData = {
       id: 1,
       workerType: WorkerType.Task,
@@ -188,7 +187,7 @@ describe.sequential('Application Worker', () => {
     startWorker(mPort, workerData)
     const executeSpy = vi.spyOn(app, 'execute')
     const id = randomUUID()
-    const name = task.name
+    const name = 'test/test'
     const args = ['test']
     setTimeout(() =>
       worker.postMessage({
@@ -211,10 +210,8 @@ describe.sequential('Application Worker', () => {
   })
 
   it('should handle task execution abortion', async () => {
-    const task = new Task()
-      .withName('test')
-      .withHandler((ctx) => new Promise(noop))
-    app.registry.registerTask(task.name, task)
+    const task = new Task().withHandler((ctx) => new Promise(noop))
+    app.registry.registerTask('test', 'test', task)
     const workerData: ApplicationWorkerData = {
       id: 1,
       workerType: WorkerType.Task,
@@ -224,7 +221,7 @@ describe.sequential('Application Worker', () => {
     }
     startWorker(mPort, workerData)
     const id = 'task execution abortion'
-    const name = task.name
+    const name = 'test/test'
     const args = ['test']
 
     defer(() =>

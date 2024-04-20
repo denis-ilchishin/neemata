@@ -1,7 +1,7 @@
 import { testLogger, testProcedure } from '@test/_utils'
+import { Scope } from './common'
 import { Container, Provider, getProviderScope } from './container'
 import { Registry } from './registry'
-import { Scope } from './types'
 
 describe.sequential('Provider', () => {
   let provider: Provider
@@ -65,7 +65,7 @@ describe.sequential('Provider', () => {
 
 describe.sequential('Container', () => {
   const logger = testLogger()
-  const registry = new Registry({ logger }, [])
+  const registry = new Registry({ logger, modules: {} })
   let container: Container
 
   beforeEach(async () => {
@@ -224,7 +224,7 @@ describe.sequential('Container', () => {
     const procedure = testProcedure()
       .withDependencies({ provider1, provider2 })
       .withHandler(() => {})
-    registry.registerProcedure('test', procedure)
+    registry.registerProcedure('test', 'test', procedure)
     await container.load()
     expect(factory1).toHaveBeenCalledOnce()
     expect(factory2).not.toHaveBeenCalled()

@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import type { BaseParser } from './api'
+import type { AnyEvent, InferSchemaInput, InferSchemaOutput } from './common'
 import type { Logger } from './logger'
 import type { Registry } from './registry'
 import { type BaseSubscriptionManager, Subscription } from './subscription'
 import type { BaseTransportConnection } from './transport'
-import type { InferSchemaInput, InferSchemaOutput } from './types'
 
 export type EventOptionsType = Record<string, string | number>
 
@@ -13,8 +13,6 @@ export class Event<
   EventSchema = unknown,
   EventOptions extends EventOptionsType = {},
 > {
-  name!: string
-
   readonly _!: {
     payload: EventSchema extends unknown
       ? EventPayload
@@ -28,7 +26,7 @@ export class Event<
     if (!keys.length) return ''
     const vals = {}
     for (const key of keys) vals[key] = options[key]
-    return createHash('sha1').update(JSON.stringify(vals)).digest('base64url')
+    return createHash('sha1').update(JSON.stringify(vals)).digest('base64')
   }
 
   withPayload<NewPayload>() {
@@ -56,17 +54,6 @@ export class Event<
     Object.assign(event, this, { parser })
     return event
   }
-
-  withName(name: string) {
-    const event = new Event<EventPayload, EventSchema, EventOptions>()
-    Object.assign(event, this, { name })
-    return event
-  }
-
-  _key(options: EventOptions) {
-    const key = this.serializer(options)
-    return this.name + (key ? `:${key}` : '')
-  }
 }
 
 export class EventManager<
@@ -85,22 +72,21 @@ export class EventManager<
     options: E['_']['options'],
     connection: Connection,
   ): Promise<{ subscription: Subscription<E>; isNew: boolean }> {
-    if (!event.name) throw new Error('Event name is required')
-    if (!this.application.registry.event(event.name))
-      throw new Error(`Event ${event.name} not found`)
-
-    const key = event._key(options)
+    const eventName = this.registry.getName('event', event)
+    const eventKey = this.getKey(event, eventName, options)
     const { id, subscriptions } = connection
-    let subscription = subscriptions.get(key) as Subscription<E> | undefined
+    let subscription = subscriptions.get(eventKey) as
+      | Subscription<E>
+      | undefined
     if (subscription) return { subscription, isNew: false }
     this.logger.debug(
       options,
-      `Subscribing connection [${id}] to event [${event.name}] with options`,
+      `Subscribing connection [${id}] to event [${eventName}] with options`,
     )
-    subscription = new Subscription(event, key, () =>
+    subscription = new Subscription(event, eventKey, () =>
       this.unsubscribe(event, options, connection),
     )
-    subscriptions.set(key, subscription)
+    subscriptions.set(eventKey, subscription)
     await this.subManager.subscribe(subscription)
     return { subscription, isNew: true }
   }
@@ -110,16 +96,17 @@ export class EventManager<
     options: Event['_']['options'],
     connection: Connection,
   ) {
+    const eventName = this.registry.getName('event', event)
     const { id, subscriptions } = connection
     this.logger.debug(
-      `Unsubscribing connection [${id}] from event [${event.name}]`,
+      `Unsubscribing connection [${id}] from event [${eventName}]`,
     )
-    const key = event._key(options)
-    const subscription = subscriptions.get(key)
+    const eventKey = this.getKey(event, eventName, options)
+    const subscription = subscriptions.get(eventKey)
     if (!subscription) return false
     await this.subManager.unsubscribe(subscription)
     subscription.emit('unsubscribe')
-    subscriptions.delete(key)
+    subscriptions.delete(eventKey)
   }
 
   async publish<E extends Event>(
@@ -129,9 +116,10 @@ export class EventManager<
       : InferSchemaInput<E['schema']>,
     options: E['_']['options'],
   ) {
-    this.logger.debug(payload, `Publishing event [${event.name}]`)
-    const key = event._key(options)
-    return this.subManager.publish(event, key, payload)
+    const eventName = this.registry.getName('event', event)
+    this.logger.debug(payload, `Publishing event [${eventName}]`)
+    const eventKey = this.getKey(event, eventName, options)
+    return this.subManager.publish(eventKey, payload)
   }
 
   async isSubscribed<E extends Event>(
@@ -139,7 +127,8 @@ export class EventManager<
     options: E['_']['options'],
     connection: Connection,
   ) {
-    const key = event._key(options)
+    const eventName = this.registry.getName('event', event)
+    const key = this.getKey(event, eventName, options)
     return connection.subscriptions.has(key)
   }
 
@@ -149,5 +138,13 @@ export class EventManager<
 
   private get logger() {
     return this.application.logger
+  }
+
+  private get registry() {
+    return this.application.registry
+  }
+
+  protected getKey(event: AnyEvent, name: string, options: EventOptionsType) {
+    return `${name}:${event.serializer(options)}`
   }
 }

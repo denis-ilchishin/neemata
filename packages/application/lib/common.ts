@@ -8,7 +8,9 @@ import type { Application } from './application'
 import type { Container, Provider } from './container'
 import type { Event } from './events'
 import type { BaseExtension } from './extension'
+import type { Hooks } from './hooks'
 import type { Logger } from './logger'
+import type { Module } from './module'
 import type { Registry } from './registry'
 import type { StreamResponse } from './streams'
 import type { Subscription as ServerSubscription } from './subscription'
@@ -31,6 +33,8 @@ export enum Hook {
   AfterStop = 'AfterStop',
   BeforeTerminate = 'BeforeTerminate',
   AfterTerminate = 'AfterTerminate',
+  OnConnection = 'OnConnection',
+  OnDisconnection = 'OnDisconnection',
 }
 
 export enum WorkerType {
@@ -38,6 +42,7 @@ export enum WorkerType {
   Task = 'Task',
 }
 
+export type ClassConstructor<T> = new (...args: any[]) => T
 export type Callback = (...args: any[]) => any
 export type Pattern = RegExp | string | ((value: string) => boolean)
 export type OmitFirstItem<T extends any[]> = T extends [any, ...infer U]
@@ -47,18 +52,15 @@ export type ErrorClass = new (...args: any[]) => Error
 export type Extra = Record<string, any>
 export type Async<T> = T | Promise<T>
 
-export type GuardOptions<App extends AnyApplication = AnyApplication> = {
-  connection: App['_']['connection']
+export type GuardOptions = {
+  connection: BaseTransportConnection
   path: [Procedure, ...Procedure[]]
 }
 
-export type Command = (
-  options: {
-    args: string[]
-    kwargs: Record<string, any>
-  },
-  ...args: any[]
-) => any
+export type Command = (options: {
+  args: string[]
+  kwargs: Record<string, any>
+}) => any
 
 export type ConnectionFn<T = any, C = any> = (transportData: T) => Async<C>
 
@@ -66,27 +68,26 @@ export type FilterFn<T extends ErrorClass = ErrorClass> = (
   error: InstanceType<T>,
 ) => Async<Error>
 
-export type GuardFn<App extends AnyApplication = AnyApplication> = (
-  options: GuardOptions<App>,
-) => Async<boolean>
+export type GuardFn = (options: GuardOptions) => Async<boolean>
 
-export type MiddlewareFn<App extends AnyApplication = AnyApplication> = (
-  options: MiddlewareContext<App>,
+export type MiddlewareFn = (
+  options: MiddlewareContext,
   next: Next,
   payload: any,
 ) => any
 
 export type ConnectionProvider<T, C> = Provider<ConnectionFn<T, C>>
 
-export type AnyApplication = Application<any, any, any, any>
-
+export type AnyApplication = Application<any, any>
+export type AnyModule = Module<any, any, any, any>
 export type AnyProvider = Provider<any, any>
 export type AnyProcedure = Procedure<any, any, any, any, any>
 export type AnyTask = Task<any, any, any>
 export type AnyEvent = Event<any, any, any>
 
-export type MiddlewareContext<App extends AnyApplication = AnyApplication> = {
-  connection: App['_']['connection']
+export type MiddlewareContext = {
+  connection: BaseTransportConnection
+  name: string
   path: [Procedure, ...Procedure[]]
   container: Container
   procedure: Procedure
@@ -103,6 +104,8 @@ export interface HooksInterface {
   [Hook.AfterStop]: () => any
   [Hook.BeforeTerminate]: () => any
   [Hook.AfterTerminate]: () => any
+  [Hook.OnConnection]: (connection: BaseTransportConnection) => any
+  [Hook.OnDisconnection]: (connection: BaseTransportConnection) => any
 }
 
 export type CallHook<T extends string> = (
@@ -117,7 +120,11 @@ export interface ExtensionApplication {
   api: Api
   container: Container
   logger: Logger
-  connections: Map<BaseTransportConnection['id'], BaseTransportConnection>
+  connections: {
+    add: (connection: BaseTransportConnection) => void
+    remove: (connection: BaseTransportConnection | string) => void
+    get: (id: string) => BaseTransportConnection | undefined
+  }
   registry: Registry
 }
 
@@ -183,22 +190,106 @@ export type Merge<
       : never
 }
 
-export type ResolveEvents<Events extends Record<string, Event>> = {
-  [K in keyof Events]: Events[K]['_']['payload']
-}
-
-export type ResolveProcedures<Procedures extends Record<string, any>> = {
-  [K in keyof Procedures]: {
-    input: ResolveApiInput<InferSchemaOutput<Procedures[K]['_']['input']>>
-    output: ResolveApiOutput<
-      Awaited<
-        null extends Procedures[K]['_']['output']
-          ? ReturnType<Procedures[K]['handler']>
-          : InferSchemaOutput<Procedures[K]['_']['output']>
-      >
-    >
-    options: Procedures[K]['_']['options']
+type AppClientProcedures<
+  ModuleName extends string,
+  Module extends AnyModule,
+  Prefix extends string = '',
+  Procedures extends Module['procedures'] = Module['procedures'],
+  ImportPrefix extends string = Prefix extends ''
+    ? ModuleName
+    : `${Prefix}/${ModuleName}`,
+> = Merge<
+  //@ts-expect-error
+  keyof Module['imports'] extends never
+    ? {}
+    : UnionToIntersection<
+        {
+          [K in keyof Module['imports']]: {
+            [P in keyof AppClientProcedures<
+              // @ts-expect-error
+              K,
+              Module['imports'][K],
+              ImportPrefix
+            >]: // @ts-expect-error
+            AppClientProcedures<K, Module['imports'][K], ImportPrefix>[P]
+          }
+        }[keyof Module['imports']]
+      >,
+  {
+    [K in keyof Procedures as K extends string
+      ? `${Prefix extends '' ? ModuleName : `${Prefix}/${ModuleName}`}/${K}`
+      : never]: Procedures[K] extends AnyProcedure
+      ? {
+          input: ResolveApiInput<InferSchemaOutput<Procedures[K]['_']['input']>>
+          output: ResolveApiOutput<
+            Awaited<
+              null extends Procedures[K]['_']['output']
+                ? ReturnType<Procedures[K]['handler']>
+                : InferSchemaOutput<Procedures[K]['_']['output']>
+            >
+          >
+        }
+      : never
   }
+>
+
+type ApiClientEvents<
+  ModuleName extends string,
+  Module extends AnyModule,
+  Prefix extends string = '',
+  ImportPrefix extends string = Prefix extends ''
+    ? ModuleName
+    : `${Prefix}/${ModuleName}`,
+  Events extends Module['events'] = Module['events'],
+> = Merge<
+  //@ts-expect-error
+  keyof Module['imports'] extends never
+    ? { moduleName: ModuleName }
+    : UnionToIntersection<
+        {
+          [K in keyof Module['imports']]: {
+            [P in keyof ApiClientEvents<
+              //@ts-expect-error
+              K,
+              Module['imports'][K],
+              ImportPrefix
+              //@ts-expect-error
+            >]: ApiClientEvents<K, Module['imports'][K], ImportPrefix>[P]
+          }
+        }[keyof Module['imports']]
+      >,
+  {
+    [K in keyof Events as K extends string
+      ? `${Prefix extends '' ? ModuleName : `${Prefix}/${ModuleName}`}/${K}`
+      : never]: Events[K]['_']['payload']
+  }
+>
+
+export type AppClient<App extends AnyApplication> = {
+  procedures: UnionToIntersection<
+    {
+      [K in keyof App['modules']]: {
+        [P in keyof AppClientProcedures<
+          //@ts-expect-error
+          K,
+          App['modules'][K]
+          //@ts-expect-error
+        >]: AppClientProcedures<K, App['modules'][K]>[P]
+      }
+    }[keyof App['modules']]
+  >
+  events: UnionToIntersection<
+    {
+      [K in keyof App['modules']]: {
+        //@ts-expect-error
+        [P in keyof ApiClientEvents<K, App['modules'][K]>]: ApiClientEvents<
+          //@ts-expect-error
+          K,
+          App['modules'][K]
+        >[P]
+      }
+    }[keyof App['modules']]
+  >
 }
 
 export type ResolveApiInput<Input> = Input extends Readable
@@ -335,3 +426,26 @@ interface IValueOf<T> {
 interface IJsonable<T> {
   toJSON(): T
 }
+
+// type A = {
+//   test: {
+//     some: string,
+//     another: number
+//   },
+//   test2: {
+//     some: string,
+//   }
+// }
+
+// type B = {
+//   'test/some': string,
+//   'test/another': number,
+//   'test2/some': string,
+// }
+
+// type Flatten<T> = T extends object
+//   ? {
+//       [K in keyof T as `${string & K}/${string & keyof T[K]}`]: T[K][keyof T[K]];
+//     }
+//   : never;
+// type Result = Flatten<A>

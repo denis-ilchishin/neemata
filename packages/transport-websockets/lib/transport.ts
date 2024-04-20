@@ -1,4 +1,7 @@
-import { BaseTransport } from '@neematajs/application'
+import {
+  BaseTransport,
+  type ExtensionApplication,
+} from '@neematajs/application'
 import type {
   HttpTransportConnection,
   WebsocketsTransportConnection,
@@ -9,18 +12,14 @@ import type { WebsocketsTransportOptions } from './types'
 export class WebsocketsTransport<
   Options extends WebsocketsTransportOptions = WebsocketsTransportOptions,
 > extends BaseTransport<
-  Options['enableHttp'] extends true
-    ? HttpTransportConnection | WebsocketsTransportConnection
-    : WebsocketsTransportConnection
+  HttpTransportConnection | WebsocketsTransportConnection,
+  Options
 > {
   name = 'Websockets Transport'
   server!: WebsocketsTransportServer
 
-  constructor(readonly options: Options) {
-    super()
-  }
-
-  initialize() {
+  constructor(application: ExtensionApplication, options: Options) {
+    super(application, options)
     this.server = new WebsocketsTransportServer(this, this.application)
   }
 

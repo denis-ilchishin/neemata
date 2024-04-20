@@ -1,5 +1,6 @@
-import { Duplex } from 'node:stream'
+import { Duplex, Readable } from 'node:stream'
 import { BinaryStreamResponse, JsonStreamResponse, Stream } from './streams'
+import { noop } from './utils/functions'
 
 describe.sequential('Streams -> Response -> JSON', () => {
   it('should be a duplex', () => {
@@ -68,11 +69,15 @@ describe.sequential('Streams -> Request -> Stream', () => {
   let stream: Stream
 
   beforeEach(() => {
-    stream = new Stream('1', { size: 1, type: 'type', filename: 'filename' })
+    stream = new Stream(
+      '1',
+      { size: 1, type: 'type', filename: 'filename' },
+      noop,
+    )
   })
 
-  it('should be a duplex', () => {
-    expect(stream).toBeInstanceOf(Duplex)
+  it('should be a readable', () => {
+    expect(stream).toBeInstanceOf(Readable)
   })
 
   it('should have properties', () => {

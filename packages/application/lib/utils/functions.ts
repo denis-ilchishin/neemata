@@ -1,4 +1,4 @@
-import type { Callback, Pattern } from '../types'
+import type { Callback, Pattern } from '../common'
 
 export const merge = (...objects: object[]) => Object.assign({}, ...objects)
 
@@ -105,3 +105,14 @@ export const onAbort = <T extends Callback>(
 }
 
 export const noop = () => {}
+
+export const withTimeout = (
+  value: Promise<any>,
+  timeout: number,
+  timeoutError: Error,
+) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(reject, timeout, timeoutError)
+    const clearTimer = () => clearTimeout(timer)
+    value.then(resolve).catch(reject).finally(clearTimer)
+  })

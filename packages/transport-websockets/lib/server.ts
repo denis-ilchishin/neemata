@@ -4,9 +4,10 @@ import { PassThrough, type Readable } from 'node:stream'
 import {
   ApiError,
   type BaseTransportConnection,
-  type BinaryStreamResponse,
+  BinaryStreamResponse,
   type Container,
   type ExtensionApplication,
+  Hook,
   JsonStreamResponse,
   type Procedure,
   Scope,
@@ -309,12 +310,13 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
         this.logger.trace('Open new websocket [%s]', id)
         try {
           const connection = new WebsocketsTransportConnection(
+            this.application.registry,
             transportData,
             ws,
             id,
             subscriptions,
           )
-          this.transport.addConnection(connection)
+          this.application.connections.add(connection)
         } catch (error) {
           ws.close()
         }
@@ -337,11 +339,10 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       close: async (ws, code, message) => {
         const { id, container, streams, subscriptions } = ws.getUserData()
         this.sockets.delete(ws)
-        this.transport.removeConnection(id)
+        this.application.connections.remove(id)
         for (const _streams of [streams.up, streams.down, subscriptions]) {
           for (const stream of _streams.values()) {
-            // TODO: throw an error?: stream.destroy(new Error('Connection closed'))
-            stream.destroy()
+            stream.destroy(new Error('Connection closed'))
           }
           _streams.clear()
         }
@@ -374,7 +375,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     // TODO: refactor this mess
 
     const data = ws.getUserData()
-    const connection = this.transport.getConnection(data.id)
+    const connection = this.application.connections.get(data.id)
     if (!connection) return void ws.close()
 
     const streamDataLength = decodeNumber(payloadBuf, 'Uint32')
@@ -431,6 +432,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       const procedure = this.api.find(procedureName)
       const response = await this.handleRPC(
         connection,
+        procedureName,
         procedure,
         container,
         payload,
@@ -512,7 +514,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     const id = decodeNumber(buffer, 'Uint32')
     const stream = streams.up.get(id)
     if (!stream) return void ws.close()
-    stream.once('finish', () =>
+    stream.once('end', () =>
       send(ws, MessageType.ClientStreamEnd, encodeNumber(id, 'Uint32')),
     )
     stream.push(null)
@@ -583,7 +585,11 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     const container = this.application.container.createScope(Scope.Call)
     try {
       const body = await this.handleHTTPBody(req, res, method, query)
-      const connection = new HttpTransportConnection(transportData, resHeaders)
+      const connection = new HttpTransportConnection(
+        this.application.registry,
+        transportData,
+        resHeaders,
+      )
 
       // TODO: is there any reason to keep connection for http/1 transport?
       // It doesn't support streams and bidi communication anyway,
@@ -593,6 +599,7 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       const procedure = this.api.find(procedureName)
       const response = await this.handleRPC(
         connection,
+        procedureName,
         procedure,
         container,
         body,
@@ -612,6 +619,8 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       tryRespond(() => {
         setCors(res, headers)
         setDefaultHeaders(res)
+        if (response instanceof BinaryStreamResponse)
+          res.writeHeader(CONTENT_TYPE_HEADER, response.type)
         for (const [name, value] of resHeaders) res.writeHeader(name, value)
         if (isStream)
           this.handleHTTPStreamResponse(
@@ -714,13 +723,15 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
 
   protected async handleRPC(
     connection: BaseTransportConnection,
+    procedureName: string,
     procedure: Procedure,
     container: Container,
     payload: any,
   ) {
-    this.logger.debug('Calling [%s] procedure...', procedure.name)
+    this.logger.debug('Calling [%s] procedure...', procedureName)
     return this.application.api.call({
       transport: this.transport,
+      name: procedureName,
       connection,
       procedure,
       payload,

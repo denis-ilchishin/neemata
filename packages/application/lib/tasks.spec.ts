@@ -21,12 +21,6 @@ describe.sequential('Task', () => {
     expect(task).toBeInstanceOf(Task)
   })
 
-  it('should clone with a name', () => {
-    const newTask = task.withName('name')
-    expect(newTask.name).toBe('name')
-    expect(newTask).not.toBe(task)
-  })
-
   it('should clone with a handler', () => {
     const handler = () => {}
     const newTask = task.withHandler(handler)
@@ -69,7 +63,7 @@ describe.sequential('Tasks', () => {
   let tasks: Tasks
 
   beforeEach(async () => {
-    registry = new Registry({ logger }, [])
+    registry = new Registry({ logger, modules: {} })
     container = new Container({ logger, registry })
     tasks = new Tasks({ container, registry }, { timeout: testDefaultTimeout })
     await container.load()
@@ -86,8 +80,8 @@ describe.sequential('Tasks', () => {
 
   it('should execute a task', async () => {
     const task = testTask().withHandler(() => 'value')
-    registry.registerTask(task.name, task)
-    const execution = tasks.execute('test')
+    registry.registerTask('test', 'test', task)
+    const execution = tasks.execute(task)
     expect(execution).toHaveProperty('abort', expect.any(Function))
     const result = await execution
     expect(result).toHaveProperty('result', 'value')
@@ -98,8 +92,8 @@ describe.sequential('Tasks', () => {
     const task = testTask()
       .withDependencies({ dep: provider })
       .withHandler((ctx) => ctx)
-    registry.registerTask(task.name, task)
-    const { result } = await tasks.execute('test')
+    registry.registerTask('test', 'test', task)
+    const { result } = await tasks.execute(task)
     expect(result).toHaveProperty('dep', provider.value)
   })
 
@@ -109,24 +103,24 @@ describe.sequential('Tasks', () => {
       throw thrownError
     })
 
-    registry.registerTask(task.name, task)
-    const { error } = await tasks.execute('test')
+    registry.registerTask('test', 'test', task)
+    const { error } = await tasks.execute(task)
     expect(error).toBe(thrownError)
   })
 
   it('should inject args', async () => {
     const args = ['arg1', 'arg2']
     const task = testTask().withHandler((ctx, ...args) => args)
-    registry.registerTask(task.name, task)
-    const { result } = await tasks.execute('test', ...args)
+    registry.registerTask('test', 'test', task)
+    const { result } = await tasks.execute(task, ...args)
     expect(result).deep.equal(args)
   })
 
   it('should inject args', async () => {
     const args = ['arg1', 'arg2']
     const task = testTask().withHandler((ctx, ...args) => args)
-    registry.registerTask(task.name, task)
-    const { result } = await tasks.execute('test', ...args)
+    registry.registerTask('test', 'test', task)
+    const { result } = await tasks.execute(task, ...args)
     expect(result).deep.equal(args)
   })
 
@@ -137,8 +131,8 @@ describe.sequential('Tasks', () => {
       .withDependencies({ signal: TASK_SIGNAL_PROVIDER })
       .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
-    registry.registerTask(task.name, task)
-    const execution = tasks.execute('test')
+    registry.registerTask('test', 'test', task)
+    const execution = tasks.execute(task)
     defer(() => execution.abort(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
@@ -152,8 +146,8 @@ describe.sequential('Tasks', () => {
       .withDependencies({ signal: TASK_SIGNAL_PROVIDER })
       .withHandler(({ signal }) => new Promise(() => onAbort(signal, spy)))
 
-    registry.registerTask(task.name, task)
-    const execution = tasks.execute(task.name)
+    registry.registerTask('test', 'test', task)
+    const execution = tasks.execute(task)
     defer(() => execution.abort(), 1)
     const { error } = await execution
     expect(error).toBeInstanceOf(Error)
@@ -168,8 +162,8 @@ describe.sequential('Tasks', () => {
       { timeout: testDefaultTimeout, runner: taskRunner },
     )
     const task = testTask().withHandler(noop)
-    registry.registerTask(task.name, task)
-    await tasks.execute(task.name)
+    registry.registerTask('test', 'test', task)
+    await tasks.execute(task)
     expect(runnerFn).toHaveBeenCalledOnce()
   })
 
@@ -181,11 +175,11 @@ describe.sequential('Tasks', () => {
       })
       .withHandler((ctx, ...args) => args)
 
-    registry.registerTask(task.name, task)
+    registry.registerTask('test', 'test', task)
     const { result } = await tasks.command({
-      args: [task.name, 1],
+      args: ['test/test', '1'],
       kwargs: { value: 2 },
     })
-    expect(result).toEqual([1, 2])
+    expect(result).toStrictEqual([1, 2])
   })
 })

@@ -1,4 +1,5 @@
 import type { ApplicationOptions } from './application'
+import { type AnyTask, Hook, type Merge } from './common'
 import {
   type Container,
   type Dependencies,
@@ -7,7 +8,6 @@ import {
   TASK_SIGNAL_PROVIDER,
 } from './container'
 import type { Registry } from './registry'
-import { Hook, type Merge } from './types'
 import { createFuture, defer, merge, noop, onAbort } from './utils/functions'
 
 export type TaskExecution<Res = any> = Promise<
@@ -41,8 +41,6 @@ export class Task<
   TaskType = unknown,
 > implements Depender<TaskDeps>
 {
-  name!: string
-
   _!: {
     type: TaskType
     handler: Handler<TaskDeps, TaskArgs>
@@ -83,12 +81,6 @@ export class Task<
     Object.assign(task, this, { parser })
     return task
   }
-
-  withName(name: string) {
-    const task = new Task<TaskDeps, TaskArgs, TaskType>()
-    Object.assign(task, this, { name })
-    return task
-  }
 }
 
 export class Tasks {
@@ -97,21 +89,20 @@ export class Tasks {
     private readonly options: ApplicationOptions['tasks'],
   ) {}
 
-  execute(name: string, ...args: any[]): TaskExecution {
+  execute(task: AnyTask, ...args: any[]): TaskExecution {
     const ac = new AbortController()
     const abort = (reason?: any) => ac.abort(reason ?? new Error('Aborted'))
     const future = createFuture()
-    const task = this.application.registry.task(name)
 
     onAbort(ac.signal, future.reject)
 
     defer(async () => {
-      if (!task) throw new Error('Task not found')
+      const taskName = this.application.registry.getName('task', task)
 
       ac.signal.throwIfAborted()
 
       if (this.options.runner)
-        return await this.options.runner.execute(ac.signal, name, ...args)
+        return await this.options.runner.execute(ac.signal, taskName, ...args)
 
       const { dependencies, handler } = task
       const container = this.application.container.createScope(
@@ -134,28 +125,25 @@ export class Tasks {
 
   async command({ args, kwargs }) {
     const [name, ...taskArgs] = args
-    const task = this.application.registry.task(name)
+    const task = this.application.registry.getByName('task', name)
     if (!task) throw new Error('Task not found')
     const { parser } = task
     const parsedArgs = parser ? parser(taskArgs, kwargs) : []
-    return await this.execute(name, ...parsedArgs)
+    return await this.execute(task, ...parsedArgs)
   }
 
   private handleTermination(
     result: Promise<any>,
     abort: (reason?: any) => void,
   ) {
-    // TODO: refactor this
     const abortExecution = async () => {
       abort()
-      await result.finally(unregisterHook).catch(noop)
+      await result.catch(noop)
     }
-    const unregisterHook = () => {
-      this.application.registry.hooks
-        .get(Hook.BeforeTerminate)
-        ?.delete(abortExecution)
-    }
-    this.application.registry.registerHook(Hook.BeforeTerminate, abortExecution)
+    const unregisterHook = this.application.registry.hooks.add(
+      Hook.BeforeTerminate,
+      abortExecution,
+    )
     result.finally(unregisterHook).catch(noop)
   }
 }

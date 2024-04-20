@@ -20,7 +20,7 @@ export default defineConfig({
     esbuildPluginFilePathExtensions({
       esmExtension: 'mjs',
       cjsExtension: 'js',
-      esm: ({ format }) => (format === 'esm' ? true : false),
+      esm: ({ format }) => format === 'esm',
     }),
   ],
 })

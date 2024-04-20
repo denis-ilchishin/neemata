@@ -1,4 +1,4 @@
-import { PassThrough, type TransformCallback } from 'node:stream'
+import { PassThrough, Readable, type TransformCallback } from 'node:stream'
 import type { StreamMetadata } from '@neematajs/common'
 
 export abstract class StreamResponse<
@@ -53,7 +53,7 @@ export class BinaryStreamResponse<Payload = any> extends StreamResponse<
   Payload,
   ArrayBuffer
 > {
-  constructor(readonly type: string) {
+  constructor(public readonly type: string) {
     super()
   }
 
@@ -64,7 +64,7 @@ export class BinaryStreamResponse<Payload = any> extends StreamResponse<
   }
 }
 
-export class Stream extends PassThrough {
+export class Stream extends Readable {
   bytesReceived = 0
 
   constructor(

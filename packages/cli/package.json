@@ -8,8 +8,7 @@
     "linux"
   ],
   "bin": {
-    "neemata": "./cli.mjs",
-    "neemata-watch": "./cli-watch.mjs"
+    "neemata": "./cli.mjs"
   },
   "exports": {
     "./swc": {

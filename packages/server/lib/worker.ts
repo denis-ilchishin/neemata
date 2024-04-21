@@ -7,6 +7,7 @@ import {
 } from 'node:worker_threads'
 import {
   type Application,
+  type BaseSubscriptionManager,
   type BaseTaskRunner,
   WorkerType,
 } from '@neematajs/application'
@@ -16,20 +17,22 @@ import {
   createBroadcastChannel,
   providerWorkerOptions,
 } from './common'
+import { WorkerThreadsSubscriptionManager } from './subscription'
 import { WorkerThreadsTaskRunner } from './task-runner'
 
 export type ApplicationWorkerOptions = {
   isServer: boolean
   workerType: WorkerType
-  id?: number
+  subscriptionManager: new (...args: any[]) => BaseSubscriptionManager
+  id: number
+  workerOptions: any
   tasksRunner?: BaseTaskRunner
-  workerOptions?: any
 }
 
 export type ApplicationWorkerData = {
   applicationPath: string
   hasTaskRunners: boolean
-} & ApplicationWorkerOptions
+} & Omit<ApplicationWorkerOptions, 'subscriptionManager' | 'taskRunner'>
 
 if (!isMainThread && !process.env.VITEST) start(parentPort!, workerData)
 
@@ -56,6 +59,7 @@ export async function start(
     workerType,
     workerOptions,
     tasksRunner,
+    subscriptionManager: WorkerThreadsSubscriptionManager,
     isServer: true,
   })
 

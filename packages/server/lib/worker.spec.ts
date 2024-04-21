@@ -4,6 +4,7 @@ import { once } from 'node:events'
 import type { MessagePort } from 'node:worker_threads'
 import {
   Application,
+  BasicSubscriptionManager,
   Task,
   WorkerType,
   defer,
@@ -14,6 +15,7 @@ import {
   bindPortMessageHandler,
   injectWorkerOptions,
 } from './common'
+import { WorkerThreadsSubscriptionManager } from './subscription'
 import { type ApplicationWorkerData, start as startWorker } from './worker'
 
 const applicationPath = '@app'
@@ -77,6 +79,7 @@ describe.sequential('Application Worker', () => {
       id: 0,
       isServer: false,
       workerType: WorkerType.Api,
+      subscriptionManager: BasicSubscriptionManager,
     })
   })
 
@@ -85,12 +88,12 @@ describe.sequential('Application Worker', () => {
     const startSpy = vi.spyOn(app, 'start')
     const stopSpy = vi.spyOn(app, 'stop')
 
-    const workerData: ApplicationWorkerData = {
+    const workerData: Parameters<typeof startWorker>['1'] = {
       id: 1,
       workerType: WorkerType.Api,
       applicationPath: applicationPath,
       hasTaskRunners: false,
-      workerOptions: ['workerOpt'],
+      workerOptions: 'workerOpt',
       isServer: true,
     }
     await expect(startWorker(mPort, workerData)).resolves.toBe(app)
@@ -107,6 +110,7 @@ describe.sequential('Application Worker', () => {
       isServer: workerData.isServer,
       workerType: workerData.workerType,
       workerOptions: workerData.workerOptions,
+      subscriptionManager: WorkerThreadsSubscriptionManager,
     })
   })
 
@@ -120,7 +124,7 @@ describe.sequential('Application Worker', () => {
       workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
-      workerOptions: ['workerOpt'],
+      workerOptions: 'workerOpt',
       isServer: true,
     }
     await expect(startWorker(mPort, workerData)).resolves.toBe(app)
@@ -138,6 +142,7 @@ describe.sequential('Application Worker', () => {
       workerType: workerData.workerType,
       workerOptions: workerData.workerOptions,
       taskRunner: workerData.tasksRunner,
+      subscriptionManager: WorkerThreadsSubscriptionManager,
     })
   })
 
@@ -147,7 +152,7 @@ describe.sequential('Application Worker', () => {
       workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
-      workerOptions: ['workerOpt'],
+      workerOptions: 'workerOpt',
       isServer: true,
     }
     startWorker(mPort, workerData)
@@ -181,7 +186,7 @@ describe.sequential('Application Worker', () => {
       workerType: WorkerType.Task,
       applicationPath: applicationPath,
       hasTaskRunners: false,
-      workerOptions: ['workerOpt'],
+      workerOptions: 'workerOpt',
       isServer: true,
     }
     startWorker(mPort, workerData)
@@ -212,9 +217,10 @@ describe.sequential('Application Worker', () => {
   it('should handle task execution abortion', async () => {
     const task = new Task().withHandler((ctx) => new Promise(noop))
     app.registry.registerTask('test', 'test', task)
-    const workerData: ApplicationWorkerData = {
+    const workerData: Parameters<typeof startWorker>['1'] = {
       id: 1,
       workerType: WorkerType.Task,
+      workerOptions: 'workerOpt',
       applicationPath: applicationPath,
       hasTaskRunners: false,
       isServer: true,

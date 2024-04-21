@@ -2,10 +2,10 @@ import { Api, type BaseParser } from './api'
 import {
   type AnyModule,
   type ClassConstructor,
+  type ExecuteFn,
   type ExtensionApplication,
   Hook,
   type Merge,
-  type OmitFirstItem,
   Scope,
   WorkerType,
 } from './common'
@@ -23,12 +23,7 @@ import {
   type BaseSubscriptionManager,
   BasicSubscriptionManager,
 } from './subscription'
-import {
-  type BaseTaskRunner,
-  type Task,
-  type TaskExecution,
-  Tasks,
-} from './tasks'
+import { type BaseTaskRunner, Tasks } from './tasks'
 import type { BaseTransport } from './transport'
 import { merge } from './utils/functions'
 
@@ -156,10 +151,7 @@ export class Application<
     })
   }
 
-  execute<T extends Task>(
-    task: T,
-    ...args: OmitFirstItem<Parameters<T['handler']>>
-  ): TaskExecution<Awaited<ReturnType<T['handler']>>> {
+  execute: ExecuteFn = (task, ...args: any[]) => {
     return this.tasks.execute(task, ...args)
   }
 

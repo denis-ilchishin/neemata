@@ -48,11 +48,6 @@ describe.sequential('Task', () => {
     expect(newTask2.dependencies).toHaveProperty('dep2', dep2)
     expect(newTask2).not.toBe(task)
   })
-
-  it('should clone with args', () => {
-    const newTask = task.withArgs<['arg1', 'arg2']>()
-    expect(newTask).not.toBe(task)
-  })
 })
 
 describe.sequential('Tasks', () => {
@@ -169,11 +164,10 @@ describe.sequential('Tasks', () => {
 
   it('should run command', async () => {
     const task = testTask()
-      .withArgs<[number, number]>()
+      .withHandler((ctx, arg1: number, arg2: number) => [arg1, arg2])
       .withParser((args, kwargs) => {
         return [Number.parseInt(args[0]), kwargs.value]
       })
-      .withHandler((ctx, ...args) => args)
 
     registry.registerTask('test', 'test', task)
     const { result } = await tasks.command({

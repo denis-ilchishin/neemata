@@ -1,5 +1,5 @@
 import type { ApplicationOptions } from './application'
-import { type AnyTask, Hook, type Merge } from './common'
+import { type AnyTask, Hook, type Merge, type OmitFirstItem } from './common'
 import {
   type Container,
   type Dependencies,
@@ -11,7 +11,7 @@ import type { Registry } from './registry'
 import { createFuture, defer, merge, noop, onAbort } from './utils/functions'
 
 export type TaskExecution<Res = any> = Promise<
-  { result: Res; error?: any } | { result?: Res; error: any }
+  { result: Res; error: never } | { result: never; error: any }
 > & {
   abort(reason?: any): void
 }
@@ -22,9 +22,9 @@ export type TasksRunner = (
   ...args: any[]
 ) => Promise<any>
 
-type Handler<Deps extends Dependencies, Args extends any[]> = (
+type Handler<Deps extends Dependencies> = (
   ctx: DependencyContext<Deps>,
-  ...args: Args
+  ...args: any[]
 ) => any
 
 export abstract class BaseTaskRunner {
@@ -37,13 +37,15 @@ export abstract class BaseTaskRunner {
 
 export class Task<
   TaskDeps extends Dependencies = {},
-  TaskArgs extends any[] = any[],
+  TaskHandler extends Handler<TaskDeps> = Handler<TaskDeps>,
   TaskType = unknown,
+  TaskArgs extends any[] = [],
 > implements Depender<TaskDeps>
 {
   _!: {
     type: TaskType
-    handler: Handler<TaskDeps, TaskArgs>
+    handler: Handler<TaskDeps>
+    args: TaskArgs
   }
 
   readonly dependencies: TaskDeps = {} as TaskDeps
@@ -53,31 +55,32 @@ export class Task<
     kwargs: Record<string, any>,
   ) => TaskArgs | Readonly<TaskArgs>
 
-  withArgs<NewArgs extends any[]>() {
-    const task = new Task<TaskDeps, NewArgs>()
-    Object.assign(task, this)
-    return task
-  }
-
   withDependencies<NewDeps extends Dependencies>(dependencies: NewDeps) {
-    const task = new Task<Merge<TaskDeps, NewDeps>, TaskArgs>()
+    const task = new Task<
+      Merge<TaskDeps, NewDeps>,
+      Handler<Merge<TaskDeps, NewDeps>>,
+      TaskType,
+      TaskArgs
+    >()
     Object.assign(task, this, {
       dependencies: merge(this.dependencies, dependencies),
     })
     return task
   }
 
-  withHandler<
-    NewHandler extends this['_']['handler'],
-    NewType extends Awaited<ReturnType<NewHandler>>,
-  >(handler: NewHandler) {
-    const task = new Task<TaskDeps, TaskArgs, NewType>()
+  withHandler<NewHandler extends Handler<TaskDeps>>(handler: NewHandler) {
+    const task = new Task<
+      TaskDeps,
+      TaskHandler,
+      Awaited<ReturnType<NewHandler>>,
+      OmitFirstItem<Parameters<NewHandler>>
+    >()
     Object.assign(task, this, { handler })
     return task
   }
 
   withParser(parser: this['parser']) {
-    const task = new Task<TaskDeps, TaskArgs, TaskType>()
+    const task = new Task<TaskDeps, TaskHandler, TaskType, TaskArgs>()
     Object.assign(task, this, { parser })
     return task
   }
@@ -120,7 +123,7 @@ export class Tasks {
         .then((result) => ({ result }))
         .catch((error = new Error('Task execution')) => ({ error })),
       { abort },
-    )
+    ) as TaskExecution
   }
 
   async command({ args, kwargs }) {

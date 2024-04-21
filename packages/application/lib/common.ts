@@ -82,7 +82,7 @@ export type AnyApplication = Application<any, any>
 export type AnyModule = Module<any, any, any, any>
 export type AnyProvider = Provider<any, any>
 export type AnyProcedure = Procedure<any, any, any, any, any>
-export type AnyTask = Task<any, any, any>
+export type AnyTask = Task<any, any, any, any>
 export type AnyEvent = Event<any, any, any>
 
 export type MiddlewareContext = {
@@ -176,8 +176,8 @@ export type CallFn = <P extends AnyProcedure>(
 
 export type ExecuteFn = <T extends AnyTask>(
   task: T,
-  ...args: OmitFirstItem<Parameters<T['handler']>>
-) => TaskExecution<Awaited<ReturnType<T['handler']>>>
+  ...args: T['_']['args']
+) => TaskExecution<T['_']['type']>
 
 export type Merge<
   T1 extends Record<string, any>,

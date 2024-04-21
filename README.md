@@ -1,5 +1,5 @@
 ## Neemata
-Node.js RPC application server (**PoC**)
+Node.js RPC application server (**proof of concept**)
 
 [Example](https://github.com/denis-ilchishin/neemata-starter)
 
@@ -16,13 +16,12 @@ Node.js RPC application server (**PoC**)
 - [Transport-agnostic data streaming](https://github.com/denis-ilchishin/neemata/issues/56)
 - CLI support
 - Typescript modules support without build process (runtime transpilation with [SWC](https://github.com/swc-project/swc))
-- Hot-reload without server restart (preserving all current connections)
 - Static end-to-end typesafety for fullstack TS apps, including server events, subscriptions and streams
 
 #### First-party transports and clients:
 - **Websockets** 
 - AMQP (In backlog until all core APIs/interfaces are stable)
 
-#### First-party extensions:
-- JSON schema generation
+#### First-party extensions (In backlog until all core APIs/interfaces are stable):
+- JSON schema API documentation
 - Cron

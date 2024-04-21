@@ -14,7 +14,6 @@ export class Subscription<E extends Event = Event> extends PassThrough {
     readonly unsubscribe: () => Promise<any>,
   ) {
     super({ writableObjectMode: true, readableObjectMode: true })
-    this.once('unsubscribe', () => this.end())
   }
 }
 

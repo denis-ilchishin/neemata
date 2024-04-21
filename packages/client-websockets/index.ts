@@ -439,7 +439,8 @@ class WebsocketsClient<
   [KEY[MessageType.ServerUnsubscribe]](buffer: ArrayBuffer) {
     const [key] = JSON.parse(decodeText(buffer))
     const subscription = this.subscriptions.get(key)
-    subscription?.unsubscribe()
+    subscription?.emit('end')
+    this.subscriptions.delete(key)
   }
 }
 

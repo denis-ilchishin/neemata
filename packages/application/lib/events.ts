@@ -105,7 +105,7 @@ export class EventManager<
     const subscription = subscriptions.get(eventKey)
     if (!subscription) return false
     await this.subManager.unsubscribe(subscription)
-    subscription.emit('unsubscribe')
+    subscription.end()
     subscriptions.delete(eventKey)
   }
 

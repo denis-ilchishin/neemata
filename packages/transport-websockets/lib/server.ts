@@ -338,11 +338,20 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       },
       close: async (ws, code, message) => {
         const { id, container, streams, subscriptions } = ws.getUserData()
+        this.logger.debug(
+          'Close websocket [%s] with code [%s]: %s',
+          id,
+          code,
+          decodeText(message),
+        )
         this.sockets.delete(ws)
         this.application.connections.remove(id)
-        for (const _streams of [streams.up, streams.down, subscriptions]) {
+        for (const _streams of [streams.up, streams.down]) {
           for (const stream of _streams.values()) stream.destroy()
           _streams.clear()
+        }
+        for (const subscription of subscriptions.values()) {
+          subscription.unsubscribe()
         }
         this.handleContainerDisposal(container)
       },

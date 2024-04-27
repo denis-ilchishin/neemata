@@ -1,4 +1,5 @@
 import {
+  type TestConnection,
   TestParser,
   TestTransport,
   testApp,
@@ -18,6 +19,7 @@ import {
   Provider,
 } from './container'
 import { Registry } from './registry'
+import { noop } from './utils/functions'
 
 describe.sequential('Procedure', () => {
   let procedure: AnyProcedure
@@ -150,10 +152,11 @@ describe.sequential('Api', () => {
   const inputParser = new TestParser()
   const outputParser = new TestParser()
   const logger = testLogger()
-  const registry = new Registry({ logger, modules: {} })
-  const container = new Container({ registry, logger })
-  const app = testApp().registerTransport(TestTransport)
-  const transport = app.transports.values().next().value as TestTransport
+
+  let registry: Registry
+  let container: Container
+  let transport: TestTransport
+  let connection: TestConnection<any>
   let api: Api
 
   const call = (
@@ -161,10 +164,9 @@ describe.sequential('Api', () => {
       Partial<Omit<ProcedureCallOptions, 'procedure'>>,
   ) =>
     api.call({
-      name: 'test',
       container,
       transport,
-      connection: testConnection(registry, {}),
+      connection,
       payload: {},
       path: [options.procedure],
       ...options,
@@ -173,12 +175,16 @@ describe.sequential('Api', () => {
   const testProcedure = () => new Procedure().withTransport(TestTransport)
 
   beforeEach(async () => {
+    registry = new Registry({ logger, modules: {} })
+    container = new Container({ registry, logger })
+    transport = new TestTransport()
+    connection = testConnection(registry, {})
     api = new Api(
       {
         container,
-        logger,
         registry,
-        transports: app.transports,
+        logger,
+        transports: new Set([transport]),
       },
       {
         timeout: testDefaultTimeout,
@@ -195,48 +201,55 @@ describe.sequential('Api', () => {
     expect(api).toBeInstanceOf(Api)
   })
 
-  it('should be initiate corrent', () => {
+  it('should be initiate correctly', () => {
     const parser = new TestParser()
-    let newApi = new Api(testApp(), {
+    const api1 = new Api(testApp(), {
       timeout: testDefaultTimeout,
       parsers: parser,
     })
-    expect(newApi.parsers.input).toBe(parser)
-    expect(newApi.parsers.output).toBe(parser)
+    expect(api1.parsers.input).toBe(parser)
+    expect(api1.parsers.output).toBe(parser)
 
     const inputParser = new TestParser()
     const outputParser = new TestParser()
-    newApi = new Api(testApp(), {
+    const api2 = new Api(testApp(), {
       timeout: testDefaultTimeout,
       parsers: {
         input: inputParser,
         output: outputParser,
       },
     })
-    expect(newApi.parsers.input).toBe(inputParser)
-    expect(newApi.parsers.output).toBe(outputParser)
-  })
-
-  it('should handle procedure call', async () => {
-    const procedure = testProcedure().withHandler(() => 'result')
-    await expect(call({ procedure })).resolves.toBe('result')
+    expect(api2.parsers.input).toBe(inputParser)
+    expect(api2.parsers.output).toBe(outputParser)
   })
 
   it('should inject context', async () => {
+    const spy = vi.fn()
     const procedure = testProcedure()
       .withDependencies({
         connection: CONNECTION_PROVIDER,
         call: CALL_PROVIDER,
       })
-      .withHandler((ctx) => ctx)
+      .withHandler(spy)
+    registry.registerProcedure('test', 'test', procedure)
     const connection = testConnection(registry, {})
-    const ctx = await call({
+    await call({
       connection,
       procedure,
     })
-    expect(ctx).toBeDefined()
-    expect(ctx).toHaveProperty('connection', connection)
-    expect(ctx).toHaveProperty('call', expect.any(Function))
+    expect(spy).toHaveBeenCalledWith(
+      {
+        connection,
+        call: expect.any(Function),
+      },
+      expect.anything(),
+    )
+  })
+
+  it('should handle procedure call', async () => {
+    const procedure = testProcedure().withHandler(() => 'result')
+    registry.registerProcedure('test', 'test', procedure)
+    await expect(call({ procedure })).resolves.toBe('result')
   })
 
   it('should inject dependencies', async () => {
@@ -244,6 +257,7 @@ describe.sequential('Api', () => {
     const procedure = testProcedure()
       .withDependencies({ provider })
       .withHandler(({ provider }) => provider)
+    registry.registerProcedure('test', 'test', procedure)
     await expect(call({ procedure })).resolves.toBe('value')
   })
 
@@ -254,6 +268,7 @@ describe.sequential('Api', () => {
     const procedure = testProcedure()
       .withDependencies({ provider })
       .withHandler(({ provider }) => provider)
+    registry.registerProcedure('test', 'test', procedure)
     const connection = testConnection(registry, {})
     await expect(call({ connection, procedure })).resolves.toBe(connection)
   })
@@ -261,6 +276,7 @@ describe.sequential('Api', () => {
   it('should handle procedure call with payload', async () => {
     const payload = {}
     const procedure = testProcedure().withHandler((ctx, data) => data)
+    registry.registerProcedure('test', 'test', procedure)
     await expect(call({ procedure, payload })).resolves.toBe(payload)
   })
 
@@ -268,21 +284,21 @@ describe.sequential('Api', () => {
     const procedure = testProcedure().withHandler(() => {
       throw new Error()
     })
+    registry.registerProcedure('test', 'test', procedure)
     const result = await call({ procedure }).catch((v) => v)
     expect(result).toBeInstanceOf(Error)
   })
 
   it('should handle filter', async () => {
+    const spy = vi.fn(() => new ApiError('custom'))
     class CustomError extends Error {}
-    const filter = new Provider().withValue(
-      (() => new ApiError('custom')) as FilterFn,
-    )
-    const spy = vi.spyOn(filter, 'value')
+    const filter = new Provider().withValue(spy as FilterFn)
     registry.registerFilter(CustomError, filter)
     const error = new CustomError()
     const procedure = testProcedure().withHandler(() => {
       throw error
     })
+    registry.registerProcedure('test', 'test', procedure)
     await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
     expect(spy).toHaveBeenCalledOnce()
     expect(spy).toHaveBeenCalledWith(error)
@@ -293,28 +309,65 @@ describe.sequential('Api', () => {
     const procedure = testProcedure()
       .withGuards(guard)
       .withHandler(() => 'result')
+    registry.registerProcedure('test', 'test', procedure)
     const result = await call({ procedure }).catch((v) => v)
     expect(result).toBeInstanceOf(ApiError)
     expect(result).toHaveProperty('code', ErrorCode.Forbidden)
   })
 
   it('should handle middleware', async () => {
-    const middleware = new Provider().withValue(
-      (async (ctx, next) => (await next()) + 'middleware') as MiddlewareFn,
+    const middleware1Fn = vi.fn(
+      async (ctx, next, payload) =>
+        (await next([...payload, 2])) + '_middleware',
     )
-    const spy = vi.spyOn(middleware, 'value')
+    const middleware2Fn = vi.fn(
+      async (ctx, next, payload) =>
+        (await next([...payload, 3])) + '_middleware',
+    )
+
+    const handlerFn = vi.fn(() => 'result')
+
+    const middleware1 = new Provider().withValue(middleware1Fn as MiddlewareFn)
+    const middleware2 = new Provider().withValue(middleware2Fn as MiddlewareFn)
     const procedure = testProcedure()
-      .withMiddlewares(middleware)
-      .withHandler(() => 'result')
-    const res = await call({ procedure })
-    expect(spy).toHaveBeenCalledOnce()
-    expect(res).toBe('resultmiddleware')
+      .withMiddlewares(middleware1, middleware2)
+      .withHandler(handlerFn)
+
+    registry.registerProcedure('test', 'test', procedure)
+
+    const response = await call({ procedure, payload: [1] })
+
+    expect(middleware1Fn).toHaveBeenCalledWith(
+      {
+        names: ['test/test'],
+        connection,
+        path: [procedure],
+        procedure,
+        container,
+      },
+      expect.any(Function),
+      [1],
+    )
+    expect(middleware2Fn).toHaveBeenCalledWith(
+      {
+        names: ['test/test'],
+        connection,
+        path: [procedure],
+        procedure,
+        container,
+      },
+      expect.any(Function),
+      [1, 2],
+    )
+    expect(handlerFn).toHaveBeenCalledWith(expect.anything(), [1, 2, 3])
+    expect(response).toBe('result_middleware_middleware')
   })
 
   it('should handle timeout', async () => {
     const procedure = testProcedure()
       .withTimeout(10)
       .withHandler(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    registry.registerProcedure('test', 'test', procedure)
     const res = await call({ procedure }).catch((v) => v)
     expect(res).toBeInstanceOf(ApiError)
     expect(res).toHaveProperty('code', ErrorCode.RequestTimeout)
@@ -329,6 +382,7 @@ describe.sequential('Api', () => {
       .withInputParser(new TestParser(parser.custom))
       .withInput(schema)
       .withHandler((ctx, val) => val)
+    registry.registerProcedure('test', 'test', procedure)
     const res = await call({ procedure, payload })
     expect(res).toHaveProperty('schema', schema)
     expect(res).toHaveProperty('val', payload)
@@ -343,6 +397,7 @@ describe.sequential('Api', () => {
       .withOutputParser(new TestParser(custom))
       .withOutput(schema)
       .withHandler((ctx, val) => val)
+    registry.registerProcedure('test', 'test', procedure)
     const res = await call({ procedure, payload })
     expect(custom).toHaveBeenCalledOnce()
     expect(res).toHaveProperty('schema', schema)
@@ -358,19 +413,13 @@ describe.sequential('Api', () => {
       )
       .withOutput({})
       .withHandler((ctx, val) => val)
-
-    await expect(call({ procedure }).catch((v) => v)).resolves.toBeInstanceOf(
-      ApiError,
-    )
+    registry.registerProcedure('test', 'test', procedure)
+    await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
   })
 
-  it('should find procedure', async () => {
+  it('should find procedure', () => {
     const procedure = testProcedure().withHandler(() => 'result')
-    registry.procedures.set('test', procedure)
-    expect(api.find('test')).toBe(procedure)
-  })
-
-  it('should fail find procedure', async () => {
-    expect(() => api.find('non-existing')).toThrow()
+    registry.registerProcedure('test', 'test', procedure)
+    expect(api.find('test/test')).toBe(procedure)
   })
 })

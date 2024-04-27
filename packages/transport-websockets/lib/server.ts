@@ -738,7 +738,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
     this.logger.debug('Calling [%s] procedure...', procedureName)
     return this.application.api.call({
       transport: this.transport,
-      name: procedureName,
       connection,
       procedure,
       payload,

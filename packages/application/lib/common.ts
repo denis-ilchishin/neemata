@@ -87,8 +87,8 @@ export type AnyEvent = Event<any, any, any>
 
 export type MiddlewareContext = {
   connection: BaseTransportConnection
-  name: string
   path: [Procedure, ...Procedure[]]
+  names: [string, ...string[]]
   container: Container
   procedure: Procedure
 }

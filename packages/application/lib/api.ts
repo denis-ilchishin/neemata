@@ -274,7 +274,6 @@ export class Procedure<
 }
 
 export type ProcedureCallOptions = {
-  name: string
   transport: BaseTransport
   connection: BaseTransportConnection
   path: [AnyProcedure, ...AnyProcedure[]]
@@ -283,8 +282,7 @@ export type ProcedureCallOptions = {
   container: Container
 }
 
-const NotFound = (name: string) =>
-  new ApiError(ErrorCode.NotFound, `Procedure ${name} not found`)
+const NotFound = () => new ApiError(ErrorCode.NotFound, 'Procedure not found')
 
 export class Api {
   connectionProvider?: ConnectionProvider<any, any>
@@ -317,31 +315,28 @@ export class Api {
     try {
       return this.application.registry.getByName('procedure', name)
     } catch (error) {
-      throw NotFound(name)
+      throw NotFound()
     }
   }
 
   async call(callOptions: ProcedureCallOptions, nested = false) {
     const { payload, container, connection } = callOptions
 
-    const callNested = this.createCallNested(callOptions) as CallFn
+    const call = this.createNestedCaller(callOptions) as CallFn
 
-    container.provide(CALL_PROVIDER, callNested)
+    container.provide(CALL_PROVIDER, call)
     container.provide(CONNECTION_PROVIDER, connection)
 
     try {
       this.handleTransport(callOptions)
-      const handleProcedure = await this.createProcedureHandler(
-        callOptions,
-        nested,
-      )
-      return await handleProcedure(payload)
+      const handler = await this.createProcedureHandler(callOptions, nested)
+      return await handler(payload)
     } catch (error) {
       throw await this.handleFilters(error)
     }
   }
 
-  private createCallNested(callOptions: ProcedureCallOptions) {
+  private createNestedCaller(callOptions: ProcedureCallOptions) {
     return (procedure: Procedure, payload: any) => {
       return this.call(
         {
@@ -359,10 +354,14 @@ export class Api {
     callOptions: ProcedureCallOptions,
     nested: boolean,
   ) {
-    const { name, connection, path, procedure, container } = callOptions
+    const { connection, path, procedure, container } = callOptions
+
+    const names = path.map((procedure) =>
+      this.application.registry.getName('procedure', procedure),
+    )
 
     const middlewareCtx: MiddlewareContext = {
-      name,
+      names: names as [string, ...string[]],
       connection,
       path,
       procedure,
@@ -398,16 +397,7 @@ export class Api {
           timeout,
         )
 
-        try {
-          return await this.handleSchema(procedure, 'output', result, context)
-        } catch (cause) {
-          const error = new Error(`Procedure [${name}] output error`, { cause })
-          this.application.logger.error(error)
-          throw new ApiError(
-            ErrorCode.InternalServerError,
-            'Internal Server Error',
-          )
-        }
+        return await this.handleSchema(procedure, 'output', result, context)
       }
     }
 
@@ -426,16 +416,12 @@ export class Api {
     return middlewares[Symbol.iterator]()
   }
 
-  private handleTransport({
-    procedure,
-    transport,
-    name,
-  }: ProcedureCallOptions) {
+  private handleTransport({ procedure, transport }: ProcedureCallOptions) {
     for (const transportClass of procedure.transports) {
       if (transport instanceof transportClass) return
     }
 
-    throw NotFound(name)
+    throw NotFound()
   }
 
   private handleTimeout(response: any, timeout?: number) {
@@ -466,7 +452,10 @@ export class Api {
         }
       }
     }
-    return error
+    if (error instanceof ApiError) return error
+    const logError = new Error('Unhandled error', { cause: error })
+    this.application.logger.error(logError)
+    return new ApiError(ErrorCode.InternalServerError, 'Internal Server Error')
   }
 
   private async handleSchema(

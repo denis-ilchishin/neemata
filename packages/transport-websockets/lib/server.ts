@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
-import { PassThrough, type Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import {
   ApiError,
   type BaseTransportConnection,
   BinaryStreamResponse,
   type Container,
   type ExtensionApplication,
-  Hook,
   JsonStreamResponse,
   type Procedure,
   Scope,
@@ -147,10 +146,10 @@ export const getBody = (req: Req, res: Res) => {
   }
 
   const toStream = (): Readable => {
-    const stream = new PassThrough()
+    const stream = new Readable()
     res.onData((chunk, isLast) => {
-      stream.write(Buffer.from(chunk))
-      if (isLast) stream.end()
+      stream.push(Buffer.from(chunk))
+      if (isLast) stream.push(null)
     })
     res.onAborted(() => stream.destroy())
     return stream
@@ -426,12 +425,10 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       return value
     }
 
-    const rpcPayload = fromJSON(
-      decodeText(
-        payloadBuf.slice(Uint32Array.BYTES_PER_ELEMENT + streamDataLength),
-      ),
-      streamsReplacer,
+    const rpcPayloadText = decodeText(
+      payloadBuf.slice(Uint32Array.BYTES_PER_ELEMENT + streamDataLength),
     )
+    const rpcPayload = fromJSON(rpcPayloadText, streamsReplacer)
 
     const [callId, procedureName, payload] = rpcPayload
     const container = data.container.createScope(Scope.Call)

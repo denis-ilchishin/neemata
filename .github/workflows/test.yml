@@ -13,6 +13,7 @@ jobs:
         node:
           - 18.19.0
           - 20.6.0
+          - 22.0.0
         os:
           - ubuntu-latest
           - macos-latest

@@ -51,6 +51,12 @@ export class TestExtension extends BaseExtension {
 export class TestTransport extends BaseTransport<TestConnection<any>> {
   static readonly key = 'test'
 
+  // biome-ignore lint/complexity/noUselessConstructor:
+  constructor(...args: any[]) {
+    // @ts-expect-error
+    super(...args)
+  }
+
   name = 'Test transport'
 
   async start() {

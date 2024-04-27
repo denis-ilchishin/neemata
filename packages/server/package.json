@@ -15,7 +15,7 @@
   },
   "os": ["darwin", "linux"],
   "engines": {
-    "node": ">=18.19.0 <19 || >=20.6.0 <21"
+    "node": ">=18"
   },
   "peerDependencies": {
     "@neematajs/application": "workspace:*"

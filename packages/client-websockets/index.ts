@@ -36,8 +36,8 @@ export {
 
 type Options = {
   host: string
+  timeout: number
   secure?: boolean
-  timeout?: number
   autoreconnect?: boolean
   debug?: boolean
   WebSocket?: new (...args: any[]) => WebSocket
@@ -122,7 +122,9 @@ class WebsocketsClient<
       this.clear(
         event.code === 1000
           ? undefined
-          : new Error('Connection closed with code ' + event.code),
+          : new Error(
+              `Connection closed with code ${event.code}: ${event.reason}`,
+            ),
       )
       if (this.autoreconnect) this.connect()
     }
@@ -159,7 +161,7 @@ class WebsocketsClient<
       : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
-    const { timeout = options.timeout } = options
+    const { timeout = options.timeout ?? this.options.timeout } = options
     const callId = ++this.callId
     const streams: [number, StreamMetadata][] = []
     const replacer = (key: string, value: any) => {
@@ -182,7 +184,7 @@ class WebsocketsClient<
         reject(new ApiError(ErrorCode.RequestTimeout, 'Request timeout'))
         this.calls.delete(callId)
       }
-    }, timeout || 30000)
+    }, timeout)
 
     if (!this.isConnected) await once(this, '_neemata:connect')
 
@@ -205,25 +207,16 @@ class WebsocketsClient<
       : ResolveApiProcedureType<Procedures, P, 'output'>
   > {
     const [payload, options = {}] = args
-    const { timeout = options.timeout, headers = {}, URLParams } = options
-    const ac = new AbortController()
-    const timeoutSignal = timeout ? AbortSignal.timeout(timeout) : undefined
-    if (timeoutSignal) {
-      // TODO: AbortSignal.any not yet fully supported
-      // https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static
-      timeoutSignal.addEventListener(
-        'abort',
-        () => ac.abort(new Error('Timeout')),
-        {
-          once: true,
-        },
-      )
-    }
+    const {
+      timeout = options.timeout ?? this.options.timeout,
+      headers = {},
+      URLParams,
+    } = options
 
     return await fetch(
       this.getURL(`api/${procedure as string}`, 'http', URLParams),
       {
-        signal: ac.signal,
+        signal: AbortSignal.timeout(timeout),
         method: 'POST',
         body: JSON.stringify(payload),
         credentials: 'include',

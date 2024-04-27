@@ -72,6 +72,7 @@ export class Module<
   }
 
   withCommand(command: string, callback: Command) {
+    if (this.commands[command]) throw new Error('Command already set')
     this.commands[command] = callback
     return this
   }

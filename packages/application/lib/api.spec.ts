@@ -290,11 +290,9 @@ describe.sequential('Api', () => {
   })
 
   it('should handle filter', async () => {
+    const spy = vi.fn(() => new ApiError('custom'))
     class CustomError extends Error {}
-    const filter = new Provider().withValue(
-      (() => new ApiError('custom')) as FilterFn,
-    )
-    const spy = vi.spyOn(filter, 'value')
+    const filter = new Provider().withValue(spy as FilterFn)
     registry.registerFilter(CustomError, filter)
     const error = new CustomError()
     const procedure = testProcedure().withHandler(() => {
@@ -419,7 +417,7 @@ describe.sequential('Api', () => {
     await expect(call({ procedure })).rejects.toBeInstanceOf(ApiError)
   })
 
-  it('should find procedure', async () => {
+  it('should find procedure', () => {
     const procedure = testProcedure().withHandler(() => 'result')
     registry.registerProcedure('test', 'test', procedure)
     expect(api.find('test/test')).toBe(procedure)

@@ -452,7 +452,10 @@ export class Api {
         }
       }
     }
-    return error
+    if (error instanceof ApiError) return error
+    const logError = new Error('Unhandled error', { cause: error })
+    this.application.logger.error(logError)
+    return new ApiError(ErrorCode.InternalServerError, 'Internal Server Error')
   }
 
   private async handleSchema(

@@ -14,7 +14,6 @@ import { Api, Middleware, Procedure, type ProcedureCallOptions } from './api'
 import type { AnyProcedure, FilterFn, GuardFn, MiddlewareFn } from './common'
 import { CONNECTION_PROVIDER, Container, Provider } from './container'
 import { Registry } from './registry'
-import { noop } from './utils/functions'
 
 describe.sequential('Procedure', () => {
   let procedure: AnyProcedure

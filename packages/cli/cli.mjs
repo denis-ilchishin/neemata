@@ -3,7 +3,6 @@
 import { fork } from 'node:child_process'
 import { register } from 'node:module'
 import { resolve } from 'node:path'
-import repl from 'node:repl'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import {
@@ -192,12 +191,6 @@ if (watch) {
       } finally {
         terminate()
       }
-    },
-    async repl() {
-      const app = await loadApp(WorkerType.Api)
-      await app.initialize()
-      globalThis.app = app
-      repl.start({ useGlobal: true })
     },
   }
 

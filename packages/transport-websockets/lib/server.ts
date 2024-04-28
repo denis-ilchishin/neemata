@@ -739,7 +739,6 @@ export class WebsocketsTransportServer extends BaseHttpTransportServer {
       procedure,
       payload,
       container,
-      path: [procedure],
     })
   }
 }

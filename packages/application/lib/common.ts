@@ -54,7 +54,7 @@ export type Async<T> = T | Promise<T>
 
 export type GuardOptions = {
   connection: BaseTransportConnection
-  path: [Procedure, ...Procedure[]]
+  path: ApiPath
 }
 
 export type Command = (options: {
@@ -85,12 +85,12 @@ export type AnyProcedure = Procedure<any, any, any, any, any>
 export type AnyTask = Task<any, any, any, any>
 export type AnyEvent = Event<any, any, any>
 
+export type ApiPath = { procedure: AnyProcedure; name: string }
+
 export type MiddlewareContext = {
   connection: BaseTransportConnection
-  path: [Procedure, ...Procedure[]]
-  names: [string, ...string[]]
   container: Container
-  procedure: Procedure
+  path: ApiPath
 }
 
 export type Next = (payload?: any) => any
@@ -162,17 +162,6 @@ export type Scalars = Primitive | Primitive[]
 export type GlobalContext = {
   logger: Logger
 }
-
-export type CallFn = <P extends AnyProcedure>(
-  procedure: P,
-  ...args: P['input'] extends unknown ? [] : [InferSchemaOutput<P['input']>]
-) => Promise<
-  Awaited<
-    P['output'] extends unknown
-      ? ReturnType<P['handler']>
-      : InferSchemaOutput<P['output']>
-  >
->
 
 export type ExecuteFn = <T extends AnyTask>(
   task: T,

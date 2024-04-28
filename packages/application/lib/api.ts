@@ -1,27 +1,22 @@
 import { ApiError, ErrorCode } from '@neematajs/common'
-import { boolean } from 'zod'
 import type { ApplicationOptions } from './application'
 import type {
-  AnyApplication,
   AnyProcedure,
+  ApiPath,
   Async,
-  CallFn,
   ConnectionFn,
   ConnectionProvider,
   ErrorClass,
   Extra,
   FilterFn,
-  // Guard,
   GuardFn,
   InferSchemaInput,
   InferSchemaOutput,
   Merge,
-  // Middleware,
   MiddlewareContext,
   MiddlewareFn,
 } from './common'
 import {
-  CALL_PROVIDER,
   CONNECTION_PROVIDER,
   type Container,
   type Dependencies,
@@ -276,7 +271,6 @@ export class Procedure<
 export type ProcedureCallOptions = {
   transport: BaseTransport
   connection: BaseTransportConnection
-  path: [AnyProcedure, ...AnyProcedure[]]
   procedure: AnyProcedure
   payload: any
   container: Container
@@ -319,58 +313,38 @@ export class Api {
     }
   }
 
-  async call(callOptions: ProcedureCallOptions, nested = false) {
-    const { payload, container, connection } = callOptions
+  async call(callOptions: ProcedureCallOptions) {
+    const { payload, container, connection, procedure } = callOptions
 
-    const call = this.createNestedCaller(callOptions) as CallFn
+    const path = {
+      procedure,
+      name: this.application.registry.getName('procedure', procedure),
+    }
 
-    container.provide(CALL_PROVIDER, call)
     container.provide(CONNECTION_PROVIDER, connection)
 
     try {
       this.handleTransport(callOptions)
-      const handler = await this.createProcedureHandler(callOptions, nested)
+      const handler = await this.createProcedureHandler(callOptions, path)
       return await handler(payload)
     } catch (error) {
       throw await this.handleFilters(error)
     }
   }
 
-  private createNestedCaller(callOptions: ProcedureCallOptions) {
-    return (procedure: Procedure, payload: any) => {
-      return this.call(
-        {
-          ...callOptions,
-          path: [...callOptions.path, procedure],
-          procedure,
-          payload,
-        },
-        true,
-      )
-    }
-  }
-
   private async createProcedureHandler(
     callOptions: ProcedureCallOptions,
-    nested: boolean,
+    path: ApiPath,
   ) {
-    const { connection, path, procedure, container } = callOptions
-
-    const names = path.map((procedure) =>
-      this.application.registry.getName('procedure', procedure),
-    )
+    const { connection, procedure, container } = callOptions
 
     const middlewareCtx: MiddlewareContext = {
-      names: names as [string, ...string[]],
       connection,
       path,
-      procedure,
       container,
     }
 
-    const middlewares = nested
-      ? undefined
-      : await this.resolveMiddlewares(callOptions)
+    const middlewares = await this.resolveMiddlewares(callOptions)
 
     const { timeout = this.options.timeout } = procedure
 
@@ -380,12 +354,11 @@ export class Api {
         const next = (newPayload = payload) => handleProcedure(newPayload)
         return middleware(middlewareCtx, next, payload)
       } else {
-        await this.handleGuards(callOptions)
+        await this.handleGuards(callOptions, path)
         const { dependencies } = procedure
         const context = await container.createContext(dependencies)
 
-        // TODO: maybe disable input handling for nested calls or make it optional at least?
-        const data = await this.handleSchema(
+        const input = await this.handleSchema(
           procedure,
           'input',
           payload,
@@ -393,11 +366,18 @@ export class Api {
         )
 
         const result = await this.handleTimeout(
-          procedure.handler(context, data),
+          procedure.handler(context, input),
           timeout,
         )
 
-        return await this.handleSchema(procedure, 'output', result, context)
+        const output = await this.handleSchema(
+          procedure,
+          'output',
+          result,
+          context,
+        )
+
+        return output
       }
     }
 
@@ -430,8 +410,8 @@ export class Api {
     return applyTimeout ? withTimeout(response, timeout, error) : response
   }
 
-  private async handleGuards(callOptions: ProcedureCallOptions) {
-    const { procedure, container, path, connection } = callOptions
+  private async handleGuards(callOptions: ProcedureCallOptions, path: ApiPath) {
+    const { procedure, container, connection } = callOptions
     const providers = [...this.application.registry.guards, ...procedure.guards]
     const guards = await Promise.all(providers.map((p) => container.resolve(p)))
     const guardOptions = Object.freeze({ connection, path })

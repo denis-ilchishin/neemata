@@ -10,14 +10,9 @@ import {
 } from '@test/_utils'
 
 import { ApiError, ErrorCode } from '@neematajs/common'
-import { Api, Procedure, type ProcedureCallOptions } from './api'
+import { Api, Middleware, Procedure, type ProcedureCallOptions } from './api'
 import type { AnyProcedure, FilterFn, GuardFn, MiddlewareFn } from './common'
-import {
-  CALL_PROVIDER,
-  CONNECTION_PROVIDER,
-  Container,
-  Provider,
-} from './container'
+import { CONNECTION_PROVIDER, Container, Provider } from './container'
 import { Registry } from './registry'
 import { noop } from './utils/functions'
 
@@ -168,7 +163,6 @@ describe.sequential('Api', () => {
       transport,
       connection,
       payload: {},
-      path: [options.procedure],
       ...options,
     })
 
@@ -228,7 +222,6 @@ describe.sequential('Api', () => {
     const procedure = testProcedure()
       .withDependencies({
         connection: CONNECTION_PROVIDER,
-        call: CALL_PROVIDER,
       })
       .withHandler(spy)
     registry.registerProcedure('test', 'test', procedure)
@@ -240,7 +233,6 @@ describe.sequential('Api', () => {
     expect(spy).toHaveBeenCalledWith(
       {
         connection,
-        call: expect.any(Function),
       },
       expect.anything(),
     )
@@ -327,8 +319,8 @@ describe.sequential('Api', () => {
 
     const handlerFn = vi.fn(() => 'result')
 
-    const middleware1 = new Provider().withValue(middleware1Fn as MiddlewareFn)
-    const middleware2 = new Provider().withValue(middleware2Fn as MiddlewareFn)
+    const middleware1 = new Middleware().withValue(middleware1Fn)
+    const middleware2 = new Middleware().withValue(middleware2Fn)
     const procedure = testProcedure()
       .withMiddlewares(middleware1, middleware2)
       .withHandler(handlerFn)
@@ -339,22 +331,18 @@ describe.sequential('Api', () => {
 
     expect(middleware1Fn).toHaveBeenCalledWith(
       {
-        names: ['test/test'],
         connection,
-        path: [procedure],
-        procedure,
         container,
+        path: { procedure, name: 'test/test' },
       },
       expect.any(Function),
       [1],
     )
     expect(middleware2Fn).toHaveBeenCalledWith(
       {
-        names: ['test/test'],
         connection,
-        path: [procedure],
-        procedure,
         container,
+        path: { procedure, name: 'test/test' },
       },
       expect.any(Function),
       [1, 2],

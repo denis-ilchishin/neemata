@@ -1,10 +1,4 @@
-import {
-  type AnyProvider,
-  type CallFn,
-  type ExecuteFn,
-  type Merge,
-  Scope,
-} from './common'
+import { type AnyProvider, type ExecuteFn, type Merge, Scope } from './common'
 import type { EventManager } from './events'
 import type { Logger } from './logger'
 import type { Registry } from './registry'
@@ -121,10 +115,13 @@ export class Provider<
     return Provider.override(provider, this, { factory, value: undefined })
   }
 
-  withValue<T extends ProviderValue extends never ? any : ProviderValue>(
+  withValue<T extends null extends ProviderValue ? any : ProviderValue>(
     value: T,
   ) {
-    const provider = new Provider<T, ProviderDeps>()
+    const provider = new Provider<
+      null extends ProviderValue ? T : ProviderValue,
+      ProviderDeps
+    >()
     return Provider.override(provider, this, {
       value,
       factory: undefined,
@@ -309,10 +306,6 @@ export const CONNECTION_PROVIDER = new Provider<
 >()
   .withScope(Scope.Connection)
   .withDescription('RPC connection')
-
-export const CALL_PROVIDER = new Provider<CallFn>()
-  .withScope(Scope.Connection)
-  .withDescription('RPC nested call function')
 
 export const EXECUTE_PROVIDER = new Provider<ExecuteFn>().withDescription(
   'Task execution function',

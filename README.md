@@ -1,3 +1,6 @@
+# ! MOVED TO [neematajs/neemata](https://github.com/) !
+
+
 ## Neemata
 Node.js RPC application server (**proof of concept**)
 
